@@ -152,10 +152,16 @@ if ($heroVideo !== [] && $heroPoster === null) {
  | arrive somewhere that looks almost the same. The search box and the category
  | filter now sit directly above the cards on the homepage.
  |
- | Both controls are plain GET parameters handled server-side rather than
- | JavaScript filtering, which keeps the result linkable: ?category=waterfalls
- | is a URL the Tourism Office can put on a poster, and it still works with
- | scripting unavailable.
+ | Both controls remain plain GET parameters, so ?category=waterfalls is a URL
+ | the Tourism Office can put on a poster and the catalogue still works with
+ | scripting unavailable. What changed is that the query no longer does the
+ | filtering for the visible page: every published destination is fetched and
+ | rendered once, and the filter decides which cards are shown.
+ |
+ | The reason is the same one that drove the announcement chips. Filtering
+ | server-side meant every chip click and every search reloaded the homepage —
+ | tearing down a background video, a carousel and a Leaflet map to change a
+ | grid two sections above them. The page flashed on every click.
  * -------------------------------------------------------------------------- */
 $search       = trim((string) ($_GET['q'] ?? ''));
 $categorySlug = trim((string) ($_GET['category'] ?? ''));
@@ -171,10 +177,7 @@ if ($activeCategory === null) {
 
 $isFiltered = $search !== '' || $activeCategory !== null;
 
-$destinationRows = DestinationRepository::published([
-    'search'      => $search ?: null,
-    'category_id' => $activeCategory['id'] ?? null,
-]);
+$destinationRows = DestinationRepository::published();
 
 $categories = CategoryRepository::withDestinations();
 
@@ -188,14 +191,38 @@ $destinations = array_map(static function (array $row): array {
         'slug'     => $row['slug'],
         'name'     => $row['name'],
         'category' => $row['category_name'] ?: 'Destination',
+        'categorySlug' => (string) ($row['category_slug'] ?? ''),
         'image'    => uploaded_url($row['cover_photo'])
                         ?? img('1464822759023-fed622ff2c3b'),
         'excerpt'  => $row['short_description'] ?: 'Details are being prepared by the Tourism Office.',
         'meta'     => $meta ? implode(' · ', $meta) : 'Tampakan, South Cotabato',
         'rating'   => (float) $row['avg_rating'],
         'reviews'  => (int) $row['review_count'],
+
+        /* The three columns the SQL LIKE used to search, joined and folded to
+           lower case so the client matches on exactly the same text the server
+           did. Searching what is merely printed on the card would quietly
+           change the results — the excerpt is truncated and the barangay is
+           formatted, so neither is the raw column. */
+        'haystack' => mb_strtolower(trim(implode(' ', array_filter([
+            $row['name'],
+            $row['barangay'],
+            $row['short_description'],
+        ])))),
     ];
 }, $destinationRows);
+
+/* The filter rule, stated once. Mirrored in JavaScript at the foot of the file;
+   if one changes the other has to change with it. Both conditions must hold,
+   which is what makes searching inside a chosen category work. */
+$destShows = static fn(array $d, string $cat, string $q): bool
+    => ($cat === '' || $d['categorySlug'] === $cat)
+    && ($q === '' || mb_strpos($d['haystack'], mb_strtolower($q)) !== false);
+
+$destCount = count(array_filter(
+    $destinations,
+    static fn(array $d): bool => $destShows($d, $categorySlug, $search)
+));
 
 /* -----------------------------------------------------------------------------
  | Why visit â€” value propositions
@@ -711,31 +738,36 @@ require __DIR__ . '/app/views/partials/public-nav.php';
         </div>
 
         <!-- Search and category filter.
-             The form posts back to the homepage and the fragment returns the
-             visitor to this section rather than the top of the page — landing
-             back at the hero after a search reads as though nothing happened. -->
-        <form class="explore-filters" method="get" action="<?= e(base_url('/')) ?>#destinations">
+             The form still submits: with no JavaScript it reloads the homepage
+             with ?q= and the fragment returns the visitor to this section
+             rather than the hero. The script at the foot of the page takes over
+             when it can, filtering the cards as the visitor types and never
+             navigating — so the video, the carousel and the map stay up. -->
+        <form class="explore-filters" method="get" action="<?= e(base_url('/')) ?>#destinations"
+              id="destForm">
             <div class="explore-search">
                 <i class="fa-solid fa-magnifying-glass"></i>
-                <input type="search" name="q" value="<?= e($search) ?>"
+                <input type="search" name="q" value="<?= e($search) ?>" id="destSearch"
                        placeholder="Search destinations, barangays, or activities"
-                       aria-label="Search destinations">
+                       aria-label="Search destinations" autocomplete="off">
             </div>
 
-            <?php /* Keeps the chosen category while searching within it. */ ?>
-            <?php if ($categorySlug !== ''): ?>
-                <input type="hidden" name="category" value="<?= e($categorySlug) ?>">
-            <?php endif; ?>
+            <?php /* Keeps the chosen category while searching within it. The
+                     script keeps this in step as the chips are clicked, so a
+                     no-JS submit after a category choice still narrows. */ ?>
+            <input type="hidden" name="category" value="<?= e($categorySlug) ?>" id="destCategory"
+                   <?= $categorySlug === '' ? 'disabled' : '' ?>>
 
             <button type="submit" class="btn btn-primary-grad">Search</button>
         </form>
 
-        <div class="chip-row">
-            <a href="<?= e(destinations_url(['q' => $search])) ?>"
+        <div class="chip-row" id="destChips">
+            <a href="<?= e(destinations_url(['q' => $search])) ?>" data-dest-filter=""
                class="chip <?= $activeCategory === null ? 'is-active' : '' ?>">All</a>
 
             <?php foreach ($categories as $c): ?>
                 <a href="<?= e(destinations_url(['category' => $c['slug'], 'q' => $search])) ?>"
+                   data-dest-filter="<?= e($c['slug']) ?>"
                    class="chip <?= ($activeCategory['id'] ?? null) === $c['id'] ? 'is-active' : '' ?>">
                     <?php if ($c['icon']): ?><i class="fa-solid <?= e($c['icon']) ?>"></i><?php endif; ?>
                     <?= e($c['name']) ?>
@@ -744,36 +776,39 @@ require __DIR__ . '/app/views/partials/public-nav.php';
             <?php endforeach; ?>
         </div>
 
-        <?php if ($destinations === []): ?>
+        <!-- Rendered once and then addressed by the script rather than rebuilt.
+             Two empty states, because they mean opposite things: nothing
+             matched a filter, versus nothing has been published at all. Only
+             the first is the visitor's doing, and only the first offers a way
+             out of it. -->
+        <p class="explore-count" id="destCount" <?= $isFiltered && $destCount > 0 ? '' : 'hidden' ?>>
+            <span id="destCountText"><?php if ($isFiltered && $destCount > 0): ?><?=
+                n($destCount) ?> <?= $destCount === 1 ? 'destination' : 'destinations' ?> found<?php
+                ?><?= $activeCategory !== null ? ' in ' . e($activeCategory['name']) : '' ?><?php
+                ?><?= $search !== '' ? ' for &ldquo;' . e($search) . '&rdquo;' : '' ?>.<?php endif; ?></span>
+            <a href="<?= e(destinations_url()) ?>" data-dest-filter="" data-dest-clear>Clear filters</a>
+        </p>
 
-            <div class="empty-public">
-                <i class="fa-solid fa-mountain-sun"></i>
-                <?php if ($isFiltered): ?>
-                    <h3>No destinations match that search</h3>
-                    <p>Try a different term, or
-                       <a href="<?= e(destinations_url()) ?>">browse everything</a>.</p>
-                <?php else: ?>
-                    <h3>Destinations are being prepared</h3>
-                    <p>The Municipal Tourism Office is currently registering the municipality&rsquo;s
-                       destinations. Please check back shortly.</p>
-                <?php endif; ?>
-            </div>
+        <div class="empty-public" id="destEmpty" <?= $destCount === 0 ? '' : 'hidden' ?>>
+            <i class="fa-solid fa-mountain-sun"></i>
+            <h3 id="destEmptyTitle"><?= $destinations === [] && !$isFiltered
+                ? 'Destinations are being prepared'
+                : 'No destinations match that search' ?></h3>
+            <p>
+                <span id="destEmptyText"><?= $destinations === [] && !$isFiltered
+                    ? 'The Municipal Tourism Office is currently registering the municipality&rsquo;s destinations. Please check back shortly.'
+                    : 'Try a different term, or' ?></span>
+                <a href="<?= e(destinations_url()) ?>" data-dest-filter="" data-dest-clear
+                   id="destEmptyClear" <?= $destinations === [] && !$isFiltered ? 'hidden' : '' ?>>browse everything</a>
+            </p>
+        </div>
 
-        <?php else: ?>
-
-            <?php if ($isFiltered): ?>
-                <p class="explore-count">
-                    <?= n(count($destinations)) ?>
-                    <?= count($destinations) === 1 ? 'destination' : 'destinations' ?> found<?php
-                        ?><?= $activeCategory !== null ? ' in ' . e($activeCategory['name']) : '' ?><?php
-                        ?><?= $search !== '' ? ' for &ldquo;' . e($search) . '&rdquo;' : '' ?>.
-                    <a href="<?= e(destinations_url()) ?>">Clear filters</a>
-                </p>
-            <?php endif; ?>
-
-            <div class="row g-4">
-                <?php foreach ($destinations as $i => $d): ?>
-                <div class="col-lg-4 col-md-6">
+        <div class="row g-4" id="destGrid">
+            <?php foreach ($destinations as $d): ?>
+                <div class="col-lg-4 col-md-6 dest-item"
+                     data-dest-category="<?= e($d['categorySlug']) ?>"
+                     data-dest-haystack="<?= e($d['haystack']) ?>"
+                     <?= $destShows($d, $categorySlug, $search) ? '' : 'hidden' ?>>
                     <article class="dest-card">
                         <div class="dest-card__media">
                             <img src="<?= e($d['image']) ?>" alt="<?= e(strip_tags($d['name'])) ?>, Tampakan"
@@ -798,10 +833,8 @@ require __DIR__ . '/app/views/partials/public-nav.php';
                         </div>
                     </article>
                 </div>
-                <?php endforeach; ?>
-            </div>
-
-        <?php endif; ?>
+            <?php endforeach; ?>
+        </div>
     </div>
 </section>
 
@@ -1505,6 +1538,139 @@ require __DIR__ . '/app/views/partials/public-nav.php';
 <script src="https://unpkg.com/aos@2.3.4/dist/aos.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="<?= e(asset('js/script.js')) ?>"></script>
+
+<!-- =============================================================================
+     Destination catalogue filter — in place, without reloading the page.
+     -----------------------------------------------------------------------------
+     Same shape as the announcement filter below, with one addition: a search
+     box that filters as it is typed. The haystack in each card's data
+     attribute is the same three columns the SQL LIKE searched — name, barangay,
+     short description — so typing here and submitting the form to the server
+     produce the same set.
+
+     The form still works with scripting off; here the submit is intercepted so
+     pressing Enter does not reload the page the search already filtered.
+     ========================================================================== -->
+<script>
+(function () {
+    const chips = document.getElementById('destChips');
+    const grid  = document.getElementById('destGrid');
+    const form  = document.getElementById('destForm');
+    if (!chips || !grid || !form) return;
+
+    const items      = Array.from(grid.querySelectorAll('.dest-item'));
+    const search     = document.getElementById('destSearch');
+    const hidden     = document.getElementById('destCategory');
+    const countBox   = document.getElementById('destCount');
+    const countText  = document.getElementById('destCountText');
+    const empty      = document.getElementById('destEmpty');
+    const emptyTitle = document.getElementById('destEmptyTitle');
+    const emptyText  = document.getElementById('destEmptyText');
+    const emptyClear = document.getElementById('destEmptyClear');
+
+    /* Slug to display name, for the "found in Waterfalls" line. Read off the
+       chips themselves rather than printed a second time from PHP — the chip
+       already carries the name, and a second copy is a second thing to keep
+       in step. The count badge inside <em> is not part of the name. */
+    const NAMES = {};
+    chips.querySelectorAll('[data-dest-filter]').forEach(chip => {
+        const clone = chip.cloneNode(true);
+        clone.querySelectorAll('em').forEach(em => em.remove());
+        NAMES[chip.dataset.destFilter] = clone.textContent.trim();
+    });
+
+    /* Nothing published at all is a different situation from nothing matching,
+       and only this flag can tell them apart once the cards are hidden. */
+    const catalogueIsEmpty = items.length === 0;
+
+    /* The mirror of $destShows in the PHP above. Change one, change both. */
+    const shows = (item, cat, q) =>
+        (cat === '' || item.dataset.destCategory === cat)
+        && (q === '' || item.dataset.destHaystack.indexOf(q) !== -1);
+
+    let category = <?= json_encode($categorySlug) ?>;
+
+    function apply(push) {
+        const q = search.value.trim().toLowerCase();
+        let shown = 0;
+
+        items.forEach(item => {
+            const visible = shows(item, category, q);
+            item.hidden = !visible;
+            if (visible) shown++;
+        });
+
+        chips.querySelectorAll('[data-dest-filter]').forEach(chip => {
+            chip.classList.toggle('is-active', chip.dataset.destFilter === category);
+        });
+
+        /* Kept in step so a no-JS submit — or a submit after the script has
+           been running — carries the chosen category with it. */
+        hidden.value    = category;
+        hidden.disabled = category === '';
+
+        const filtered = category !== '' || q !== '';
+
+        countBox.hidden = !(filtered && shown > 0);
+        if (!countBox.hidden) {
+            countText.textContent = shown + (shown === 1 ? ' destination' : ' destinations')
+                + ' found'
+                + (category !== '' ? ' in ' + NAMES[category] : '')
+                + (q !== '' ? ' for “' + search.value.trim() + '”' : '')
+                + '.';
+        }
+
+        empty.hidden = shown > 0;
+        if (!empty.hidden) {
+            const nothingPublished = catalogueIsEmpty && !filtered;
+            emptyTitle.textContent = nothingPublished
+                ? 'Destinations are being prepared'
+                : 'No destinations match that search';
+            emptyText.textContent = nothingPublished
+                ? 'The Municipal Tourism Office is currently registering the municipality’s destinations. Please check back shortly.'
+                : 'Try a different term, or';
+            emptyClear.hidden = nothingPublished;
+        }
+
+        if (push) {
+            const params = new URLSearchParams();
+            if (q !== '')        params.set('q', search.value.trim());
+            if (category !== '') params.set('category', category);
+
+            const query = params.toString();
+            history.replaceState({ category: category, q: q }, '',
+                location.pathname + (query ? '?' + query : '') + '#destinations');
+        }
+    }
+
+    chips.addEventListener('click', function (event) {
+        const link = event.target.closest('[data-dest-filter]');
+        if (!link) return;
+
+        event.preventDefault();
+        category = link.dataset.destFilter;
+        apply(true);
+    });
+
+    /* The two "clear" links live outside the chip row, so they get their own
+       listener — and they clear the search box as well as the category, which
+       is what "Clear filters", plural, promises. */
+    document.querySelectorAll('[data-dest-clear]').forEach(link => {
+        link.addEventListener('click', function (event) {
+            event.preventDefault();
+            category     = '';
+            search.value = '';
+            apply(true);
+        });
+    });
+
+    search.addEventListener('input', () => apply(true));
+    form.addEventListener('submit', function (event) {
+        event.preventDefault();
+        apply(true);
+    });
+})();
+</script>
 
 <!-- =============================================================================
      Announcement filter — in place, without reloading the page.

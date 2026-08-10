@@ -62,7 +62,7 @@ require __DIR__ . '/app/views/partials/public-nav.php';
     </div>
 </header>
 
-<section class="section section--light pt-0">
+<section class="section section--light section--snug">
     <div class="container">
 
         <?php if ($markerCount === 0): ?>

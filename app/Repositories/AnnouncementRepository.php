@@ -75,7 +75,21 @@ final class AnnouncementRepository
         return Database::all($sql, $params);
     }
 
-    /** Upcoming events for the homepage — future dates only, soonest first. */
+    /**
+     * Upcoming events for the homepage — future dates only, soonest first.
+     *
+     * Two dates are at work here and they are not the same date. event_date is
+     * when the festival happens; publish_at is when the municipality is willing
+     * to say so. This query filtered on the first and ignored the second, so an
+     * event written up in advance and scheduled for release appeared on the
+     * homepage the moment it was saved — while publicFeed(), which does check,
+     * correctly kept it hidden. The same record was public in one section and
+     * embargoed in another, which made publish_at meaningless for events.
+     *
+     * The expiry check comes along for the ride, for the same reason: a notice
+     * the office has dated out of circulation should leave every section at
+     * once, not just the ones that remembered to ask.
+     */
     public static function upcomingEvents(int $limit = 3): array
     {
         $limit = max(1, min($limit, 20));
@@ -89,6 +103,8 @@ final class AnnouncementRepository
                 AND a.type = 'event'
                 AND a.event_date IS NOT NULL
                 AND a.event_date >= CURDATE()
+                AND (a.publish_at IS NULL OR a.publish_at <= NOW())
+                AND (a.expires_at IS NULL OR a.expires_at >= NOW())
               ORDER BY a.event_date ASC
               LIMIT {$limit}"
         );

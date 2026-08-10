@@ -194,6 +194,17 @@ img { max-width: 100%; height: auto; }
 
 /* ---- Section shells ---- */
 .section          { padding: var(--section-y) 0; position: relative; }
+
+/* A section that opens directly under a page banner.
+ *
+ * The full --section-y is 4.5–7.5rem, which is right between two sections but
+ * absurd immediately below a header that has already introduced the page — the
+ * map page used pt-0 to escape it and went too far the other way, leaving the
+ * filter chips welded to the bottom edge of the gradient. This is the middle:
+ * clearly separated, without spending a third of the viewport on it before the
+ * map has even appeared. */
+.section--snug    { padding-top: 2.25rem; }
+
 .section--light   { background: var(--white); }
 .section--tint    { background: var(--gray-100); }
 .section--dark    { background: var(--grad-dark); color: rgba(255,255,255,.82); }
@@ -273,6 +284,23 @@ img { max-width: 100%; height: auto; }
                 background .32s var(--ease), color .32s var(--ease);
 }
 .btn-lg { padding: 1rem 2.4rem; font-size: 1rem; }
+
+/* .btn-sm has to be declared here, not inherited from Bootstrap.
+ *
+ * This stylesheet loads after Bootstrap and .btn above sets padding at the
+ * same specificity as Bootstrap's .btn-sm — so the later rule won and every
+ * "small" button rendered at full size. On the map toolbar that put a 54px
+ * pill next to 38px filter chips, which is the mismatch that made the row look
+ * out of alignment even though the flex box was centring both correctly.
+ *
+ * The metrics are the chip's: same font-size, and padding a half pixel tighter
+ * to pay for the 2px outline border against the chip's 1.5px, so the two come
+ * out the same height rather than merely centred on each other. */
+.btn-sm {
+    padding: .45rem 1.25rem;
+    font-size: .84rem;
+    gap: .45rem;
+}
 .btn:focus-visible { outline: 3px solid var(--blue-light); outline-offset: 3px; }
 
 /* Primary gradient button with a sliding sheen on hover */
@@ -3178,10 +3206,12 @@ body [data-aos="tt-pop"][data-aos] {
 .chip-row--center { justify-content: center; }
 
 /* Bootstrap's reboot already declares [hidden] { display: none !important }, so
-   this is belt and braces — but the announcement filter hides cards by setting
-   the attribute, and a grid column that ignored it would leave the filtered-out
-   notices sitting in plain sight. Cheap enough to not depend on a CDN for. */
-.news-item[hidden] { display: none !important; }
+   this is belt and braces — but both homepage filters hide cards by setting the
+   attribute, and a grid column that ignored it would leave the filtered-out
+   notices and destinations sitting in plain sight. Cheap enough to not depend
+   on a CDN for. */
+.news-item[hidden],
+.dest-item[hidden] { display: none !important; }
 .chip {
     display: inline-flex;
     align-items: center;
