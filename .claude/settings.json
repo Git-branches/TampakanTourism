@@ -1,0 +1,34 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(C:/laragon/bin/php/php-8.1.10-Win32-vs16-x64/php.exe -r ' *)",
+      "Bash(awk -F: '$1>2270 {print \"  line \"$1\": \"$2}')",
+      "Bash(python -)",
+      "Bash(curl -s \"http://tampakantourism.test/destinations.php\")",
+      "Bash(grep -nE \"^\\(html|body\\)[ ,{]|^html,|^body \\\\{\" assets/css/style.css)",
+      "Bash(command -v ffprobe)",
+      "Bash(ffprobe -v error -show_entries format=duration,size:stream=codec_type,codec_name,width,height -of default=noprint_wrappers=1 assets/video/Tampakan.mp4)",
+      "Bash(python -c ' *)",
+      "Bash(curl -s -o /tmp/x.html -w \"  status: %{http_code}\\\\n\" \"http://tampakantourism.test/\")",
+      "Bash(grep -oiE \"warning[^<]{0,80}\" /tmp/x.html)",
+      "Bash(node --check assets/js/script.js)",
+      "Bash(curl -s -r 0-15 \"http://tampakantourism.test/assets/video/Tampakan.mp4\")",
+      "Bash(curl -s -o /dev/null -w '  range requests supported: %{http_code} \\(206 = yes, needed for video seeking\\)\\\\n' -r 0-100 http://tampakantourism.test/assets/video/Tampakan.mp4)",
+      "Bash(curl -s \"http://tampakantourism.test/assets/js/script.js\" -o /tmp/served.js)",
+      "Bash(curl -s \"http://tampakantourism.test/assets/css/style.css\")",
+      "Bash(grep -vE '^\\\\s*\\\\*|^\\\\s*/\\\\*')",
+      "Bash(curl -s \"https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css\")",
+      "Bash(curl -s -o /dev/null -w '%{http_code}' 'http://tampakantourism.test/')",
+      "Bash(echo \"  page: $\\(curl -s -o /dev/null -w '%{http_code}' 'http://tampakantourism.test/'\\)\")",
+      "Bash(awk '/^\\\\.hero__video \\\\{/,/^\\\\}/')",
+      "Bash(grep -n '^\\\\$heroVideo = \\\\[\\\\];\\\\|^\\\\$heroPoster\\\\|^\\\\$heroSlides = \\\\[' index.php)",
+      "Bash(C:/laragon/bin/php/php-8.1.10-Win32-vs16-x64/php.exe index.php)",
+      "Bash(grep -oiE \"\\(warning|notice\\)[^<]{0,90}\")",
+      "Bash(C:/laragon/bin/php/php-8.1.10-Win32-vs16-x64/php.exe database/reset.php)",
+      "Bash(curl -s \"http://localhost/TampakanTourism/index.php\")",
+      "Bash(echo \"=== EXIT $?\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code} %{size_download}\\\\n\" \"http://localhost/TampakanTourism/index.php\")",
+      "Bash(php -r ' *)"
+    ]
+  }
+}

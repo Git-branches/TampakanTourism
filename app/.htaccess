@@ -1,0 +1,11 @@
+# TourSync — the application layer must never be reachable over HTTP.
+# On cPanel this folder should be moved ABOVE public_html/, which makes this
+# file redundant. It stays as defence in depth for hosts where it cannot be.
+
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+</IfModule>

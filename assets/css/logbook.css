@@ -1,0 +1,451 @@
+/* =============================================================================
+   TourSync — Digital Tourist Logbook
+   -----------------------------------------------------------------------------
+   A third stylesheet, deliberately. The public site is browsed on a desktop
+   and the admin area is operated at a desk; this is filled in standing up,
+   outdoors, on a phone, sometimes one-handed and often in bright sunlight.
+
+   That shapes every decision here:
+     · Larger type and taller touch targets than either other interface.
+     · Higher contrast — a subtle grey on white is unreadable at midday.
+     · Single column at every width. There is no tablet layout to design for
+       when the device is a phone in someone's hand.
+     · 16px minimum on inputs: anything smaller makes iOS Safari zoom the
+       viewport on focus, which loses the visitor's place in the form.
+   ========================================================================== */
+
+:root {
+    --lb-green:       #2E7D32;
+    --lb-green-dark:  #1B5E20;
+    --lb-green-pale:  #E8F3E9;
+    --lb-blue:        #0288D1;
+    --lb-amber:       #B45309;
+    --lb-amber-pale:  #FEF6E7;
+    --lb-red:         #C62828;
+    --lb-red-pale:    #FDECEA;
+
+    --lb-ink:         #16211A;
+    --lb-ink-2:       #43514A;
+    --lb-ink-3:       #6B7A72;
+    --lb-line:        #DCE5DE;
+    --lb-surface:     #FFFFFF;
+    --lb-canvas:      #F2F6F3;
+
+    --lb-radius:      14px;
+    --lb-radius-sm:   10px;
+    --lb-shadow:      0 1px 3px rgba(22, 33, 26, .07);
+    --lb-ease:        cubic-bezier(.4, 0, .2, 1);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+.lb-body {
+    font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--lb-canvas);
+    color: var(--lb-ink);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -webkit-text-size-adjust: 100%;
+}
+
+a { color: var(--lb-green-dark); }
+
+:focus-visible {
+    outline: 3px solid var(--lb-green);
+    outline-offset: 2px;
+    border-radius: 6px;
+}
+
+/* -----------------------------------------------------------------------------
+   Government identification bar
+   -----------------------------------------------------------------------------
+   Fixed at the top of every logbook screen so a visitor can confirm at a
+   glance that they are on the Municipality's own page. A scanned QR code is
+   an act of trust in a physical sign — this is what that trust resolves to.
+   -------------------------------------------------------------------------- */
+.lb-gov {
+    display: flex;
+    align-items: center;
+    gap: .7rem;
+    padding: .7rem 1rem;
+    background: var(--lb-green-dark);
+    color: #fff;
+}
+.lb-gov img {
+    width: 34px;
+    height: 34px;
+    object-fit: contain;
+    border-radius: 50%;
+    background: #fff;
+    padding: 2px;
+    flex: 0 0 34px;
+}
+.lb-gov strong { display: block; font-size: .84rem; font-weight: 600; line-height: 1.25; }
+.lb-gov span   { display: block; font-size: .71rem; opacity: .8; }
+
+.lb-shell {
+    max-width: 560px;
+    margin: 0 auto;
+    padding: .9rem .9rem 2rem;
+    display: flex;
+    flex-direction: column;
+    gap: .9rem;
+}
+
+/* -----------------------------------------------------------------------------
+   Cards
+   -------------------------------------------------------------------------- */
+.lb-card {
+    background: var(--lb-surface);
+    border: 1px solid var(--lb-line);
+    border-radius: var(--lb-radius);
+    padding: 1.15rem;
+    box-shadow: var(--lb-shadow);
+}
+.lb-card--center { text-align: center; }
+.lb-card--head   { text-align: center; padding-top: 1.4rem; }
+.lb-card--warn   { background: var(--lb-amber-pale); border-color: #F5D9A8; }
+.lb-card--warn .lb-h2 { color: var(--lb-amber); }
+.lb-card--privacy { background: #F7FAF8; }
+
+.lb-card--head h1,
+.lb-hero__text h1 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1.25;
+    letter-spacing: -.01em;
+}
+
+.lb-eyebrow {
+    font-size: .76rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--lb-green);
+    margin-bottom: .35rem;
+}
+
+.lb-h2 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: .85rem;
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    color: var(--lb-ink);
+}
+.lb-h2 i { color: var(--lb-green); font-size: .9rem; }
+
+.lb-optional {
+    font-size: .68rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--lb-ink-3);
+    background: var(--lb-canvas);
+    padding: .12rem .45rem;
+    border-radius: 4px;
+    margin-left: auto;
+}
+
+.lb-muted  { color: var(--lb-ink-3); font-size: .88rem; }
+.lb-prose  { color: var(--lb-ink-2); font-size: .92rem; line-height: 1.75; }
+.lb-mb     { margin-bottom: .9rem; }
+.lb-mt     { margin-top: .7rem; }
+
+/* -----------------------------------------------------------------------------
+   Destination hero
+   -------------------------------------------------------------------------- */
+.lb-hero {
+    position: relative;
+    min-height: 210px;
+    border-radius: var(--lb-radius);
+    overflow: hidden;
+    background: var(--lb-green-dark) center / cover no-repeat;
+    display: flex;
+    align-items: flex-end;
+}
+.lb-hero__scrim {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top, rgba(11, 34, 14, .92), rgba(11, 34, 14, .25) 70%);
+}
+.lb-hero__text { position: relative; padding: 1.1rem; color: #fff; }
+
+.lb-chip {
+    display: inline-block;
+    font-size: .72rem;
+    font-weight: 600;
+    padding: .22rem .7rem;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, .2);
+    backdrop-filter: blur(6px);
+    margin-bottom: .5rem;
+}
+.lb-chip--solid { background: var(--lb-green-pale); color: var(--lb-green-dark); }
+
+/* -----------------------------------------------------------------------------
+   Call to action
+   -------------------------------------------------------------------------- */
+.lb-cta { text-align: center; border-color: var(--lb-green); border-width: 2px; }
+.lb-cta__lead { font-size: 1.02rem; margin-bottom: .25rem; }
+.lb-cta__sub  { font-size: .85rem; color: var(--lb-ink-3); margin-bottom: 1rem; }
+
+.lb-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: .5rem;
+    font-family: inherit;
+    font-size: .95rem;
+    font-weight: 600;
+    padding: .85rem 1.5rem;
+    border-radius: var(--lb-radius-sm);
+    border: 2px solid transparent;
+    text-decoration: none;
+    cursor: pointer;
+    transition: transform .2s var(--lb-ease), box-shadow .2s var(--lb-ease);
+
+    /* 48px is the smallest target most adults hit reliably on a phone. */
+    min-height: 48px;
+}
+.lb-btn--lg { width: 100%; font-size: 1.02rem; padding: 1rem 1.5rem; min-height: 54px; }
+
+.lb-btn--primary {
+    background: linear-gradient(135deg, var(--lb-green), var(--lb-green-dark));
+    color: #fff;
+}
+.lb-btn--primary:active { transform: scale(.98); }
+.lb-btn--primary:disabled { opacity: .6; cursor: not-allowed; }
+
+.lb-btn--ghost {
+    background: var(--lb-surface);
+    border-color: var(--lb-line);
+    color: var(--lb-ink-2);
+}
+.lb-btn--ghost:disabled { opacity: .55; cursor: not-allowed; }
+
+/* -----------------------------------------------------------------------------
+   Facts, lists, gallery
+   -------------------------------------------------------------------------- */
+.lb-facts > div {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: .55rem 0;
+    border-bottom: 1px solid var(--lb-line);
+}
+.lb-facts > div:last-child { border-bottom: 0; }
+.lb-facts dt { font-size: .84rem; color: var(--lb-ink-3); white-space: nowrap; }
+.lb-facts dt i { margin-right: .35rem; opacity: .75; }
+.lb-facts dd { font-size: .88rem; font-weight: 500; text-align: right; }
+
+.lb-facilities { list-style: none; display: flex; flex-wrap: wrap; gap: .45rem; }
+.lb-facilities li {
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+    font-size: .83rem;
+    background: var(--lb-green-pale);
+    color: var(--lb-green-dark);
+    padding: .35rem .7rem;
+    border-radius: 20px;
+}
+
+.lb-list { list-style: none; display: grid; gap: .7rem; }
+.lb-list li { display: flex; gap: .7rem; font-size: .87rem; color: var(--lb-ink-2); }
+.lb-list i { color: var(--lb-green); margin-top: .2rem; flex: 0 0 16px; }
+
+.lb-gallery { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+.lb-gallery img {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    border-radius: var(--lb-radius-sm);
+}
+
+/* -----------------------------------------------------------------------------
+   Form
+   -------------------------------------------------------------------------- */
+.lb-form { display: flex; flex-direction: column; gap: .9rem; }
+
+.lb-field { margin-bottom: 1rem; }
+.lb-field:last-child { margin-bottom: 0; }
+
+.lb-field label {
+    display: block;
+    font-size: .88rem;
+    font-weight: 600;
+    color: var(--lb-ink-2);
+    margin-bottom: .4rem;
+}
+
+.lb-field input[type="text"],
+.lb-field input[type="tel"],
+.lb-field input[type="email"],
+.lb-field input[type="number"],
+.lb-field select {
+    width: 100%;
+    /* 16px exactly: below this, iOS Safari zooms the page on focus and the
+       visitor loses their position in the form. */
+    font-size: 16px;
+    font-family: inherit;
+    color: var(--lb-ink);
+    padding: .8rem .9rem;
+    min-height: 50px;
+    border: 1.5px solid var(--lb-line);
+    border-radius: var(--lb-radius-sm);
+    background: var(--lb-surface);
+    appearance: none;
+}
+.lb-field select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%236B7A72'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right .9rem center;
+    background-size: 14px;
+    padding-right: 2.4rem;
+}
+.lb-field input:focus,
+.lb-field select:focus {
+    outline: none;
+    border-color: var(--lb-green);
+    box-shadow: 0 0 0 3px rgba(46, 125, 50, .15);
+}
+.lb-field .is-invalid { border-color: var(--lb-red); background: var(--lb-red-pale); }
+
+.lb-hint  { font-size: .78rem; color: var(--lb-ink-3); margin-top: .35rem; }
+.lb-error { font-size: .8rem; color: var(--lb-red); margin-top: .35rem; font-weight: 500; }
+.lb-req   { color: var(--lb-red); }
+
+.lb-row { display: grid; grid-template-columns: 1fr 1fr; gap: .7rem; }
+.lb-row .lb-field { margin-bottom: 1rem; }
+
+/* Radio choices sized as full-width tap targets rather than dots. */
+.lb-choices { display: grid; gap: .5rem; }
+.lb-choice {
+    display: flex !important;
+    align-items: center;
+    gap: .7rem;
+    padding: .8rem .9rem;
+    border: 1.5px solid var(--lb-line);
+    border-radius: var(--lb-radius-sm);
+    cursor: pointer;
+    font-weight: 500 !important;
+    margin-bottom: 0 !important;
+    min-height: 50px;
+}
+.lb-choice input { width: 20px; height: 20px; accent-color: var(--lb-green); flex: 0 0 20px; }
+.lb-choice:has(input:checked) { border-color: var(--lb-green); background: var(--lb-green-pale); }
+
+/* Honeypot: removed from the visual and accessibility trees, but still
+   submitted by a bot that fills every input it finds. */
+.lb-hp {
+    position: absolute;
+    left: -9999px;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+}
+
+/* -----------------------------------------------------------------------------
+   Privacy and consent
+   -------------------------------------------------------------------------- */
+.lb-privacy {
+    font-size: .84rem;
+    color: var(--lb-ink-2);
+    line-height: 1.65;
+    margin-bottom: 1rem;
+}
+.lb-privacy ul { margin: .6rem 0 0 1.1rem; }
+.lb-privacy li { margin-bottom: .3rem; }
+
+.lb-consent {
+    display: flex;
+    gap: .75rem;
+    align-items: flex-start;
+    padding: .9rem;
+    background: var(--lb-surface);
+    border: 2px solid var(--lb-line);
+    border-radius: var(--lb-radius-sm);
+    cursor: pointer;
+    font-size: .87rem;
+    line-height: 1.55;
+}
+.lb-consent input {
+    width: 22px;
+    height: 22px;
+    flex: 0 0 22px;
+    margin-top: .1rem;
+    accent-color: var(--lb-green);
+}
+.lb-consent:has(input:checked) { border-color: var(--lb-green); background: var(--lb-green-pale); }
+.lb-consent.is-invalid { border-color: var(--lb-red); background: var(--lb-red-pale); }
+
+.lb-submit { display: flex; flex-direction: column; align-items: center; gap: .8rem; }
+.lb-back { font-size: .86rem; color: var(--lb-ink-3); text-decoration: none; }
+
+/* -----------------------------------------------------------------------------
+   Alerts, icons, success
+   -------------------------------------------------------------------------- */
+.lb-alert {
+    display: flex;
+    gap: .8rem;
+    padding: .9rem 1rem;
+    border-radius: var(--lb-radius-sm);
+    font-size: .88rem;
+}
+.lb-alert--error { background: var(--lb-red-pale); color: #8A1F19; border: 1px solid #F3C9C5; }
+.lb-alert i { font-size: 1.05rem; margin-top: .1rem; }
+.lb-alert p { margin-top: .2rem; font-weight: 400; }
+
+.lb-icon {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-size: 2rem;
+    margin: 0 auto 1rem;
+}
+.lb-icon--ok   { background: var(--lb-green-pale); color: var(--lb-green); }
+.lb-icon--warn { background: var(--lb-amber-pale); color: var(--lb-amber); }
+
+.lb-success h1 { font-size: 1.4rem; font-weight: 700; margin-bottom: .6rem; }
+.lb-success__where {
+    font-size: 1.02rem;
+    font-weight: 600;
+    color: var(--lb-green-dark);
+    margin-bottom: .8rem;
+}
+.lb-success__where span {
+    display: block;
+    font-size: .81rem;
+    font-weight: 400;
+    color: var(--lb-ink-3);
+    margin-top: .15rem;
+}
+
+.lb-actions { display: grid; gap: .6rem; }
+
+.lb-foot {
+    text-align: center;
+    font-size: .76rem;
+    color: var(--lb-ink-3);
+    padding-top: .8rem;
+}
+.lb-foot p { margin-bottom: .2rem; }
+
+/* -----------------------------------------------------------------------------
+   Narrow phones
+   -------------------------------------------------------------------------- */
+@media (max-width: 380px) {
+    .lb-row { grid-template-columns: 1fr; }
+    .lb-shell { padding: .7rem .7rem 1.6rem; }
+    .lb-card { padding: 1rem; }
+    .lb-card--head h1, .lb-hero__text h1 { font-size: 1.32rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    * { transition-duration: .001ms !important; animation-duration: .001ms !important; }
+}

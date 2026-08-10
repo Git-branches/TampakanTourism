@@ -1,0 +1,11 @@
+# TourSync — uploaded files are data, never code.
+# An image that is secretly a PHP script is the classic upload attack; this
+# makes the directory incapable of running one even if validation is bypassed.
+
+php_flag engine off
+AddType text/plain .php .php3 .php4 .php5 .phtml .pl .py .cgi .asp .sh
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule \.(php|php3|php4|php5|phtml|pl|py|cgi|asp|sh)$ - [F,L,NC]
+</IfModule>

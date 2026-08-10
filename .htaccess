@@ -1,0 +1,38 @@
+# =============================================================================
+#  TourSync — document root configuration
+# =============================================================================
+
+Options -Indexes
+
+# Custom error pages. Without these the visitor sees an Apache default that
+# names the server software and version — free reconnaissance for anyone
+# probing the site.
+ErrorDocument 404 /404.php
+ErrorDocument 500 /500.php
+ErrorDocument 403 /404.php
+
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # QR codes encode https://host/d/<32-hex-token>
+    #
+    # A path is used rather than a query string because the QR image is
+    # printed on weather-exposed signage and scanned by whatever phone the
+    # visitor has: fewer characters means a lower-density code, which stays
+    # readable when scuffed, faded, or photographed at an angle.
+    RewriteRule ^d/([a-f0-9]{32})/?$ d/index.php?token=$1 [L,QSA]
+</IfModule>
+
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "DENY"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+# Never serve the version-control or dependency metadata if it is ever present.
+<FilesMatch "^(\.git.*|composer\.(json|lock)|package(-lock)?\.json)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+</FilesMatch>

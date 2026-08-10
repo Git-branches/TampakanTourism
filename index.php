@@ -1,0 +1,1599 @@
+<?php
+/**
+ * =============================================================================
+ *  TAMPAKAN TOURISM PORTAL â€” Public Landing Page
+ *  Municipality of Tampakan, South Cotabato, Philippines
+ * -----------------------------------------------------------------------------
+ *  This is the PUBLIC-FACING tourism website only. No admin dashboard and no
+ *  backend logic live here. Content is held in plain PHP arrays below so that a
+ *  future release can swap each array for a database query without touching the
+ *  markup underneath.
+ *
+ *  Stack : HTML5 Â· Bootstrap 5 Â· CSS3 Â· Vanilla JS Â· Font Awesome Â· AOS Â· Leaflet
+ *  Assets: assets/css/style.css Â· assets/js/script.js
+ * =============================================================================
+ */
+
+declare(strict_types=1);
+
+/* Phase 1: the page now reads live data. bootstrap.php supplies the
+   configuration, the database connection, and the e() helper. */
+require_once __DIR__ . '/bootstrap.php';
+
+use App\Core\Database;
+use App\Core\Weather;
+use App\Repositories\AnnouncementRepository;
+use App\Repositories\CategoryRepository;
+use App\Repositories\DestinationRepository;
+use App\Repositories\FeedbackRepository;
+
+/* -----------------------------------------------------------------------------
+ | Site-wide configuration
+ * -------------------------------------------------------------------------- */
+$site = [
+    'name'        => 'Tampakan Tourism',
+    'municipality'=> 'Municipality of Tampakan',
+    'province'    => 'South Cotabato, Philippines',
+    'tagline'     => 'Discover the Beauty of Tampakan',
+    'description' => 'Official tourism portal of the Municipality of Tampakan, South Cotabato â€” explore highland destinations, festivals, eco-tourism trails, and travel guides.',
+    'url'         => 'https://tourism.tampakan.gov.ph',
+    'admin_url'   => 'admin/login.php',   // Handled by a separate module.
+    'lat'         => 6.4333,              // Tampakan municipal hall (approx.)
+    'lng'         => 124.9167,
+];
+
+/* e() now comes from app/helpers.php so the public site and the admin
+   area escape output through exactly the same function. */
+
+/* img() now lives in app/helpers.php so every public page shares the same
+   photograph fallback. */
+
+/* Navigation now lives in public_nav() (app/helpers.php) so the navbar,
+   the footer, and every other page share one definition. */
+
+
+/* -----------------------------------------------------------------------------
+ | Hero video  —  optional, drop-in.
+ |
+ | If assets/video/hero.mp4 exists the hero plays it behind the rotating
+ | headlines; if not, the photo slider below carries the section on its own.
+ | Nothing needs editing either way.
+ |
+ | The <source> URLs are held in data attributes rather than the src, so the
+ | browser downloads nothing until script.js decides the visitor should have
+ | it. A tourist on mobile data in an upland barangay pays for every megabyte,
+ | and they get the poster image instead.
+ * -------------------------------------------------------------------------- */
+$heroVideo = [];
+
+/* Any .webm or .mp4 in the folder is used — the file does not have to be
+   named a particular thing. WebM is listed first so browsers that support it
+   take the smaller file.
+ *
+ * Case matters here: Windows treats Tampakan.mp4 and tampakan.mp4 as the same
+ * file, Linux does not, and the production host is Linux. Reading the real
+ * directory entry rather than guessing a filename means the same code works
+ * in both places. */
+foreach (['webm' => 'video/webm', 'mp4' => 'video/mp4'] as $ext => $mime) {
+    $matches = glob(__DIR__ . '/assets/video/*.' . $ext) ?: [];
+
+    /* A file literally called hero.* wins if one exists, so the office can
+       override which clip plays without deleting the others. */
+    usort($matches, static fn($a, $b) =>
+        (int) (stripos(basename($b), 'hero') === 0) <=> (int) (stripos(basename($a), 'hero') === 0));
+
+    if ($matches !== []) {
+        $heroVideo[] = [
+            'src'  => base_url('assets/video/' . rawurlencode(basename($matches[0]))),
+            'type' => $mime,
+        ];
+    }
+}
+
+/* Poster: a real destination photo if one has been uploaded, so the still
+   frame shown before playback is of Tampakan rather than stock imagery.
+ *
+ * Several rows are read rather than one, because the newest row is not
+ * necessarily the one whose file still exists on disk. uploaded_url() returns
+ * null for the ones that have gone missing and the loop moves on. */
+$heroPoster = null;
+
+foreach (Database::all(
+    "SELECT p.file_path FROM destination_photos p
+       JOIN destinations d ON d.id = p.destination_id
+      WHERE d.status = 'active'
+      ORDER BY p.is_cover DESC, p.id ASC LIMIT 10"
+) as $row) {
+    if ($heroPoster = uploaded_url($row['file_path'])) {
+        break;
+    }
+}
+
+/* -----------------------------------------------------------------------------
+ | Hero slider
+ * -------------------------------------------------------------------------- */
+$heroSlides = [
+    [
+        'image'   => img('1501785888041-af3ef285b470', 1920, 1080),
+        'eyebrow' => 'Welcome to South Cotabato&rsquo;s Highland Heart',
+        'title'   => 'Discover the Beauty of Tampakan',
+        'text'    => 'Where cool mountain air, rolling highlands, and the living traditions of the B&rsquo;laan people meet a warm municipal welcome.',
+    ],
+    [
+        'image'   => img('1441974231531-c6227db76b6e', 1920, 1080),
+        'eyebrow' => 'Trails, Ridges &amp; Rivers',
+        'title'   => 'Adventure Above the Clouds',
+        'text'    => 'Trek forest ridges, chase hidden waterfalls, and wake to a sea of clouds rolling over the mountain range.',
+    ],
+    [
+        'image'   => img('1533105079780-92b9be482077', 1920, 1080),
+        'eyebrow' => 'Culture &amp; Heritage',
+        'title'   => 'Stories Woven Into the Land',
+        'text'    => 'Experience indigenous craftsmanship, heirloom weaving, and festivals that carry generations of Tampakan heritage.',
+    ],
+];
+
+/* A poster is not decoration here: a visitor who has asked for reduced motion
+   never sees the video play, so the poster IS their hero. If no destination
+   photo has been uploaded yet, fall back to the first slide image.
+   Placed after $heroSlides is defined — referencing it earlier resolved to
+   null silently, because ?? suppresses the undefined-variable warning. */
+if ($heroVideo !== [] && $heroPoster === null) {
+    $heroPoster = $heroSlides[0]['image'] ?? null;
+}
+
+
+/* -----------------------------------------------------------------------------
+ | Destination catalogue  —  LIVE, searchable, filterable.
+ |
+ | This section used to show six featured teasers and send everybody to
+ | destinations.php for the real list. That page is gone: a visitor who wants
+ | to find a place should not have to notice a button, load a second page, and
+ | arrive somewhere that looks almost the same. The search box and the category
+ | filter now sit directly above the cards on the homepage.
+ |
+ | Both controls are plain GET parameters handled server-side rather than
+ | JavaScript filtering, which keeps the result linkable: ?category=waterfalls
+ | is a URL the Tourism Office can put on a poster, and it still works with
+ | scripting unavailable.
+ * -------------------------------------------------------------------------- */
+$search       = trim((string) ($_GET['q'] ?? ''));
+$categorySlug = trim((string) ($_GET['category'] ?? ''));
+
+$activeCategory = $categorySlug !== '' ? CategoryRepository::findBySlug($categorySlug) : null;
+
+/* A slug nobody recognises would otherwise filter silently to nothing and
+   leave the chip row showing "All" as active, which reads as an empty
+   database rather than a bad link. */
+if ($activeCategory === null) {
+    $categorySlug = '';
+}
+
+$isFiltered = $search !== '' || $activeCategory !== null;
+
+$destinationRows = DestinationRepository::published([
+    'search'      => $search ?: null,
+    'category_id' => $activeCategory['id'] ?? null,
+]);
+
+$categories = CategoryRepository::withDestinations();
+
+$destinations = array_map(static function (array $row): array {
+    $meta = array_filter([
+        $row['barangay'] ? 'Barangay ' . $row['barangay'] : null,
+        $row['operating_hours'] ?: null,
+    ]);
+
+    return [
+        'slug'     => $row['slug'],
+        'name'     => $row['name'],
+        'category' => $row['category_name'] ?: 'Destination',
+        'image'    => uploaded_url($row['cover_photo'])
+                        ?? img('1464822759023-fed622ff2c3b'),
+        'excerpt'  => $row['short_description'] ?: 'Details are being prepared by the Tourism Office.',
+        'meta'     => $meta ? implode(' · ', $meta) : 'Tampakan, South Cotabato',
+        'rating'   => (float) $row['avg_rating'],
+        'reviews'  => (int) $row['review_count'],
+    ];
+}, $destinationRows);
+
+/* -----------------------------------------------------------------------------
+ | Why visit â€” value propositions
+ * -------------------------------------------------------------------------- */
+$reasons = [
+    ['icon' => 'fa-leaf',              'title' => 'Nature',        'text' => 'Highland forests, cloud-wrapped ridges, and cold mountain springs kept green year-round.'],
+    ['icon' => 'fa-person-hiking',     'title' => 'Adventure',     'text' => 'Trekking circuits, waterfall trails, camping decks, and ridge rides for every skill level.'],
+    ['icon' => 'fa-drum',              'title' => 'Culture',       'text' => 'Living B&rsquo;laan traditions â€” weaving, beadwork, music, and festivals held all year.'],
+    ['icon' => 'fa-utensils',          'title' => 'Local Cuisine', 'text' => 'Farm-fresh highland produce, native delicacies, and celebrated single-origin coffee.'],
+    ['icon' => 'fa-hand-holding-heart','title' => 'Hospitality',   'text' => 'A community that welcomes every visitor as a guest of the whole municipality.'],
+    ['icon' => 'fa-seedling',          'title' => 'Eco Tourism',   'text' => 'Community-managed sites, reforestation programs, and low-impact visitor practices.'],
+];
+
+/* -----------------------------------------------------------------------------
+ | Upcoming events  —  LIVE from published announcements of type "event".
+ |
+ | Past events drop off on their own; nobody has to remember to remove them.
+ * -------------------------------------------------------------------------- */
+$events = [];
+
+foreach (AnnouncementRepository::upcomingEvents(3) as $row) {
+    $when = $row['event_date'] ? strtotime($row['event_date']) : strtotime($row['created_at']);
+
+    $events[] = [
+        'slug'     => $row['slug'],
+        'title'    => $row['title'],
+        // Machine-readable date for the <time datetime> attribute. The day,
+        // month, and year below are for people; this one is for search
+        // engines and assistive technology.
+        'iso'      => date('Y-m-d', $when),
+        'image'    => $row['banner_path'] ? base_url($row['banner_path']) : img('1533174072545-7a4b6ad7a6c3'),
+        'day'      => date('d', $when),
+        'month'    => date('M', $when),
+        'year'     => date('Y', $when),
+        'location' => $row['event_location'] ?: ($row['destination_name'] ?: 'Tampakan, South Cotabato'),
+        'excerpt'  => $row['summary'] ?: mb_substr(strip_tags($row['body']), 0, 150),
+    ];
+}
+
+/* -----------------------------------------------------------------------------
+ | Map markers  —  LIVE. Only destinations with coordinates appear.
+ * -------------------------------------------------------------------------- */
+$mapMarkers = array_map(static fn(array $row): array => [
+    'name' => $row['name'],
+    'lat'  => (float) $row['latitude'],
+    'lng'  => (float) $row['longitude'],
+    'type' => $row['category_name'] ?: 'Destination',
+], DestinationRepository::mapMarkers());
+
+/* The office marker is always shown, so an empty map still orients the visitor. */
+if ($mapMarkers === []) {
+    $mapMarkers[] = [
+        'name' => 'Municipal Tourism Office',
+        'lat'  => $site['lat'],
+        'lng'  => $site['lng'],
+        'type' => 'Office',
+    ];
+}
+
+/* -----------------------------------------------------------------------------
+ | News and advisories  —  LIVE, and the full feed rather than a teaser of three.
+ |
+ | This section absorbed announcements.php, so it answers the whole question:
+ | every published notice, filterable by type, with the chips that used to sit
+ | on that page. The type comes off the query string the same way the category
+ | filter for the catalogue does, and announcements_url() builds the links.
+ * -------------------------------------------------------------------------- */
+$newsType = (string) ($_GET['type'] ?? '');
+
+/* An unrecognised ?type= is treated as no filter rather than as a filter that
+   matches nothing — a stale or hand-edited link should show the feed, not an
+   empty section with a "no results" panel. */
+if ($newsType !== '' && !isset(AnnouncementRepository::TYPES[$newsType])) {
+    $newsType = '';
+}
+
+/* Every type is fetched and every card is rendered, whatever the filter says.
+ *
+ * The chips used to reload the homepage to change six cards, which meant the
+ * hero video, the carousel and the Leaflet map all tore down and rebuilt — the
+ * flash the whole page made on every click. The cards are all in the DOM now
+ * and the filter only decides which are shown, so switching type costs nothing
+ * but a class change.
+ *
+ * The limit rises with the scope: 30 was per type, this is across all six. */
+$newsRows = AnnouncementRepository::publicFeed(null, 60);
+
+$news = [];
+
+foreach ($newsRows as $row) {
+    $news[] = [
+        'slug'  => $row['slug'],
+        'type'  => $row['type'],
+        'tag'   => AnnouncementRepository::TYPES[$row['type']] ?? 'Announcement',
+        'date'  => format_date($row['publish_at'] ?: $row['created_at']),
+        'title' => $row['title'],
+        'text'  => $row['summary'] ?: mb_substr(strip_tags($row['body']), 0, 165),
+        'image' => $row['banner_path'] ? base_url($row['banner_path']) : img('1490682143684-14369e18dce8', 900, 600),
+    ];
+}
+
+/* The visibility rule, written once.
+ *
+ * PHP applies it for the first paint so the page is correct before any script
+ * runs — and correct with no script at all, since the chips remain real links.
+ * The same two lines are mirrored in JavaScript at the foot of this file; if
+ * one changes the other has to change with it.
+ *
+ * "All" hides events because they already have their own dated section above,
+ * and a notice appearing twice on one page reads as two notices. Choosing the
+ * Tourism Event chip is an explicit request for them, so there they stay. */
+$newsShows = static fn(string $type, string $filter): bool
+    => $filter === '' ? $type !== 'event' : $type === $filter;
+
+$newsCount = count(array_filter(
+    $news,
+    static fn(array $n): bool => $newsShows($n['type'], $newsType)
+));
+
+/* -----------------------------------------------------------------------------
+ | Photo gallery  —  LIVE destination photographs when any exist.
+ |
+ | Falls back to placeholders while the Tourism Office is still uploading, so
+ | the section never renders empty during the transition.
+ * -------------------------------------------------------------------------- */
+$galleryRows = Database::all(
+    "SELECT p.file_path, p.caption, d.name
+       FROM destination_photos p
+       JOIN destinations d ON d.id = p.destination_id
+      WHERE d.status = 'active'
+      ORDER BY p.is_cover DESC, p.id DESC
+      LIMIT 12"
+);
+
+$gallery = [];
+foreach ($galleryRows as $row) {
+    /* A row whose file has gone missing is skipped rather than rendered as a
+       broken tile — and if that empties the gallery, the placeholders below
+       take over exactly as they do before the first upload. */
+    if (($url = uploaded_url($row['file_path'])) === null) {
+        continue;
+    }
+
+    $gallery[] = [
+        'src'     => $url,
+        'full'    => $url,
+        'caption' => $row['caption'] ?: $row['name'],
+    ];
+}
+
+/* Placeholders only while no photographs have been uploaded. */
+if ($gallery === []) {
+    $placeholders = [
+        ['1501785888041-af3ef285b470', 'Sunrise over the highland ridge'],
+        ['1433086966358-54859d0ed716', 'Waterfalls of the municipality'],
+        ['1475924156734-496f6cac6ec1', 'Highland arabica harvest'],
+        ['1464822759023-fed622ff2c3b', 'Sea of clouds at daybreak'],
+        ['1470071459604-3b5ec3a7fe05', 'Forest paths of the reserve'],
+        ['1523805009345-7448845a9e53', 'Trekking the Matutum approach'],
+        ['1502082553048-f009c37129b9', 'Pine stands above the valley'],
+        ['1426604966848-d7adac402bff', 'The valley seen from Liberty'],
+        ['1465146344425-f00d5f5c8f07', 'Highland blooms in season'],
+        ['1441974231531-c6227db76b6e', 'Afternoon light through the canopy'],
+        ['1469474968028-56623f02e42e', 'Golden hour on the summit trail'],
+        ['1470770841072-f978cf4d019e', 'Camp night beside the water'],
+    ];
+    foreach ($placeholders as $i => $item) {
+        $gallery[] = [
+            'src'     => img($item[0], 800, $i % 3 === 0 ? 1000 : 640),
+            'full'    => img($item[0], 1600, 1100),
+            'caption' => $item[1],
+        ];
+    }
+}
+
+/* -----------------------------------------------------------------------------
+ | Visitor testimonials  —  LIVE, and only what a real visitor wrote.
+ |
+ | Drawn from moderated reviews submitted after a logged visit, so every quote
+ | on the homepage belongs to somebody who demonstrably stood at the site.
+ | When none exist yet the section is hidden entirely rather than filled with
+ | invented praise — a fabricated review on a municipal page is a real problem,
+ | not a placeholder.
+ * -------------------------------------------------------------------------- */
+$testimonials = [];
+
+foreach (FeedbackRepository::featured(6) as $row) {
+    $origin = array_filter([$row['origin_city'], $row['origin_province'], $row['origin_country']]);
+
+    $testimonials[] = [
+        'name'   => $row['visitor_name'] ?: 'Verified visitor',
+        'origin' => $origin ? implode(', ', array_slice($origin, 0, 2)) : $row['destination_name'],
+        'rating' => (int) $row['rating'],
+        'quote'  => (string) $row['comment'],
+        'photo'  => null,
+    ];
+}
+
+/* -----------------------------------------------------------------------------
+ | Animated statistics  —  destination count and arrivals are LIVE.
+ |
+ | Events and years remain fixed values: announcements arrive in Phase 4, and
+ | the founding year is a fact the Tourism Office must supply.
+ * -------------------------------------------------------------------------- */
+/* Weather for the municipality. Cached server-side, so a slow forecast
+   service can never hold up the homepage. */
+$weather = Weather::forecast();
+$weatherPlace = 'Tampakan, South Cotabato';
+
+$liveDestinations = DestinationRepository::countActive();
+$liveArrivals     = (int) Database::scalar(
+    "SELECT COALESCE(SUM(total_visitors), 0) FROM tourist_arrivals WHERE status = 'valid'"
+);
+
+$stats = [
+    ['icon' => 'fa-map-location-dot', 'value' => $liveDestinations, 'suffix' => '', 'label' => 'Tourist Destinations'],
+    ['icon' => 'fa-users',            'value' => $liveArrivals,     'suffix' => '', 'label' => 'Recorded Arrivals'],
+    ['icon' => 'fa-calendar-star',    'value' => 16,                'suffix' => '', 'label' => 'Tourism Events'],
+    ['icon' => 'fa-award',            'value' => 25,                'suffix' => '', 'label' => 'Years Promoting Tourism'],
+];
+
+/* -----------------------------------------------------------------------------
+ | Travel guide cards
+ * -------------------------------------------------------------------------- */
+$travelGuide = [
+    [
+        'icon'  => 'fa-plane-departure', 'title' => 'How to Get Here',
+        'text'  => 'Fly into General Santos (GES) or Koronadal, then travel overland to Tampakan.',
+        'items' => ['GenSan to Tampakan: approx. 1 hr 30 min', 'Koronadal to Tampakan: approx. 40 min', 'Daily vans and buses via the Marbel route'],
+    ],
+    [
+        'icon'  => 'fa-van-shuttle', 'title' => 'Transportation',
+        'text'  => 'Getting around the municipality is straightforward and inexpensive.',
+        'items' => ['Tricycles within Poblacion', 'Habal-habal for upland barangays', 'Van rentals for group day tours'],
+    ],
+    [
+        'icon'  => 'fa-bed', 'title' => 'Accommodation',
+        'text'  => 'Choose between town lodging and immersive highland stays.',
+        'items' => ['Inns and pension houses in Poblacion', 'Community-run homestays', 'Designated eco-camping grounds'],
+    ],
+    [
+        'icon'  => 'fa-shield-heart', 'title' => 'Safety Tips',
+        'text'  => 'A few simple habits keep every highland trip trouble-free.',
+        'items' => ['Register at the visitor desk before trekking', 'Hire accredited local guides', 'Pack layers â€” nights drop below 18Â°C'],
+    ],
+    [
+        'icon'  => 'fa-cloud-sun', 'title' => 'Best Time to Visit',
+        'text'  => 'Tampakan is pleasant year-round, with two standout windows.',
+        'items' => ['November to April: driest, clearest views', 'September: founding anniversary week', 'Sunrise treks: arrive on-site by 4:30 AM'],
+    ],
+];
+
+/* -----------------------------------------------------------------------------
+ | Contact details
+ * -------------------------------------------------------------------------- */
+$contact = [
+    'address'    => 'Municipal Tourism Office, Municipal Hall Compound, Poblacion, Tampakan, South Cotabato 9507',
+    'phone'      => '(083) 228-1234',
+    'mobile'     => '+63 917 123 4567',
+    'email'      => 'tourism@tampakan.gov.ph',
+    'facebook'   => 'https://www.facebook.com/',
+    'fb_label'   => 'facebook.com/TampakanTourism',
+    'hours'      => 'Monday to Friday, 8:00 AM â€“ 5:00 PM',
+    'hours_note' => 'Closed on weekends and national holidays',
+];
+
+$currentYear = date('Y');
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta name="theme-color" content="#2E7D32">
+
+    <!-- ===================== SEO metadata ===================== -->
+    <title><?= e($site['tagline']) ?> | <?= e($site['municipality']) ?>, South Cotabato</title>
+    <meta name="description" content="<?= e($site['description']) ?>">
+    <meta name="keywords" content="Tampakan tourism, South Cotabato, Mindanao travel, Mt. Matutum, B'laan culture, eco-tourism Philippines, Tampakan destinations">
+    <meta name="author" content="Municipal Tourism Office of Tampakan">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="<?= e($site['url']) ?>/">
+
+    <!-- Open Graph / social sharing -->
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="<?= e($site['name']) ?>">
+    <meta property="og:title" content="<?= e($site['tagline']) ?> | <?= e($site['municipality']) ?>">
+    <meta property="og:description" content="<?= e($site['description']) ?>">
+    <meta property="og:image" content="<?= e($heroSlides[0]['image']) ?>">
+    <meta property="og:url" content="<?= e($site['url']) ?>/">
+    <meta name="twitter:card" content="summary_large_image">
+
+    <link rel="icon" href="assets/img/tampakan_logo.jpg" sizes="any">
+
+    <!-- ===================== Fonts ===================== -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- ===================== Third-party stylesheets ===================== -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
+    <link href="https://unpkg.com/aos@2.3.4/dist/aos.css" rel="stylesheet">
+    <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet">
+
+    <!-- ===================== Project stylesheet ===================== -->
+    <link rel="stylesheet" href="<?= e(asset('css/style.css')) ?>">
+
+    <!-- ===================== Structured data (JSON-LD) ===================== -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "GovernmentOrganization",
+      "name": "Municipal Tourism Office of Tampakan",
+      "url": "<?= e($site['url']) ?>",
+      "logo": "<?= e($site['url']) ?>/assets/img/tampakan_logo.jpg",
+      "email": "<?= e($contact['email']) ?>",
+      "telephone": "<?= e($contact['phone']) ?>",
+      "address": {
+        "@type": "PostalAddress",
+        "streetAddress": "Municipal Hall Compound, Poblacion",
+        "addressLocality": "Tampakan",
+        "addressRegion": "South Cotabato",
+        "postalCode": "9507",
+        "addressCountry": "PH"
+      },
+      "geo": { "@type": "GeoCoordinates", "latitude": <?= $site['lat'] ?>, "longitude": <?= $site['lng'] ?> }
+    }
+    </script>
+</head>
+<body id="top">
+
+<!-- =========================================================================
+     PRELOADER â€” removed by script.js once the window has loaded
+     ====================================================================== -->
+<div id="preloader" class="preloader" aria-hidden="true">
+    <div class="preloader__inner">
+        <div class="preloader__ring">
+            <img src="assets/img/tampakan_logo.jpg" alt="" class="preloader__logo">
+        </div>
+        <p class="preloader__text">Tampakan Tourism</p>
+        <span class="preloader__bar"><i></i></span>
+    </div>
+</div>
+
+<!-- Reading-progress indicator -->
+
+<!-- Accessibility: skip straight to the main content -->
+<a href="#destinations" class="skip-link">Skip to main content</a>
+
+<!-- =========================================================================
+     NAVIGATION â€” transparent over the hero, solid once scrolled (script.js)
+     ====================================================================== -->
+<?php
+/* The homepage uses the same navigation as every other page, in its
+   transparent-over-hero state. Keeping a separate copy here is what let the
+   two drift apart: the homepage had an Explore dropdown and a Gallery link no
+   other page carried, and its "Destinations" scrolled to a section while the
+   same word elsewhere opened the full listing. */
+$navTransparent = true;
+require __DIR__ . '/app/views/partials/public-nav.php';
+?>
+
+<main>
+
+<!-- =========================================================================
+     1 Â· HERO SLIDER
+     ====================================================================== -->
+<section id="home" class="hero <?= $heroVideo !== [] ? 'hero--video' : '' ?>" aria-label="Welcome">
+
+    <?php if ($heroVideo !== []): ?>
+        <?php $heroSources = e(json_encode($heroVideo)); ?>
+
+        <!-- Decorative background. aria-hidden and muted: it carries no
+             information and must never surprise anyone with sound.
+
+             Two layers, one file. Footage shot on a phone is taller than it is
+             wide, and a landscape hero cannot show it without either upscaling
+             a 540-wide frame across 1920 pixels or cropping away most of the
+             picture. Neither is acceptable, so the clip is shown at its own
+             proportions and a heavily blurred copy of itself fills the space on
+             either side — the treatment every vertical video gets on a wide
+             screen, and it reads as deliberate rather than broken.
+
+             The blurred layer is not free markup: script.js attaches its source
+             only after the main layer reports that the footage really is
+             portrait, and by then the file is in the browser cache, so the
+             second copy costs no extra download. Landscape footage skips the
+             whole arrangement and simply covers the hero as before. -->
+        <video class="hero__video hero__video--fill" muted loop playsinline preload="none"
+               aria-hidden="true" tabindex="-1"
+               data-sources='<?= $heroSources ?>'></video>
+
+        <video id="heroVideo" class="hero__video hero__video--main" muted loop playsinline preload="none"
+               <?= $heroPoster ? 'poster="' . e($heroPoster) . '"' : '' ?>
+               aria-hidden="true" tabindex="-1"
+               data-sources='<?= $heroSources ?>'></video>
+    <?php endif; ?>
+
+    <div id="heroCarousel" class="carousel slide carousel-fade hero__carousel" data-bs-ride="carousel" data-bs-interval="6500">
+
+        <div class="carousel-inner h-100">
+            <?php foreach ($heroSlides as $i => $slide): ?>
+            <div class="carousel-item h-100 <?= $i === 0 ? 'active' : '' ?>">
+                <!-- Background layer carries the Ken Burns animation -->
+                <?php if ($heroVideo === []): ?>
+                    <div class="hero__bg" style="background-image:url('<?= e($slide['image']) ?>')" role="img"
+                         aria-label="<?= e(strip_tags($slide['title'])) ?>"></div>
+                <?php endif; ?>
+                <div class="hero__overlay"></div>
+
+                <div class="container hero__container">
+                    <div class="hero__content">
+                        <span class="hero__eyebrow"><i class="fa-solid fa-location-dot"></i> <?= $slide['eyebrow'] ?></span>
+                        <h1 class="hero__title"><?= $slide['title'] ?></h1>
+                        <p class="hero__text"><?= $slide['text'] ?></p>
+                        <div class="hero__actions">
+                            <a href="#destinations" class="btn btn-primary-grad btn-lg">
+                                <i class="fa-solid fa-compass"></i> Explore Destinations
+                            </a>
+                            <a href="#travel-guide" class="btn btn-glass btn-lg">
+                                <i class="fa-regular fa-calendar-check"></i> Plan Your Visit
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <?php endforeach; ?>
+        </div>
+
+        <button class="carousel-control-prev hero__control" type="button" data-bs-target="#heroCarousel" data-bs-slide="prev">
+            <i class="fa-solid fa-chevron-left"></i><span class="visually-hidden">Previous slide</span>
+        </button>
+        <button class="carousel-control-next hero__control" type="button" data-bs-target="#heroCarousel" data-bs-slide="next">
+            <i class="fa-solid fa-chevron-right"></i><span class="visually-hidden">Next slide</span>
+        </button>
+
+        <div class="carousel-indicators hero__indicators">
+            <?php foreach ($heroSlides as $i => $slide): ?>
+            <button type="button" data-bs-target="#heroCarousel" data-bs-slide-to="<?= $i ?>"
+                    class="<?= $i === 0 ? 'active' : '' ?>" aria-label="Slide <?= $i + 1 ?>"
+                    <?= $i === 0 ? 'aria-current="true"' : '' ?>></button>
+            <?php endforeach; ?>
+        </div>
+    </div>
+
+    <!-- Glassmorphic quick-facts strip anchored to the base of the hero -->
+    <div class="hero__facts">
+        <div class="container">
+            <div class="glass-strip">
+                <div class="glass-strip__item">
+                    <i class="fa-solid fa-mountain"></i>
+                    <div><strong>500&ndash;1,200 m</strong><span>Elevation range</span></div>
+                </div>
+                <!-- The live reading, not a hardcoded range.
+                     This slot used to claim "21°C – 28°C, year-round climate"
+                     while the #weather section further down the same page
+                     reported the actual temperature — so on a hot afternoon the
+                     homepage contradicted itself, and the invented figure was
+                     the one a visitor saw first.
+
+                     It answers only the three-second question: is it nice out
+                     right now. The five-day outlook is a different question and
+                     stays in its own section, one tap away. -->
+                <?php if ($weather !== null): ?>
+                    <a class="glass-strip__item glass-strip__item--live" href="#weather">
+                        <i class="fa-solid <?= e($weather['icon']) ?>"></i>
+                        <div>
+                            <strong><?= (int) $weather['temperature'] ?>&deg;C</strong>
+                            <span>
+                                <?= e($weather['label']) ?> now
+                                <i class="fa-solid fa-angle-right"></i>
+                            </span>
+                        </div>
+                    </a>
+                <?php else: ?>
+                    <!-- Forecast service unreachable and nothing cached. The
+                         static range is wrong in the specifics but right in the
+                         general, which beats an empty cell in the strip. -->
+                    <div class="glass-strip__item">
+                        <i class="fa-solid fa-temperature-half"></i>
+                        <div><strong>21&deg;C &ndash; 28&deg;C</strong><span>Year-round climate</span></div>
+                    </div>
+                <?php endif; ?>
+                <div class="glass-strip__item">
+                    <i class="fa-solid fa-map-pin"></i>
+                    <div><strong>13 Barangays</strong><span>Across the municipality</span></div>
+                </div>
+                <div class="glass-strip__item">
+                    <i class="fa-solid fa-road"></i>
+                    <div><strong>40 minutes</strong><span>From Koronadal City</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <a href="#destinations" class="hero__scroll" aria-label="Scroll to content">
+        <span class="hero__mouse"><span></span></span>
+    </a>
+</section>
+
+<!-- =========================================================================
+     2 Â· DESTINATIONS  â€”  the full catalogue, searchable and filterable
+     ====================================================================== -->
+<section id="destinations" class="section section--light">
+    <div class="container">
+
+        <div class="section-head">
+            <span class="eyebrow"><i class="fa-solid fa-compass"></i> Where to Go</span>
+            <h2 class="section-title">Explore <span class="text-grad">Destinations</span></h2>
+            <p class="section-sub">From cloud-covered peaks to hidden waterfalls and living cultural villages &mdash;
+               every place in Tampakan that is open to visitors, in one list.</p>
+        </div>
+
+        <!-- Search and category filter.
+             The form posts back to the homepage and the fragment returns the
+             visitor to this section rather than the top of the page — landing
+             back at the hero after a search reads as though nothing happened. -->
+        <form class="explore-filters" method="get" action="<?= e(base_url('/')) ?>#destinations">
+            <div class="explore-search">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="search" name="q" value="<?= e($search) ?>"
+                       placeholder="Search destinations, barangays, or activities"
+                       aria-label="Search destinations">
+            </div>
+
+            <?php /* Keeps the chosen category while searching within it. */ ?>
+            <?php if ($categorySlug !== ''): ?>
+                <input type="hidden" name="category" value="<?= e($categorySlug) ?>">
+            <?php endif; ?>
+
+            <button type="submit" class="btn btn-primary-grad">Search</button>
+        </form>
+
+        <div class="chip-row">
+            <a href="<?= e(destinations_url(['q' => $search])) ?>"
+               class="chip <?= $activeCategory === null ? 'is-active' : '' ?>">All</a>
+
+            <?php foreach ($categories as $c): ?>
+                <a href="<?= e(destinations_url(['category' => $c['slug'], 'q' => $search])) ?>"
+                   class="chip <?= ($activeCategory['id'] ?? null) === $c['id'] ? 'is-active' : '' ?>">
+                    <?php if ($c['icon']): ?><i class="fa-solid <?= e($c['icon']) ?>"></i><?php endif; ?>
+                    <?= e($c['name']) ?>
+                    <em><?= n($c['destination_count']) ?></em>
+                </a>
+            <?php endforeach; ?>
+        </div>
+
+        <?php if ($destinations === []): ?>
+
+            <div class="empty-public">
+                <i class="fa-solid fa-mountain-sun"></i>
+                <?php if ($isFiltered): ?>
+                    <h3>No destinations match that search</h3>
+                    <p>Try a different term, or
+                       <a href="<?= e(destinations_url()) ?>">browse everything</a>.</p>
+                <?php else: ?>
+                    <h3>Destinations are being prepared</h3>
+                    <p>The Municipal Tourism Office is currently registering the municipality&rsquo;s
+                       destinations. Please check back shortly.</p>
+                <?php endif; ?>
+            </div>
+
+        <?php else: ?>
+
+            <?php if ($isFiltered): ?>
+                <p class="explore-count">
+                    <?= n(count($destinations)) ?>
+                    <?= count($destinations) === 1 ? 'destination' : 'destinations' ?> found<?php
+                        ?><?= $activeCategory !== null ? ' in ' . e($activeCategory['name']) : '' ?><?php
+                        ?><?= $search !== '' ? ' for &ldquo;' . e($search) . '&rdquo;' : '' ?>.
+                    <a href="<?= e(destinations_url()) ?>">Clear filters</a>
+                </p>
+            <?php endif; ?>
+
+            <div class="row g-4">
+                <?php foreach ($destinations as $i => $d): ?>
+                <div class="col-lg-4 col-md-6">
+                    <article class="dest-card">
+                        <div class="dest-card__media">
+                            <img src="<?= e($d['image']) ?>" alt="<?= e(strip_tags($d['name'])) ?>, Tampakan"
+                                 loading="lazy" width="1200" height="800">
+                            <span class="dest-card__badge"><?= e($d['category']) ?></span>
+                        </div>
+                        <div class="dest-card__body">
+                            <h3 class="dest-card__title"><?= e($d['name']) ?></h3>
+                            <p class="dest-card__meta"><i class="fa-solid fa-location-dot"></i> <?= e($d['meta']) ?></p>
+
+                            <?php if ($d['rating'] > 0): ?>
+                                <p class="dest-card__rating">
+                                    <?php for ($s = 1; $s <= 5; $s++): ?>
+                                        <i class="fa-<?= $s <= round($d['rating']) ? 'solid' : 'regular' ?> fa-star"></i>
+                                    <?php endfor; ?>
+                                    <span><?= e((string) $d['rating']) ?> (<?= n($d['reviews']) ?>)</span>
+                                </p>
+                            <?php endif; ?>
+
+                            <p class="dest-card__text"><?= e($d['excerpt']) ?></p>
+                            <a href="<?= e(base_url('/destination.php?slug=' . $d['slug'])) ?>" class="link-more">View Details <i class="fa-solid fa-arrow-right-long"></i></a>
+                        </div>
+                    </article>
+                </div>
+                <?php endforeach; ?>
+            </div>
+
+        <?php endif; ?>
+    </div>
+</section>
+
+<!-- =========================================================================
+     3 Â· WHY VISIT TAMPAKAN
+     ====================================================================== -->
+<section id="why-visit" class="section section--tint">
+    <div class="container">
+
+        <div class="section-head">
+            <span class="eyebrow"><i class="fa-solid fa-heart"></i> Reasons to Come</span>
+            <h2 class="section-title">Why Visit <span class="text-grad">Tampakan</span></h2>
+            <p class="section-sub">Six good reasons the highlands of South Cotabato belong on your itinerary.</p>
+        </div>
+
+        <div class="row g-4">
+            <?php foreach ($reasons as $i => $r): ?>
+            <div class="col-lg-4 col-md-6">
+                <div class="reason-card">
+                    <div class="reason-card__icon"><i class="fa-solid <?= e($r['icon']) ?>"></i></div>
+                    <h3 class="reason-card__title"><?= $r['title'] ?></h3>
+                    <p class="reason-card__text"><?= $r['text'] ?></p>
+                </div>
+            </div>
+            <?php endforeach; ?>
+        </div>
+    </div>
+</section>
+
+<!-- =========================================================================
+     4 Â· UPCOMING EVENTS
+     ====================================================================== -->
+<section id="events" class="section section--light">
+    <div class="container">
+
+        <div class="section-head">
+            <span class="eyebrow"><i class="fa-regular fa-calendar"></i> What&rsquo;s On</span>
+            <h2 class="section-title">Upcoming <span class="text-grad">Events</span></h2>
+            <p class="section-sub">Festivals, fairs, and cultural celebrations hosted across the municipality.</p>
+        </div>
+
+        <div class="row g-4">
+            <?php foreach ($events as $i => $ev): ?>
+            <div class="col-lg-4 col-md-6">
+                <article class="event-card">
+                    <div class="event-card__media">
+                        <img src="<?= e($ev['image']) ?>" alt="<?= e(strip_tags($ev['title'])) ?> event banner"
+                             loading="lazy" width="1200" height="800">
+                        <time class="event-card__date" datetime="<?= e($ev['iso']) ?>">
+                            <strong><?= e($ev['day']) ?></strong>
+                            <span><?= e($ev['month']) ?></span>
+                            <small><?= e($ev['year']) ?></small>
+                        </time>
+                    </div>
+                    <div class="event-card__body">
+                        <h3 class="event-card__title"><?= $ev['title'] ?></h3>
+                        <p class="event-card__meta"><i class="fa-solid fa-location-dot"></i> <?= e($ev['location']) ?></p>
+                        <p class="event-card__text"><?= $ev['excerpt'] ?></p>
+                        <a href="<?= e(base_url('/announcement.php?slug=' . $ev['slug'])) ?>" class="btn btn-soft w-100">Learn More <i class="fa-solid fa-arrow-right-long"></i></a>
+                    </div>
+                </article>
+            </div>
+            <?php endforeach; ?>
+        </div>
+    </div>
+</section>
+
+<!-- =========================================================================
+     5 Â· INTERACTIVE TOURIST MAP PREVIEW (Leaflet â€” no API key required)
+     ====================================================================== -->
+<?php if ($weather !== null): ?>
+<!-- =========================================================================
+     WEATHER — live conditions for trip planning
+     ====================================================================== -->
+<section id="weather" class="section section--tint">
+    <div class="container">
+
+        <div class="section-head">
+            <span class="eyebrow"><i class="fa-solid fa-cloud-sun"></i> Before You Set Out</span>
+            <h2 class="section-title">Weather in <span class="text-grad">Tampakan</span></h2>
+            <p class="section-sub">
+                Live conditions and a five-day outlook for the municipality, so you can decide
+                what to pack &mdash; and whether the highland trails are a good idea today.
+            </p>
+        </div>
+
+        <?php require __DIR__ . '/app/views/partials/weather.php'; ?>
+    </div>
+</section>
+<?php endif; ?>
+
+<section id="map" class="section section--dark">
+    <div class="container">
+        <div class="row align-items-center g-5">
+
+            <div class="col-lg-5">
+                <span class="eyebrow eyebrow--light"><i class="fa-solid fa-map-location-dot"></i> Find Your Way</span>
+                <h2 class="section-title section-title--light">Interactive <span class="text-grad-light">Tourist Map</span></h2>
+                <p class="section-sub section-sub--light">
+                    Every accredited destination, viewpoint, homestay, and cultural site in Tampakan, pinned and
+                    ready to navigate. Select a marker for directions, opening hours, and guide contacts.
+                </p>
+
+                <ul class="map-legend">
+                    <li><span class="dot dot--green"></span> Nature &amp; Eco-Tourism</li>
+                    <li><span class="dot dot--blue"></span> Waterfalls &amp; Rivers</li>
+                    <li><span class="dot dot--amber"></span> Culture &amp; Heritage</li>
+                    <li><span class="dot dot--red"></span> Government Offices</li>
+                </ul>
+
+                <a href="<?= e(base_url('/map.php')) ?>" class="btn btn-primary-grad btn-lg mt-2">
+                    <i class="fa-solid fa-expand"></i> Open Full Tourist Map
+                </a>
+            </div>
+
+            <div class="col-lg-7">
+                <div class="map-frame">
+                    <!-- Leaflet renders here; markers arrive as JSON on the data attribute -->
+                    <div id="touristMap"
+                         data-center-lat="<?= $site['lat'] ?>"
+                         data-center-lng="<?= $site['lng'] ?>"
+                         data-markers='<?= e(json_encode($mapMarkers, JSON_UNESCAPED_UNICODE)) ?>'
+                         aria-label="Interactive map of Tampakan tourist destinations"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- =========================================================================
+     6 Â· LATEST NEWS & ANNOUNCEMENTS
+     ====================================================================== -->
+<section id="news" class="section section--light">
+    <div class="container">
+
+        <div class="section-head">
+            <span class="eyebrow"><i class="fa-regular fa-newspaper"></i> Stay Informed</span>
+            <h2 class="section-title">Latest News &amp; <span class="text-grad">Announcements</span></h2>
+            <p class="section-sub">Every notice published by the Municipal Tourism Office &mdash;
+               advisories, closures, schedules, and reminders.</p>
+        </div>
+
+        <!-- The chips stay real links to ?type=…#news, so the filter works with
+             no JavaScript at all and every filtered view has an address that
+             can be shared or bookmarked. The script at the foot of the page
+             upgrades them: it intercepts the click, shows and hides the cards
+             already on the page, and rewrites the URL without navigating — so
+             the hero, the carousel and the map are never rebuilt.
+
+             Labels and icons come from the AnnouncementRepository constants, so
+             a type added there appears here without anyone remembering to. -->
+        <div class="chip-row chip-row--center" id="newsChips">
+            <a href="<?= e(announcements_url()) ?>" data-news-filter=""
+               class="chip <?= $newsType === '' ? 'is-active' : '' ?>">All</a>
+
+            <?php foreach (AnnouncementRepository::TYPES as $value => $label): ?>
+                <a href="<?= e(announcements_url(['type' => $value])) ?>"
+                   data-news-filter="<?= e($value) ?>"
+                   class="chip <?= $newsType === $value ? 'is-active' : '' ?>">
+                    <i class="fa-solid <?= e(AnnouncementRepository::TYPE_STYLE[$value]['icon']) ?>"></i>
+                    <?= e($label) ?>
+                </a>
+            <?php endforeach; ?>
+        </div>
+
+        <!-- Rendered once and then addressed by the script rather than rebuilt:
+             the count line, the empty panel and the grid are all permanent, and
+             only their contents and hidden state change. -->
+        <p class="explore-count" id="newsCount" <?= $newsType === '' || $newsCount === 0 ? 'hidden' : '' ?>>
+            <span id="newsCountText"><?php if ($newsType !== '' && $newsCount > 0): ?><?=
+                n($newsCount) ?> <?= $newsCount === 1 ? 'notice' : 'notices'
+                ?> filed under <?= e(AnnouncementRepository::TYPES[$newsType]) ?>.<?php endif; ?></span>
+            <a href="<?= e(announcements_url()) ?>" data-news-filter="">Clear filter</a>
+        </p>
+
+        <div class="empty-public" id="newsEmpty" <?= $newsCount > 0 ? 'hidden' : '' ?>>
+            <i class="fa-solid fa-bullhorn"></i>
+            <h3 id="newsEmptyTitle"><?= $newsType !== ''
+                ? 'Nothing filed under ' . e(AnnouncementRepository::TYPES[$newsType])
+                : 'No announcements at the moment' ?></h3>
+            <p>
+                <span id="newsEmptyText"><?= $newsType !== ''
+                    ? 'No notice of this kind is currently in force.'
+                    : 'When the Tourism Office publishes an advisory, a closure, or a schedule, it appears here.' ?></span>
+                <a href="<?= e(announcements_url()) ?>" data-news-filter=""
+                   id="newsEmptyClear" <?= $newsType === '' ? 'hidden' : '' ?>>See everything</a>
+            </p>
+        </div>
+
+        <div class="row g-4" id="newsGrid">
+            <?php foreach ($news as $n): ?>
+            <div class="col-lg-4 col-md-6 news-item" data-news-type="<?= e($n['type']) ?>"
+                 <?= $newsShows($n['type'], $newsType) ? '' : 'hidden' ?>>
+                <article class="news-card">
+                    <div class="news-card__media">
+                        <img src="<?= e($n['image']) ?>" alt="<?= e($n['title']) ?>"
+                             loading="lazy" width="900" height="600">
+                        <span class="news-card__tag news-card__tag--<?= e(strtolower($n['tag'])) ?>"><?= e($n['tag']) ?></span>
+                    </div>
+                    <div class="news-card__body">
+                        <p class="news-card__date"><i class="fa-regular fa-calendar"></i> <?= e($n['date']) ?></p>
+                        <h3 class="news-card__title"><?= e($n['title']) ?></h3>
+                        <p class="news-card__text"><?= e($n['text']) ?></p>
+                        <a href="<?= e(base_url('/announcement.php?slug=' . $n['slug'])) ?>" class="link-more">Read Full Advisory <i class="fa-solid fa-arrow-right-long"></i></a>
+                    </div>
+                </article>
+            </div>
+            <?php endforeach; ?>
+        </div>
+    </div>
+</section>
+
+<!-- =========================================================================
+     7 Ã‚Â· PHOTO GALLERY (CSS masonry + custom lightbox)
+     ====================================================================== -->
+<section id="gallery" class="section section--tint">
+    <div class="container">
+
+        <div class="section-head">
+            <span class="eyebrow"><i class="fa-regular fa-images"></i> Through the Lens</span>
+            <h2 class="section-title">Photo <span class="text-grad">Gallery</span></h2>
+            <p class="section-sub">Scenes from across the municipality, captured by our visitors and tourism team.</p>
+        </div>
+
+        <div class="masonry">
+            <?php foreach ($gallery as $i => $g): ?>
+            <figure class="masonry__item">
+                <a href="<?= e($g['full']) ?>" class="masonry__link"
+                   data-lightbox data-caption="<?= e($g['caption']) ?>">
+                    <img src="<?= e($g['src']) ?>"
+                         alt="<?= e($g['caption']) ?>" loading="lazy">
+                    <span class="masonry__overlay">
+                        <span class="masonry__icon"><i class="fa-solid fa-magnifying-glass-plus"></i></span>
+                        <figcaption class="masonry__caption"><?= e($g['caption']) ?></figcaption>
+                    </span>
+                </a>
+            </figure>
+            <?php endforeach; ?>
+        </div>
+    </div>
+</section>
+
+<!-- =========================================================================
+     8 Ã‚Â· VISITOR TESTIMONIALS
+     ====================================================================== -->
+<?php if ($testimonials !== []): ?>
+<section id="testimonials" class="section section--light">
+    <div class="container">
+
+        <div class="section-head">
+            <span class="eyebrow"><i class="fa-solid fa-quote-left"></i> Visitor Voices</span>
+            <h2 class="section-title">What Our <span class="text-grad">Guests Say</span></h2>
+            <p class="section-sub">Reflections from travellers who have walked our trails and shared our table.</p>
+        </div>
+
+        <div id="testimonialCarousel" class="carousel slide" data-bs-ride="carousel"
+             data-bs-interval="7000">
+            <div class="carousel-inner">
+                <?php foreach ($testimonials as $i => $t): ?>
+                <div class="carousel-item <?= $i === 0 ? 'active' : '' ?>">
+                    <blockquote class="tst-card">
+                        <i class="fa-solid fa-quote-right tst-card__mark" aria-hidden="true"></i>
+                        <div class="tst-card__stars" aria-label="<?= (int) $t['rating'] ?> out of 5 stars">
+                            <?php for ($s = 1; $s <= 5; $s++): ?>
+                                <i class="fa-<?= $s <= $t['rating'] ? 'solid' : 'regular' ?> fa-star"></i>
+                            <?php endfor; ?>
+                        </div>
+                        <p class="tst-card__quote">&ldquo;<?= e($t['quote']) ?>&rdquo;</p>
+                        <footer class="tst-card__author">
+                            <!-- Initial instead of a photograph: real reviewers do not upload one,
+                                 and borrowing a stock portrait would attach a stranger's face to
+                                 somebody's words. -->
+                            <span class="tst-card__initial" aria-hidden="true"><?= e(mb_substr($t['name'], 0, 1)) ?></span>
+                            <span>
+                                <strong><?= e($t['name']) ?></strong>
+                                <small><i class="fa-solid fa-location-dot"></i> <?= e($t['origin']) ?></small>
+                            </span>
+                        </footer>
+                    </blockquote>
+                </div>
+                <?php endforeach; ?>
+            </div>
+
+            <button class="carousel-control-prev tst-control" type="button" data-bs-target="#testimonialCarousel" data-bs-slide="prev">
+                <i class="fa-solid fa-chevron-left"></i><span class="visually-hidden">Previous review</span>
+            </button>
+            <button class="carousel-control-next tst-control" type="button" data-bs-target="#testimonialCarousel" data-bs-slide="next">
+                <i class="fa-solid fa-chevron-right"></i><span class="visually-hidden">Next review</span>
+            </button>
+
+            <div class="carousel-indicators tst-indicators">
+                <?php foreach ($testimonials as $i => $t): ?>
+                <button type="button" data-bs-target="#testimonialCarousel" data-bs-slide-to="<?= $i ?>"
+                        class="<?= $i === 0 ? 'active' : '' ?>" aria-label="Review <?= $i + 1 ?>"></button>
+                <?php endforeach; ?>
+            </div>
+        </div>
+    </div>
+</section>
+<?php endif; ?>
+
+<!-- =========================================================================
+     9 Ã‚Â· TOURISM HIGHLIGHTS Ã¢â‚¬â€ animated counters
+     ====================================================================== -->
+<section id="highlights" class="stats-section" aria-label="Tourism highlights">
+    <div class="stats-section__overlay"></div>
+    <div class="container position-relative">
+
+        <div class="section-head">
+            <span class="eyebrow eyebrow--light"><i class="fa-solid fa-chart-simple"></i> By the Numbers</span>
+            <h2 class="section-title section-title--light">Tourism <span class="text-grad-light">Highlights</span></h2>
+        </div>
+
+        <div class="row g-4">
+            <?php foreach ($stats as $i => $s): ?>
+            <div class="col-lg-3 col-6">
+                <div class="stat-card">
+                    <div class="stat-card__icon"><i class="fa-solid <?= e($s['icon']) ?>"></i></div>
+                    <div class="stat-card__value">
+                        <span class="counter" data-target="<?= (int) $s['value'] ?>">0</span><?= e($s['suffix']) ?>
+                    </div>
+                    <p class="stat-card__label"><?= e($s['label']) ?></p>
+                </div>
+            </div>
+            <?php endforeach; ?>
+        </div>
+    </div>
+</section>
+
+<!-- =========================================================================
+     10 Ã‚Â· TRAVEL GUIDE
+     ====================================================================== -->
+<section id="travel-guide" class="section section--light">
+    <div class="container">
+
+        <div class="section-head">
+            <span class="eyebrow"><i class="fa-solid fa-suitcase-rolling"></i> Before You Go</span>
+            <h2 class="section-title">Travel <span class="text-grad">Guide</span></h2>
+            <p class="section-sub">Everything you need to plan a smooth, safe, and memorable trip to Tampakan.</p>
+        </div>
+
+        <div class="row g-4 justify-content-center">
+            <?php foreach ($travelGuide as $i => $g): ?>
+            <div class="col-lg-4 col-md-6">
+                <div class="guide-card h-100">
+                    <div class="guide-card__head">
+                        <span class="guide-card__icon"><i class="fa-solid <?= e($g['icon']) ?>"></i></span>
+                        <h3 class="guide-card__title"><?= e($g['title']) ?></h3>
+                    </div>
+                    <p class="guide-card__text"><?= e($g['text']) ?></p>
+                    <ul class="guide-card__list">
+                        <?php foreach ($g['items'] as $item): ?>
+                        <li><i class="fa-solid fa-circle-check"></i><span><?= e($item) ?></span></li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+            </div>
+            <?php endforeach; ?>
+        </div>
+    </div>
+</section>
+
+<!-- =========================================================================
+     11 Ã‚Â· ABOUT THE MUNICIPAL TOURISM OFFICE
+     ====================================================================== -->
+<section id="about" class="section section--tint">
+    <div class="container">
+        <div class="row align-items-center g-5">
+
+            <div class="col-lg-6">
+                <div class="about__gallery">
+                    <img src="<?= e(img('1426604966848-d7adac402bff', 900, 1100)) ?>"
+                         alt="Highland valley of Tampakan" class="about__img about__img--tall" loading="lazy">
+                    <img src="<?= e(img('1518495973542-4542c06a5843', 800, 700)) ?>"
+                         alt="Forest canopy inside the municipal reserve" class="about__img about__img--small" loading="lazy">
+                    <div class="about__badge">
+                        <i class="fa-solid fa-award"></i>
+                        <strong>25 Years</strong>
+                        <span>Serving visitors since 2001</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-6">
+                <span class="eyebrow"><i class="fa-solid fa-building-columns"></i> Who We Are</span>
+                <h2 class="section-title">The Municipal <span class="text-grad">Tourism Office</span></h2>
+                <p class="about__lead">
+                    The Municipal Tourism Office of Tampakan develops, promotes, and safeguards the tourism assets
+                    of the municipality. We accredit local guides and homestays, maintain destination standards,
+                    coordinate the annual festival calendar, and work hand in hand with barangay councils and
+                    indigenous communities so that tourism benefits the people who call Tampakan home.
+                </p>
+
+                <div class="mv-card mv-card--mission">
+                    <span class="mv-card__icon"><i class="fa-solid fa-bullseye"></i></span>
+                    <div>
+                        <h3>Our Mission</h3>
+                        <p>To promote Tampakan as a premier highland eco-cultural destination through sustainable,
+                           community-based tourism that protects our environment, honours our indigenous heritage,
+                           and creates dignified livelihoods for every barangay.</p>
+                    </div>
+                </div>
+
+                <div class="mv-card mv-card--vision">
+                    <span class="mv-card__icon"><i class="fa-regular fa-eye"></i></span>
+                    <div>
+                        <h3>Our Vision</h3>
+                        <p>A globally recognised, warmly hospitable, and ecologically responsible Tampakan Ã¢â‚¬â€ where
+                           every visitor leaves inspired and every resident shares in the prosperity that tourism
+                           brings.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- =========================================================================
+     12 Ã‚Â· CONTACT
+     ====================================================================== -->
+<section id="contact" class="section section--light">
+    <div class="container">
+
+        <div class="section-head">
+            <span class="eyebrow"><i class="fa-regular fa-envelope"></i> Get in Touch</span>
+            <h2 class="section-title">Contact <span class="text-grad">Us</span></h2>
+            <p class="section-sub">Planning a trip, arranging a guide, or requesting a media visit? We are happy to help.</p>
+        </div>
+
+        <div class="row g-4 g-lg-5">
+
+            <!-- Office details -->
+            <div class="col-lg-5">
+                <ul class="contact-list">
+                    <li>
+                        <span class="contact-list__icon"><i class="fa-solid fa-location-dot"></i></span>
+                        <div><strong>Office Address</strong><p><?= e($contact['address']) ?></p></div>
+                    </li>
+                    <li>
+                        <span class="contact-list__icon"><i class="fa-solid fa-phone"></i></span>
+                        <div><strong>Phone</strong>
+                            <p><a href="tel:<?= e(preg_replace('/\D/', '', $contact['phone'])) ?>"><?= e($contact['phone']) ?></a><br>
+                               <a href="tel:<?= e(preg_replace('/\D/', '', $contact['mobile'])) ?>"><?= e($contact['mobile']) ?></a></p>
+                        </div>
+                    </li>
+                    <li>
+                        <span class="contact-list__icon"><i class="fa-regular fa-envelope"></i></span>
+                        <div><strong>Email</strong><p><a href="mailto:<?= e($contact['email']) ?>"><?= e($contact['email']) ?></a></p></div>
+                    </li>
+                    <li>
+                        <span class="contact-list__icon"><i class="fa-brands fa-facebook-f"></i></span>
+                        <div><strong>Facebook</strong>
+                            <p><a href="<?= e($contact['facebook']) ?>" target="_blank" rel="noopener"><?= e($contact['fb_label']) ?></a></p></div>
+                    </li>
+                    <li>
+                        <span class="contact-list__icon"><i class="fa-regular fa-clock"></i></span>
+                        <div><strong>Office Hours</strong>
+                            <p><?= e($contact['hours']) ?><br><small><?= e($contact['hours_note']) ?></small></p></div>
+                    </li>
+                </ul>
+
+                <!-- Embedded Google Map (keyless embed Ã¢â‚¬â€ no API key required) -->
+                <div class="contact-map">
+                    <iframe
+                        src="https://www.google.com/maps?q=Tampakan,%20South%20Cotabato,%20Philippines&z=13&output=embed"
+                        title="Google Map of Tampakan, South Cotabato"
+                        loading="lazy" referrerpolicy="no-referrer-when-downgrade"
+                        allowfullscreen></iframe>
+                </div>
+            </div>
+
+            <!-- Contact form Ã¢â‚¬â€ client-side only; wire to a mailer/controller later -->
+            <div class="col-lg-7">
+                <div class="contact-form-card">
+                    <h3 class="contact-form-card__title">Send Us a Message</h3>
+                    <p class="contact-form-card__sub">We usually respond within one working day.</p>
+
+                    <form id="contactForm" class="row g-3" novalidate>
+                        <div class="col-md-6">
+                            <label for="cfName" class="form-label">Full Name <span>*</span></label>
+                            <input type="text" class="form-control" id="cfName" name="name" required placeholder="Juan Dela Cruz">
+                            <div class="invalid-feedback">Please enter your name.</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="cfEmail" class="form-label">Email Address <span>*</span></label>
+                            <input type="email" class="form-control" id="cfEmail" name="email" required placeholder="you@example.com">
+                            <div class="invalid-feedback">Please enter a valid email address.</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="cfPhone" class="form-label">Phone Number</label>
+                            <input type="tel" class="form-control" id="cfPhone" name="phone" placeholder="+63 9XX XXX XXXX">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="cfSubject" class="form-label">Subject <span>*</span></label>
+                            <select class="form-select" id="cfSubject" name="subject" required>
+                                <option value="">Choose a topic&hellip;</option>
+                                <option>Trip Planning &amp; Itineraries</option>
+                                <option>Tour Guide Booking</option>
+                                <option>Accommodation Assistance</option>
+                                <option>Events &amp; Festivals</option>
+                                <option>Media &amp; Partnerships</option>
+                                <option>Feedback</option>
+                            </select>
+                            <div class="invalid-feedback">Please select a subject.</div>
+                        </div>
+                        <div class="col-12">
+                            <label for="cfMessage" class="form-label">Message <span>*</span></label>
+                            <textarea class="form-control" id="cfMessage" name="message" rows="5" required
+                                      placeholder="Tell us how we can help with your visit&hellip;"></textarea>
+                            <div class="invalid-feedback">Please write a short message.</div>
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="cfConsent" required>
+                                <label class="form-check-label" for="cfConsent">
+                                    I consent to the Municipal Tourism Office processing my details in line with the
+                                    <a href="#privacy" data-bs-toggle="modal" data-bs-target="#privacyModal">Privacy Policy</a>.
+                                </label>
+                                <div class="invalid-feedback">Your consent is required.</div>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <button type="submit" class="btn btn-primary-grad btn-lg w-100">
+                                <i class="fa-regular fa-paper-plane"></i> Send Message
+                            </button>
+                        </div>
+                        <div class="col-12">
+                            <!-- Populated by script.js after client-side validation -->
+                            <div id="formAlert" class="form-alert" role="status" aria-live="polite"></div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+</main>
+
+<!-- =========================================================================
+     13 Ã‚Â· FOOTER
+     ====================================================================== -->
+<footer class="footer">
+    <div class="footer__top">
+        <div class="container">
+            <div class="row g-4 g-lg-5">
+
+                <div class="col-lg-4 col-md-6">
+                    <div class="footer__brand">
+                        <img src="assets/img/tampakan_logo.jpg" alt="Official Seal of the Municipality of Tampakan, Province of South Cotabato" width="70" height="70">
+                    </div>
+                    <h4 class="footer__title"><?= e($site['municipality']) ?></h4>
+                    <p class="footer__text">
+                        The official tourism portal of Tampakan, South Cotabato. Promoting sustainable,
+                        community-based highland tourism for every visitor and every barangay.
+                    </p>
+                    <ul class="footer__social">
+                        <li><a href="<?= e($contact['facebook']) ?>" target="_blank" rel="noopener" aria-label="Facebook"><i class="fa-brands fa-facebook-f"></i></a></li>
+                        <li><a href="#" aria-label="Instagram"><i class="fa-brands fa-instagram"></i></a></li>
+                        <li><a href="#" aria-label="YouTube"><i class="fa-brands fa-youtube"></i></a></li>
+                        <li><a href="#" aria-label="TikTok"><i class="fa-brands fa-tiktok"></i></a></li>
+                        <li><a href="mailto:<?= e($contact['email']) ?>" aria-label="Email"><i class="fa-solid fa-envelope"></i></a></li>
+                    </ul>
+                </div>
+
+                <div class="col-lg-2 col-md-6 col-6">
+                    <h4 class="footer__title">Quick Links</h4>
+                    <ul class="footer__links">
+                        <?php foreach (array_slice(public_nav(), 0, 4) as $link): ?>
+                        <li><a href="<?= e($link['href']) ?>"><i class="fa-solid fa-angle-right"></i><?= e($link['label']) ?></a></li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+
+                <div class="col-lg-2 col-md-6 col-6">
+                    <h4 class="footer__title">Discover</h4>
+                    <ul class="footer__links">
+                        <?php foreach (array_slice(public_nav(), 4) as $link): ?>
+                        <li><a href="<?= e($link['href']) ?>"><i class="fa-solid fa-angle-right"></i><?= e($link['label']) ?></a></li>
+                        <?php endforeach; ?>
+                        <li><a href="#why-visit"><i class="fa-solid fa-angle-right"></i>Why Visit</a></li>
+                        <li><a href="#gallery"><i class="fa-solid fa-angle-right"></i>Photo Gallery</a></li>
+                    </ul>
+                </div>
+
+                <div class="col-lg-4 col-md-6">
+                    <h4 class="footer__title">Tourism Office</h4>
+                    <ul class="footer__contact">
+                        <li><i class="fa-solid fa-location-dot"></i><span><?= e($contact['address']) ?></span></li>
+                        <li><i class="fa-solid fa-phone"></i><span><?= e($contact['phone']) ?> &middot; <?= e($contact['mobile']) ?></span></li>
+                        <li><i class="fa-regular fa-envelope"></i><span><?= e($contact['email']) ?></span></li>
+                        <li><i class="fa-regular fa-clock"></i><span><?= e($contact['hours']) ?></span></li>
+                    </ul>
+                    <a href="<?= e($site['admin_url']) ?>" class="btn btn-soft-light btn-sm mt-2">
+                        <i class="fa-solid fa-lock"></i> Administrator Login
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer__bottom">
+        <div class="container">
+            <div class="d-md-flex justify-content-between align-items-center text-center text-md-start">
+                <p class="mb-2 mb-md-0">
+                    &copy; <?= e((string) $currentYear) ?> <?= e($site['municipality']) ?>, <?= e($site['province']) ?>.
+                    All rights reserved.
+                </p>
+                <ul class="footer__legal">
+                    <li><a href="#privacy" data-bs-toggle="modal" data-bs-target="#privacyModal">Privacy Policy</a></li>
+                    <li><a href="#terms" data-bs-toggle="modal" data-bs-target="#termsModal">Terms &amp; Conditions</a></li>
+                    <li><a href="#contact">Sitemap</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</footer>
+
+<!-- Back-to-top button -->
+<a href="#top" id="backToTop" class="back-to-top" aria-label="Back to top">
+    <i class="fa-solid fa-chevron-up"></i>
+</a>
+
+<!-- =========================================================================
+     LIGHTBOX Ã¢â‚¬â€ driven by script.js
+     ====================================================================== -->
+<div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Image viewer" hidden>
+    <button class="lightbox__close" data-lb-close aria-label="Close viewer"><i class="fa-solid fa-xmark"></i></button>
+    <button class="lightbox__nav lightbox__nav--prev" data-lb-prev aria-label="Previous image"><i class="fa-solid fa-chevron-left"></i></button>
+    <button class="lightbox__nav lightbox__nav--next" data-lb-next aria-label="Next image"><i class="fa-solid fa-chevron-right"></i></button>
+    <figure class="lightbox__stage">
+        <img src="" alt="" id="lightboxImg">
+        <figcaption id="lightboxCaption"></figcaption>
+    </figure>
+    <span class="lightbox__counter" id="lightboxCounter"></span>
+</div>
+
+<!-- =========================================================================
+     LEGAL MODALS
+     ====================================================================== -->
+<div class="modal fade" id="privacyModal" tabindex="-1" aria-labelledby="privacyModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content legal-modal">
+            <div class="modal-header">
+                <h5 class="modal-title" id="privacyModalLabel"><i class="fa-solid fa-shield-halved"></i> Privacy Policy</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>The Municipal Tourism Office of Tampakan respects your privacy and processes personal data in
+                   accordance with Republic Act No. 10173, the Data Privacy Act of 2012.</p>
+                <h6>Information We Collect</h6>
+                <p>We collect only the details you voluntarily submit through our contact form Ã¢â‚¬â€ your name, email
+                   address, optional phone number, and the content of your message.</p>
+                <h6>How We Use It</h6>
+                <p>Your information is used solely to respond to your inquiry, coordinate tour or guide bookings,
+                   and improve visitor services. We do not sell or trade personal data.</p>
+                <h6>Retention &amp; Security</h6>
+                <p>Records are retained only as long as necessary for the purpose collected and are protected by
+                   reasonable organisational, physical, and technical safeguards.</p>
+                <h6>Your Rights</h6>
+                <p>You may request access to, correction of, or deletion of your personal data at any time by
+                   writing to <?= e($contact['email']) ?>.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="termsModal" tabindex="-1" aria-labelledby="termsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content legal-modal">
+            <div class="modal-header">
+                <h5 class="modal-title" id="termsModalLabel"><i class="fa-solid fa-file-contract"></i> Terms &amp; Conditions</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <h6>Use of This Website</h6>
+                <p>This portal is maintained by the Municipal Tourism Office of Tampakan for public information.
+                   By using it you agree to access the site lawfully and not to disrupt its operation.</p>
+                <h6>Accuracy of Information</h6>
+                <p>Destination details, schedules, and advisories are updated regularly but may change without
+                   notice. Confirm critical details with the Tourism Office before travelling.</p>
+                <h6>Visitor Responsibility</h6>
+                <p>Travel to mountain and forest destinations carries inherent risk. Visitors are expected to
+                   register at the visitor desk, engage accredited guides, observe barangay regulations, and
+                   respect indigenous cultural protocols.</p>
+                <h6>Intellectual Property</h6>
+                <p>Photographs, text, and official seals on this site belong to the Municipality of Tampakan or
+                   their respective owners and may not be reproduced commercially without written permission.</p>
+                <h6>External Links</h6>
+                <p>Links to third-party sites are provided for convenience; the Municipality is not responsible
+                   for their content or practices.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- =========================================================================
+     SCRIPTS
+     ====================================================================== -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://unpkg.com/aos@2.3.4/dist/aos.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="<?= e(asset('js/script.js')) ?>"></script>
+
+<!-- =============================================================================
+     Announcement filter — in place, without reloading the page.
+     -----------------------------------------------------------------------------
+     The chips are ordinary links and stay that way: with no JavaScript they
+     reload the homepage with ?type= and the PHP above renders the right cards.
+     That is the fallback, not the plan, because reloading this particular page
+     tears down a background video, a Bootstrap carousel and a Leaflet map to
+     change six cards — which is the flash the whole screen made on every click.
+
+     Here the click is intercepted, the cards already in the DOM are shown or
+     hidden, and history.replaceState rewrites the address so the filtered view
+     is still linkable. Nothing navigates, so nothing blinks.
+     ========================================================================== -->
+<script>
+(function () {
+    const chips = document.getElementById('newsChips');
+    const grid  = document.getElementById('newsGrid');
+    if (!chips || !grid) return;
+
+    const items      = Array.from(grid.querySelectorAll('.news-item'));
+    const countBox   = document.getElementById('newsCount');
+    const countText  = document.getElementById('newsCountText');
+    const empty      = document.getElementById('newsEmpty');
+    const emptyTitle = document.getElementById('newsEmptyTitle');
+    const emptyText  = document.getElementById('newsEmptyText');
+    const emptyClear = document.getElementById('newsEmptyClear');
+
+    /* Labels live in PHP; this is the only copy that crosses over, and it is
+       generated from the same constant rather than typed out again. */
+    const LABELS = <?= json_encode(AnnouncementRepository::TYPES, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
+
+    /* The mirror of $newsShows in the PHP above. If one changes, change both:
+       "All" hides events because they have their own section; a chosen type
+       shows only itself. */
+    const shows = (type, filter) => filter === '' ? type !== 'event' : type === filter;
+
+    function apply(filter, push) {
+        let shown = 0;
+
+        items.forEach(item => {
+            const visible = shows(item.dataset.newsType, filter);
+            item.hidden = !visible;
+            if (visible) shown++;
+        });
+
+        chips.querySelectorAll('[data-news-filter]').forEach(chip => {
+            chip.classList.toggle('is-active', chip.dataset.newsFilter === filter);
+        });
+
+        countBox.hidden = (filter === '' || shown === 0);
+        if (!countBox.hidden) {
+            countText.textContent = shown + (shown === 1 ? ' notice' : ' notices')
+                + ' filed under ' + LABELS[filter] + '.';
+        }
+
+        empty.hidden = shown > 0;
+        if (!empty.hidden) {
+            emptyTitle.textContent = filter === ''
+                ? 'No announcements at the moment'
+                : 'Nothing filed under ' + LABELS[filter];
+            emptyText.textContent = filter === ''
+                ? 'When the Tourism Office publishes an advisory, a closure, or a schedule, it appears here.'
+                : 'No notice of this kind is currently in force.';
+            emptyClear.hidden = filter === '';
+        }
+
+        /* replaceState, not pushState: six chips clicked in a row should not
+           bury the page the visitor arrived from under six back-button steps.
+           The address still updates, so the view stays shareable. */
+        if (push) {
+            const url = filter === ''
+                ? location.pathname + '#news'
+                : location.pathname + '?type=' + encodeURIComponent(filter) + '#news';
+            history.replaceState({ newsType: filter }, '', url);
+        }
+    }
+
+    /* Delegated, so the "Clear filter" and "See everything" links inside the
+       count line and the empty panel work through the same path as the chips
+       without being wired up individually. */
+    document.addEventListener('click', function (event) {
+        const link = event.target.closest('[data-news-filter]');
+        if (!link) return;
+
+        event.preventDefault();
+        apply(link.dataset.newsFilter, true);
+    });
+})();
+</script>
+</body>
+</html>
