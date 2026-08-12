@@ -45,8 +45,12 @@ storage/imports/*
 !storage/imports/.gitkeep
 
 # Database dumps. A backup taken from production carries every visitor record
-# the system has ever held.
-database/backup-*.sql
+# the system has ever held — names, contact numbers, and the admin password
+# hashes. database/schema.sql is the exception and stays tracked: it is pure
+# structure with no INSERT in it, and a fresh checkout needs it to build the
+# database.
+database/*.sql
+!database/schema.sql
 *.sql.gz
 
 # Editor and OS noise
