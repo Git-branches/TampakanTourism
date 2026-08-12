@@ -78,6 +78,16 @@ $isEdit = !empty($d['id']);
                 </div>
 
                 <div class="col-12">
+                    <label for="cultural_heritage" class="form-label">Cultural heritage</label>
+                    <textarea id="cultural_heritage" name="cultural_heritage" rows="4" class="form-control"
+                              placeholder="What this place means to the community — traditions, beliefs, indigenous significance, how it should be treated"><?= e((string) ($d['cultural_heritage'] ?? '')) ?></textarea>
+                    <p class="field-hint">
+                        One of the three things the QR sign carries. Written for a visitor standing at the
+                        site, not for a brochure.
+                    </p>
+                </div>
+
+                <div class="col-12">
                     <div class="form-check">
                         <input type="checkbox" class="form-check-input" id="is_featured" name="is_featured" value="1"
                             <?= !empty($d['is_featured']) ? 'checked' : '' ?>>
@@ -122,6 +132,17 @@ $isEdit = !empty($d['id']);
                     <label for="reminders" class="form-label">Important reminders</label>
                     <textarea id="reminders" name="reminders" rows="3" class="form-control"
                               placeholder="Safety notes, what to bring, cultural protocols to observe"><?= e((string) ($d['reminders'] ?? '')) ?></textarea>
+                </div>
+
+                <div class="col-12">
+                    <label for="safety_notes" class="form-label">Site-specific hazards</label>
+                    <textarea id="safety_notes" name="safety_notes" rows="3" class="form-control"
+                              placeholder="e.g. the rocks below the second tier are slippery after rain; no swimming when the water is brown"><?= e((string) ($d['safety_notes'] ?? '')) ?></textarea>
+                    <p class="field-hint">
+                        Shown in a warning box directly under the emergency numbers on the QR page.
+                        Leave blank unless this site has a real hazard &mdash; a warning on every
+                        destination is a warning nobody reads.
+                    </p>
                 </div>
             </div>
         </div>
@@ -192,6 +213,18 @@ $isEdit = !empty($d['id']);
                     <label for="contact_phone" class="form-label">Phone</label>
                     <input type="text" id="contact_phone" name="contact_phone" maxlength="40" class="form-control"
                            value="<?= e((string) ($d['contact_phone'] ?? '')) ?>" placeholder="0917 123 4567">
+                    <p class="field-hint">Shown as a tap-to-call number on the QR page.</p>
+                </div>
+
+                <div class="col-md-4">
+                    <label for="local_hotline" class="form-label">On-site emergency number</label>
+                    <input type="text" id="local_hotline" name="local_hotline" maxlength="120" class="form-control"
+                           value="<?= e((string) ($d['local_hotline'] ?? '')) ?>" placeholder="0917 123 4567">
+                    <p class="field-hint">
+                        A number reachable AT this site &mdash; the guardhouse, the barangay, the nearest
+                        rescue post. Listed above the municipal hotlines, because somebody two hundred
+                        metres away is more use than somebody in town.
+                    </p>
                 </div>
                 <div class="col-md-4">
                     <label for="contact_email" class="form-label">Email</label>

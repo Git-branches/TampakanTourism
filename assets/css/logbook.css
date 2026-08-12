@@ -285,6 +285,7 @@ a { color: var(--lb-green-dark); }
 .lb-field input[type="tel"],
 .lb-field input[type="email"],
 .lb-field input[type="number"],
+.lb-field textarea,
 .lb-field select {
     width: 100%;
     /* 16px exactly: below this, iOS Safari zooms the page on focus and the
@@ -307,6 +308,7 @@ a { color: var(--lb-green-dark); }
     padding-right: 2.4rem;
 }
 .lb-field input:focus,
+.lb-field textarea:focus,
 .lb-field select:focus {
     outline: none;
     border-color: var(--lb-green);
@@ -446,6 +448,341 @@ a { color: var(--lb-green-dark); }
     .lb-card--head h1, .lb-hero__text h1 { font-size: 1.32rem; }
 }
 
+/* -----------------------------------------------------------------------------
+   Offline capture                                                    Feature 2
+   -----------------------------------------------------------------------------
+   Two states, and they are coloured to mean different things.
+
+   Amber for "no connection": a caution, not a failure — the form still works
+   and the visitor needs to know that before they start typing.
+
+   Blue for "sending": an activity, not a warning. Reusing amber here would tell
+   somebody whose signal has just come back that something is still wrong.
+
+   Green is left alone. On this page it means the visit reached the Tourism
+   Office, and nothing that is still sitting on a phone may borrow it.
+   -------------------------------------------------------------------------- */
+.lb-net {
+    display: flex;
+    align-items: flex-start;
+    gap: .85rem;
+    padding: .95rem 1.1rem;
+    border-radius: var(--lb-radius-sm);
+    margin-bottom: 1rem;
+    border: 1px solid transparent;
+}
+.lb-net[hidden] { display: none; }
+
+.lb-net i { font-size: 1.15rem; flex-shrink: 0; margin-top: .15rem; }
+.lb-net strong { display: block; font-size: .95rem; line-height: 1.35; }
+.lb-net p { margin: .25rem 0 0; font-size: .86rem; line-height: 1.5; }
+
+.lb-net--off {
+    background: var(--lb-amber-pale);
+    border-color: rgba(180, 83, 9, .22);
+    color: var(--lb-amber);
+}
+.lb-net--sync {
+    background: #E6F4FB;
+    border-color: rgba(2, 136, 209, .22);
+    color: #01579B;
+}
+
+/* ---- "Saved on this phone" ---------------------------------------------- */
+.lb-held {
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .8rem;
+}
+.lb-held[hidden] { display: none; }
+
+.lb-held__icon {
+    font-size: 2.4rem;
+    color: var(--lb-amber);
+    background: var(--lb-amber-pale);
+    width: 4.4rem;
+    height: 4.4rem;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+}
+
+.lb-held h2 { margin: 0; font-size: 1.3rem; color: var(--lb-ink); }
+.lb-held p  { margin: 0; color: var(--lb-ink-2); font-size: .95rem; max-width: 34ch; }
+
+/* The sentence that stops somebody refilling the form or staying on the page
+   waiting for something to happen. It earns the emphasis. */
+.lb-held__promise {
+    background: var(--lb-green-pale);
+    color: var(--lb-green-dark);
+    border-radius: var(--lb-radius-sm);
+    padding: .8rem 1rem;
+    font-weight: 500;
+}
+
+.lb-held__count { font-size: .85rem; color: var(--lb-ink-3); }
+.lb-held__count:empty { display: none; }
+
+.lb-held .lb-btn { margin-top: .4rem; }
+
 @media (prefers-reduced-motion: reduce) {
     * { transition-duration: .001ms !important; animation-duration: .001ms !important; }
 }
+
+/* =============================================================================
+   THE QR DESTINATION PAGE — emergency, spot info, cultural heritage
+   -----------------------------------------------------------------------------
+   Read one-handed, outdoors, in sunlight, possibly in a hurry. Bigger targets
+   and higher contrast than the rest of the site, and the emergency block is
+   built to be tappable without reading carefully.
+   ========================================================================== */
+
+.lb-h2--urgent { color: #B3261E; }
+
+.lb-emergency {
+    border: 2px solid #F2B8B5;
+    background: #FFF8F7;
+}
+
+.lb-emergency__intro { margin-bottom: .9rem; }
+
+.lb-hotlines {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: .55rem;
+}
+
+.lb-hotline a {
+    display: flex;
+    align-items: center;
+    gap: .85rem;
+    /* 60px: a call target used with wet hands, gloves, or while holding
+       somebody. Well above the 44px minimum, on purpose. */
+    min-height: 60px;
+    padding: .6rem .8rem;
+    border: 1px solid #E4C9C7;
+    border-radius: 12px;
+    background: #fff;
+    color: #1C2529;
+    text-decoration: none;
+}
+
+.lb-hotline a:active { background: #FDECEA; }
+
+.lb-hotline--local a {
+    border-color: #A7CDB0;
+    background: #F6FBF7;
+}
+
+.lb-hotline__icon {
+    flex: 0 0 2.6rem;
+    height: 2.6rem;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: #FDECEA;
+    color: #B3261E;
+    font-size: 1.05rem;
+}
+
+.lb-hotline--local .lb-hotline__icon {
+    background: #E6F2E9;
+    color: #2E7D32;
+}
+
+.lb-hotline__text { flex: 1 1 auto; min-width: 0; }
+.lb-hotline__text strong { display: block; font-size: .93rem; line-height: 1.3; }
+
+/* The number itself is the thing being dialled, so it gets tabular figures and
+   room to breathe rather than being squeezed under the label. */
+.lb-hotline__text span {
+    display: block;
+    font-size: 1.02rem;
+    font-weight: 600;
+    letter-spacing: .02em;
+    font-variant-numeric: tabular-nums;
+    color: #37474F;
+}
+
+.lb-hotline__call {
+    flex: 0 0 auto;
+    color: #2E7D32;
+    font-size: 1.1rem;
+}
+
+.lb-coords {
+    margin: .9rem 0 0;
+    padding-top: .8rem;
+    border-top: 1px dashed #E4C9C7;
+    font-size: .86rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.lb-card--warn {
+    border-left: 4px solid #EF6C00;
+    background: #FFF8F0;
+}
+
+.lb-card--heritage {
+    border-left: 4px solid #6D4C41;
+    background: #FBF8F6;
+}
+
+.lb-heritage__note {
+    margin-top: 1rem;
+    padding-top: .8rem;
+    border-top: 1px solid #EADFD9;
+    font-style: italic;
+}
+
+.lb-card--note {
+    border-left: 4px solid #2E7D32;
+    background: #F5FAF6;
+}
+
+.lb-facts {
+    margin: 1rem 0 0;
+    display: grid;
+    gap: .7rem;
+}
+.lb-facts dt {
+    font-size: .74rem;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: #6B7A72;
+    margin: 0;
+}
+.lb-facts dd { margin: .1rem 0 0; font-weight: 500; }
+
+.lb-h3 {
+    font-size: .92rem;
+    font-weight: 700;
+    margin: 1.2rem 0 .4rem;
+}
+
+.lb-tags {
+    list-style: none;
+    margin: .4rem 0 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: .4rem;
+}
+.lb-tags li {
+    padding: .28rem .7rem;
+    border-radius: 999px;
+    background: #EEF4EF;
+    font-size: .82rem;
+}
+
+@media (max-width: 380px) {
+    /* At the narrowest phones the call chevron is the first thing to go — the
+       whole row is the tap target anyway. */
+    .lb-hotline__call { display: none; }
+    .lb-hotline__text span { font-size: .96rem; }
+}
+
+/* =============================================================================
+   THE RATING WIDGET
+   -----------------------------------------------------------------------------
+   The markup was rendering as five bare radio buttons labelled "5 stars",
+   "4 stars"… because none of this existed: no .lb-stars rules at all, and no
+   .visually-hidden, so the text meant for screen readers was on the screen.
+
+   Built on real radio inputs rather than JavaScript. The control has to work
+   with a keyboard, has to submit without script, and has to survive a phone
+   that never finished loading the page — all three come free from a radio
+   group, and none of them come free from a div listening for clicks.
+   ========================================================================== */
+
+.lb-stars {
+    display: inline-flex;
+    /* The inputs are rendered 5→1 so that `input:checked ~ label` can reach the
+       lower stars, which are the ones that must also light up. Reversing the
+       row puts them back in the order a person reads: 1 on the left. */
+    flex-direction: row-reverse;
+    justify-content: flex-end;
+    gap: .15rem;
+    margin: .2rem 0 1.1rem;
+}
+
+/* Off-screen, not display:none — a hidden radio must still be focusable and
+   still be announced, or the control becomes unusable with a keyboard. */
+.lb-stars input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.lb-stars label {
+    /* 44px minimum touch target, and large enough to hit while holding a phone
+       one-handed at a waterfall. */
+    display: grid;
+    place-items: center;
+    min-width: 46px;
+    min-height: 46px;
+    font-size: 1.75rem;
+    line-height: 1;
+    color: var(--lb-line);
+    cursor: pointer;
+    border-radius: var(--lb-radius-sm);
+    transition: color .12s var(--lb-ease), transform .12s var(--lb-ease);
+}
+
+/* A star lights up together with every star below it — that is what a rating
+   means. Hover covers the pointer, :checked covers the committed value. */
+.lb-stars label:hover,
+.lb-stars label:hover ~ label,
+.lb-stars input:checked ~ label {
+    color: #F5A524;
+}
+
+.lb-stars label:active { transform: scale(.92); }
+
+/* The focus ring lives on the label, because the input it belongs to is
+   off-screen. Without this the keyboard user has no idea where they are. */
+.lb-stars input:focus-visible + label {
+    outline: 2px solid var(--lb-green);
+    outline-offset: 2px;
+}
+
+/* Screen-reader-only text. Missing entirely before, which is why every label
+   read "5 stars" on screen. */
+.visually-hidden {
+    position: absolute !important;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* Reads back the choice in words. The stars alone are ambiguous at a glance
+   once they are filled, and this is the line that confirms what was picked. */
+.lb-stars-readout {
+    display: block;
+    min-height: 1.2em;
+    margin: -.7rem 0 1rem;
+    font-size: .84rem;
+    font-weight: 600;
+    color: var(--lb-ink-2);
+}
+
+.lb-field textarea {
+    /* Left out of the shared field rule, so it fell back to the browser's
+       monospace default in a box three lines tall. */
+    min-height: 96px;
+    line-height: 1.55;
+    resize: vertical;
+}
+
+.lb-field textarea::placeholder { color: var(--lb-ink-3); }

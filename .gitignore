@@ -1,0 +1,58 @@
+# =============================================================================
+#  TourSync — what must never reach the repository
+# -----------------------------------------------------------------------------
+#  The first entry is the important one. app/config/config.php holds the
+#  database password and the Gemini API key; config.sample.php is the version
+#  that gets committed, with placeholders in place of the real values.
+#
+#  A key committed here is a key that has to be revoked, and a key in git
+#  history stays there after the file is deleted.
+# =============================================================================
+
+app/config/config.php
+.env
+.env.*
+!.env.example
+
+# Uploaded by the Tourism Office — real photographs and generated QR assets,
+# not source. The directories themselves are kept so a fresh checkout still has
+# somewhere to write.
+uploads/*
+!uploads/.gitkeep
+!uploads/*/
+uploads/*/*
+!uploads/*/.gitkeep
+
+# Runtime state: logs, cached forecasts, rate-limit counters.
+storage/logs/*
+!storage/logs/.gitkeep
+storage/cache/*
+!storage/cache/.gitkeep
+storage/ratelimit/*
+!storage/ratelimit/.gitkeep
+
+# Feature 2 — supporting logbook documents and staged spreadsheet imports.
+#
+# These are the most sensitive files the system holds: photographs of the paper
+# logbook, carrying the name, home address and mobile number of every visitor
+# who signed it. Personal data under RA 10173. They are served only through
+# api/reports/document.php after an authorisation check, and they must never
+# reach a repository — a public push would publish them to the world, and git
+# history keeps them after the file is deleted.
+storage/logbooks/*
+!storage/logbooks/.gitkeep
+storage/imports/*
+!storage/imports/.gitkeep
+
+# Database dumps. A backup taken from production carries every visitor record
+# the system has ever held.
+database/backup-*.sql
+*.sql.gz
+
+# Editor and OS noise
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini

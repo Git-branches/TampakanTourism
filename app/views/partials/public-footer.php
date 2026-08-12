@@ -14,7 +14,7 @@ if (!defined('TOURSYNC')) {
 
                 <div class="col-lg-5 col-md-6">
                     <div class="footer__brand">
-                        <img src="<?= e(base_url('assets/img/tampakan_logo.jpg')) ?>"
+                        <img src="<?= e(base_url('assets/img/tampakan_logo.png')) ?>"
                              alt="Official Seal of the Municipality of Tampakan" width="70" height="70">
                     </div>
                     <h4 class="footer__title">Municipality of Tampakan</h4>

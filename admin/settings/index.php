@@ -35,6 +35,26 @@ $editable = [
     'office_address'      => ['label' => 'Office address',         'type' => 'text', 'max' => 255],
     'office_phone'        => ['label' => 'Telephone',              'type' => 'text', 'max' => 60],
     'office_email'        => ['label' => 'Email address',          'type' => 'email','max' => 160],
+
+    /* The one setting that gets printed onto physical objects.
+       Everything else here can be corrected with a page refresh; this ends up
+       laminated on a post at a waterfall, so it is stated deliberately once
+       rather than inferred from whichever hostname an officer happened to be
+       working on. See QrService::url(). */
+    'public_url'          => ['label' => 'Public website address (used by printed QR codes)', 'type' => 'url', 'max' => 200],
+
+    /* Municipal emergency numbers, shown on every destination's QR page.
+       Settings rather than columns on destinations: the police station has one
+       number for the whole municipality, and holding it in twenty destination
+       records is twenty places to correct when it changes — and nineteen
+       chances to miss one. */
+    'hotline_emergency'   => ['label' => 'Emergency (911 / national)',  'type' => 'text', 'max' => 60],
+    'hotline_police'      => ['label' => 'Police station',             'type' => 'text', 'max' => 60],
+    'hotline_medical'     => ['label' => 'Rural Health Unit / hospital','type' => 'text', 'max' => 60],
+    'hotline_rescue'      => ['label' => 'MDRRMO / rescue',            'type' => 'text', 'max' => 60],
+    'hotline_fire'        => ['label' => 'Fire station',               'type' => 'text', 'max' => 60],
+    'hotline_tourism'     => ['label' => 'Municipal Tourism Office',   'type' => 'text', 'max' => 60],
+
     'retention_months'    => ['label' => 'Retain personal data for (months)', 'type' => 'int', 'min' => 6,  'max' => 120],
     'dedupe_window_hours' => ['label' => 'Duplicate detection window (hours)','type' => 'int', 'min' => 1,  'max' => 72],
     'rate_limit_per_15m'  => ['label' => 'Logbook submissions allowed per 15 minutes', 'type' => 'int', 'min' => 3, 'max' => 100],
@@ -53,6 +73,25 @@ if (is_post()) {
         if ($rules['type'] === 'email' && $value !== '' && !filter_var($value, FILTER_VALIDATE_EMAIL)) {
             $v->addError($key, 'Enter a valid email address.');
             continue;
+        }
+
+        if ($rules['type'] === 'url' && $value !== '') {
+            $value = rtrim($value, '/');
+
+            if (!filter_var($value, FILTER_VALIDATE_URL) || !preg_match('#^https?://#i', $value)) {
+                $v->addError($key, 'Enter the full address including http:// or https://.');
+                continue;
+            }
+
+            /* Rejected at the point of entry rather than at the point of
+               printing. By the time a poster is on a wall it is too late to
+               discover the address only worked on the office computer. */
+            $host = strtolower((string) parse_url($value, PHP_URL_HOST));
+
+            if (in_array($host, ['localhost', '127.0.0.1', '::1', '0.0.0.0'], true)) {
+                $v->addError($key, 'This address only works on this computer. Printed QR codes carrying it would open nothing on a visitor\'s phone.');
+                continue;
+            }
         }
 
         if ($rules['type'] === 'int') {
@@ -129,6 +168,70 @@ require __DIR__ . '/../_partials/head.php';
                             </div>
                         <?php endforeach; ?>
                     </div>
+                </div>
+            </section>
+
+            <section class="panel">
+                <header class="panel__head">
+                    <h2><i class="fa-solid fa-phone-volume"></i> Emergency Hotlines</h2>
+                </header>
+                <div class="panel__body">
+                    <p class="text-muted small mb-3">
+                        Shown at the top of every destination's QR page, as tap-to-call numbers. A visitor
+                        reading them is standing at the site, so these must be numbers that are answered.
+                        <strong>Leave a line blank if you are not sure of it</strong> &mdash; an unanswered
+                        number printed on a sign at a waterfall is worse than no number at all, because
+                        somebody will dial it in an emergency and wait.
+                    </p>
+
+                    <div class="row g-3">
+                        <?php foreach ([
+                            'hotline_emergency', 'hotline_police', 'hotline_medical',
+                            'hotline_rescue', 'hotline_fire', 'hotline_tourism',
+                        ] as $key):
+                            $rules = $editable[$key]; ?>
+                            <div class="col-md-6">
+                                <label for="<?= e($key) ?>" class="form-label"><?= e($rules['label']) ?></label>
+                                <input type="text" id="<?= e($key) ?>" name="<?= e($key) ?>"
+                                       maxlength="<?= (int) $rules['max'] ?>"
+                                       placeholder="0917 123 4567"
+                                       class="form-control <?= has_error($key) ? 'is-invalid' : '' ?>"
+                                       value="<?= old($key, (string) setting($key, '')) ?>">
+                                <?php if (has_error($key)): ?><div class="field-error"><?= e(error_for($key)) ?></div><?php endif; ?>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel">
+                <header class="panel__head"><h2><i class="fa-solid fa-qrcode"></i> Printed Signage Address</h2></header>
+                <div class="panel__body">
+                    <p class="text-muted small mb-3">
+                        The address a scanned QR code opens. Every other link on this system follows
+                        whatever address you are browsing on; this one must not, because it is printed
+                        onto signs that stay in the field for years. Set it to the address a tourist on
+                        mobile data can reach.
+                    </p>
+
+                    <label for="public_url" class="form-label"><?= e($editable['public_url']['label']) ?></label>
+                    <input type="url" id="public_url" name="public_url"
+                           maxlength="<?= (int) $editable['public_url']['max'] ?>"
+                           placeholder="https://tourism.tampakan.gov.ph"
+                           class="form-control <?= has_error('public_url') ? 'is-invalid' : '' ?>"
+                           value="<?= old('public_url', (string) setting('public_url', '')) ?>">
+                    <?php if (has_error('public_url')): ?>
+                        <div class="field-error"><?= e(error_for('public_url')) ?></div>
+                    <?php endif; ?>
+
+                    <p class="text-muted small mt-2 mb-0">
+                        Codes currently point at
+                        <code><?= e(App\Core\QrService::publicBase()) ?>/d/&hellip;</code>
+                        <?php if (!App\Core\QrService::isPublishable()): ?>
+                            &mdash; <strong class="text-danger">not usable on a printed sign.</strong>
+                            <?= e(App\Core\QrService::unpublishableReason()) ?>
+                        <?php endif; ?>
+                    </p>
                 </div>
             </section>
 

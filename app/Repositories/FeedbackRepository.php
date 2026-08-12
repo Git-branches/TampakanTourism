@@ -46,6 +46,35 @@ final class FeedbackRepository
         return Database::scalar('SELECT 1 FROM feedback WHERE arrival_id = ?', [$arrivalId]) !== null;
     }
 
+    /**
+     * Has this device already rated this destination recently?
+     *
+     * The database backstop for a scan-backed review. Since Feature 1 removed
+     * the digital logbook there is no arrival row to key on, and a session flag
+     * alone is not enough — clearing cookies, or opening the sign in a private
+     * tab, makes the next submission look new.
+     *
+     * device_hash is already stored on every review, so this checks something
+     * the system holds rather than collecting anything further. The window is
+     * days rather than forever: a visitor who genuinely returns next season is
+     * entitled to say what they thought the second time.
+     */
+    public static function existsForDevice(int $destinationId, string $deviceHash, int $days = 30): bool
+    {
+        if ($deviceHash === '') {
+            return false;
+        }
+
+        return Database::scalar(
+            'SELECT 1 FROM feedback
+              WHERE destination_id = ?
+                AND device_hash = ?
+                AND created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
+              LIMIT 1',
+            [$destinationId, $deviceHash, max(1, min($days, 365))]
+        ) !== null;
+    }
+
     public static function find(int $id): ?array
     {
         return Database::first(

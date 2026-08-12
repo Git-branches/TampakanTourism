@@ -173,6 +173,26 @@ require __DIR__ . '/../_partials/head.php';
                             <?php else: ?>
                                 <span class="pill pill--manual"><i class="fa-solid fa-pen"></i> Manual</span>
                             <?php endif; ?>
+
+                            <?php
+                            /* Captured with no signal and sent later. Worth showing,
+                               because the two timestamps on this row genuinely differ:
+                               the Arrived column is when the visitor stood at the
+                               destination, and an officer reconciling a manager's own
+                               notes needs to know why the record only appeared today. */
+                            if (!empty($a['synced_at'])):
+                                $lagMinutes = max(0, (int) round(
+                                    (strtotime($a['synced_at']) - strtotime($a['arrived_at'])) / 60
+                                ));
+                                $lagLabel = $lagMinutes >= 1440
+                                    ? round($lagMinutes / 1440) . ' day(s)'
+                                    : ($lagMinutes >= 60 ? round($lagMinutes / 60) . ' hour(s)' : $lagMinutes . ' min');
+                                ?>
+                                <span class="pill pill--offline"
+                                      title="Recorded offline and synchronised <?= e($lagLabel) ?> later, on <?= e(format_date($a['synced_at'], 'M j, Y g:i A')) ?>">
+                                    <i class="fa-solid fa-cloud-arrow-up"></i> Offline &middot; <?= e($lagLabel) ?>
+                                </span>
+                            <?php endif; ?>
                         </td>
                         <td>
                             <?php if ($a['status'] === 'valid'): ?>

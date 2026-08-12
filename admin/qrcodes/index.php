@@ -57,11 +57,49 @@ require __DIR__ . '/../_partials/head.php';
 
 <?php else: ?>
 
+    <?php
+    /* Printing is blocked, not merely warned about.
+     *
+     * A QR poster is the one artefact this system produces that cannot be
+     * corrected after the fact: it gets laminated and bolted to a post at a
+     * destination, and the failure is silent — nobody learns the code is dead
+     * until a tourist is standing in front of it with a phone. So the address
+     * is checked before the print button is offered at all. */
+    $signageReady = QrService::isPublishable();
+    ?>
+
+    <?php if (!$signageReady): ?>
+        <div class="alert alert-danger">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            <strong>These codes cannot be printed yet.</strong>
+            They point at <code><?= e(QrService::publicBase()) ?>/d/&hellip;</code> &mdash;
+            <?= e(QrService::unpublishableReason()) ?>
+            Set the public website address in
+            <a href="<?= e(base_url('/admin/settings/index.php')) ?>" class="alert-link">Settings</a> first.
+        </div>
+    <?php elseif (($qrWarning = QrService::warning()) !== ''): ?>
+        <!-- A caution, not a gate. Printing on a LAN address is exactly what a
+             rehearsal needs; the officer just has to know these sheets are not
+             the ones that go on the posts. -->
+        <div class="alert alert-warning">
+            <i class="fa-solid fa-circle-info"></i>
+            <strong>Test prints only.</strong>
+            <?= e($qrWarning) ?>
+        </div>
+    <?php endif; ?>
+
     <div class="toolbar">
         <p class="result-count mb-0"><?= n(count($destinations)) ?> destination<?= count($destinations) === 1 ? '' : 's' ?> with an active code</p>
-        <a href="poster.php?all=1" target="_blank" rel="noopener" class="btn btn-brand btn-sm">
-            <i class="fa-solid fa-print"></i> Print All Posters
-        </a>
+        <?php if ($signageReady): ?>
+            <a href="poster.php?all=1" target="_blank" rel="noopener" class="btn btn-brand btn-sm">
+                <i class="fa-solid fa-print"></i> Print All Posters
+            </a>
+        <?php else: ?>
+            <button type="button" class="btn btn-brand btn-sm" disabled
+                    title="Set the public website address in Settings before printing">
+                <i class="fa-solid fa-print"></i> Print All Posters
+            </button>
+        <?php endif; ?>
     </div>
 
     <div class="qr-grid">
@@ -86,10 +124,17 @@ require __DIR__ . '/../_partials/head.php';
                 </div>
 
                 <div class="qr-card__actions">
-                    <a href="poster.php?id=<?= (int) $d['id'] ?>" target="_blank" rel="noopener"
-                       class="btn btn-sm btn-outline-secondary">
-                        <i class="fa-solid fa-print"></i> Poster
-                    </a>
+                    <?php if ($signageReady): ?>
+                        <a href="poster.php?id=<?= (int) $d['id'] ?>" target="_blank" rel="noopener"
+                           class="btn btn-sm btn-outline-secondary">
+                            <i class="fa-solid fa-print"></i> Poster
+                        </a>
+                    <?php else: ?>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" disabled
+                                title="Set the public website address in Settings before printing">
+                            <i class="fa-solid fa-print"></i> Poster
+                        </button>
+                    <?php endif; ?>
                     <a href="<?= e(QrService::url($d['qr_token'])) ?>" target="_blank" rel="noopener"
                        class="btn btn-sm btn-outline-secondary">
                         <i class="fa-solid fa-arrow-up-right-from-square"></i> Test

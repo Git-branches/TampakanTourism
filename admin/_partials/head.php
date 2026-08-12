@@ -33,6 +33,7 @@ $nav = [
         ['label' => 'Dashboard',       'icon' => 'fa-gauge-high',       'href' => 'dashboard.php', 'dir' => 'admin'],
     ]],
     ['group' => 'Tourism Records', 'items' => [
+        ['label' => 'Tourist Arrival Reports', 'icon' => 'fa-inbox',     'href' => 'arrival-reports/index.php', 'dir' => 'arrival-reports'],
         ['label' => 'Tourist Arrivals','icon' => 'fa-user-check',       'href' => 'arrivals/index.php',     'dir' => 'arrivals'],
         ['label' => 'Destinations',    'icon' => 'fa-mountain-sun',     'href' => 'destinations/index.php', 'dir' => 'destinations'],
         ['label' => 'QR Codes',        'icon' => 'fa-qrcode',           'href' => 'qrcodes/index.php',      'dir' => 'qrcodes'],
@@ -42,10 +43,14 @@ $nav = [
         ['label' => 'Announcements',   'icon' => 'fa-bullhorn',         'href' => 'announcements/index.php','dir' => 'announcements'],
         ['label' => 'Destination Managers','icon' => 'fa-address-book', 'href' => 'managers/index.php',     'dir' => 'managers'],
     ]],
+    /* Decision Support and Budget Planner were removed from the officer's side
+       on the client's instruction — the assistant on the public site covers the
+       advisory need. app/Core/Insights.php stays: Analytics reads its monthly
+       history, trend and moving average, and deleting it would take the charts
+       with it. */
     ['group' => 'Analysis', 'items' => [
         ['label' => 'Reports',         'icon' => 'fa-file-lines',       'href' => 'reports/index.php',      'dir' => 'reports'],
         ['label' => 'Analytics',       'icon' => 'fa-chart-line',       'href' => 'analytics/index.php',    'dir' => 'analytics'],
-        ['label' => 'Decision Support','icon' => 'fa-lightbulb',        'href' => 'insights/index.php',     'dir' => 'insights'],
     ]],
     ['group' => 'System', 'items' => [
         ['label' => 'My Account',      'icon' => 'fa-user-gear',        'href' => 'account/index.php', 'dir' => 'account'],
@@ -61,7 +66,7 @@ $nav = [
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title><?= e($pageTitle ?? 'Admin') ?> — TourSync</title>
-<link rel="icon" href="<?= e(asset('img/tampakan_logo.jpg')) ?>" sizes="any">
+<link rel="icon" href="<?= e(asset('img/tampakan_logo.png')) ?>" sizes="any">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
@@ -74,7 +79,7 @@ $nav = [
     <!-- ================= SIDEBAR ================= -->
     <aside class="sidebar" id="sidebar">
         <div class="sidebar__brand">
-            <img src="<?= e(asset('img/tampakan_logo.jpg')) ?>"
+            <img src="<?= e(asset('img/tampakan_logo.png')) ?>"
                  alt="Seal of the Municipality of Tampakan" width="42" height="42">
             <span>
                 <strong>TourSync</strong>

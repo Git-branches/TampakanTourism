@@ -68,8 +68,10 @@ if (is_post()) {
 // Blank values, so the shared form renders without knowing which mode it is in.
 $d = array_fill_keys([
     'id', 'name', 'slug', 'category_id', 'short_description', 'description', 'history',
-    'operating_hours', 'entrance_fee', 'facilities', 'reminders', 'barangay', 'address',
-    'latitude', 'longitude', 'contact_person', 'contact_phone', 'contact_email', 'is_featured',
+    'cultural_heritage', 'operating_hours', 'entrance_fee', 'facilities', 'reminders',
+    'safety_notes', 'barangay', 'address',
+    'latitude', 'longitude', 'contact_person', 'contact_phone', 'local_hotline',
+    'contact_email', 'is_featured',
 ], '');
 
 // Repopulate after a validation failure so nothing is retyped.

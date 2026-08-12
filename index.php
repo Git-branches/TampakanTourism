@@ -515,7 +515,7 @@ $currentYear = date('Y');
     <meta property="og:url" content="<?= e($site['url']) ?>/">
     <meta name="twitter:card" content="summary_large_image">
 
-    <link rel="icon" href="assets/img/tampakan_logo.jpg" sizes="any">
+    <link rel="icon" href="assets/img/tampakan_logo.png" sizes="any">
 
     <!-- ===================== Fonts ===================== -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -538,7 +538,7 @@ $currentYear = date('Y');
       "@type": "GovernmentOrganization",
       "name": "Municipal Tourism Office of Tampakan",
       "url": "<?= e($site['url']) ?>",
-      "logo": "<?= e($site['url']) ?>/assets/img/tampakan_logo.jpg",
+      "logo": "<?= e($site['url']) ?>/assets/img/tampakan_logo.png",
       "email": "<?= e($contact['email']) ?>",
       "telephone": "<?= e($contact['phone']) ?>",
       "address": {
@@ -561,7 +561,7 @@ $currentYear = date('Y');
 <div id="preloader" class="preloader" aria-hidden="true">
     <div class="preloader__inner">
         <div class="preloader__ring">
-            <img src="assets/img/tampakan_logo.jpg" alt="" class="preloader__logo">
+            <img src="assets/img/tampakan_logo.png" alt="" class="preloader__logo">
         </div>
         <p class="preloader__text">Tampakan Tourism</p>
         <span class="preloader__bar"><i></i></span>
@@ -653,13 +653,15 @@ require __DIR__ . '/app/views/partials/public-nav.php';
             <?php endforeach; ?>
         </div>
 
-        <button class="carousel-control-prev hero__control" type="button" data-bs-target="#heroCarousel" data-bs-slide="prev">
-            <i class="fa-solid fa-chevron-left"></i><span class="visually-hidden">Previous slide</span>
-        </button>
-        <button class="carousel-control-next hero__control" type="button" data-bs-target="#heroCarousel" data-bs-slide="next">
-            <i class="fa-solid fa-chevron-right"></i><span class="visually-hidden">Next slide</span>
-        </button>
+        <!-- The prev/next chevrons are gone. The slide is a backdrop, not a
+             gallery: nobody arrives wanting to page through photographs of the
+             municipality, and the arrows sat on top of the hero text and the
+             CTA buttons on a phone for a control almost nobody used.
 
+             Navigation is not lost. The carousel still advances on its own, and
+             the indicators below remain real buttons — so a keyboard or screen
+             reader user can still reach any slide directly, which the arrows
+             only ever offered one step at a time. -->
         <div class="carousel-indicators hero__indicators">
             <?php foreach ($heroSlides as $i => $slide): ?>
             <button type="button" data-bs-target="#heroCarousel" data-bs-slide-to="<?= $i ?>"
@@ -1384,7 +1386,7 @@ require __DIR__ . '/app/views/partials/public-nav.php';
 
                 <div class="col-lg-4 col-md-6">
                     <div class="footer__brand">
-                        <img src="assets/img/tampakan_logo.jpg" alt="Official Seal of the Municipality of Tampakan, Province of South Cotabato" width="70" height="70">
+                        <img src="assets/img/tampakan_logo.png" alt="Official Seal of the Municipality of Tampakan, Province of South Cotabato" width="70" height="70">
                     </div>
                     <h4 class="footer__title"><?= e($site['municipality']) ?></h4>
                     <p class="footer__text">
@@ -1532,12 +1534,33 @@ require __DIR__ . '/app/views/partials/public-nav.php';
 </div>
 
 <!-- =========================================================================
+     VISITOR ASSISTANT
+     -----------------------------------------------------------------------
+     Placed at the end of the document rather than inside a section, because it
+     is fixed to the viewport and serves every section above it — destinations,
+     events, weather, the map, the travel guide, and the office details are all
+     within its knowledge. See app/Core/KnowledgeBase.php.
+     ====================================================================== -->
+<?php require __DIR__ . '/app/views/partials/chat-widget.php'; ?>
+
+<!-- =========================================================================
      SCRIPTS
      ====================================================================== -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://unpkg.com/aos@2.3.4/dist/aos.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="<?= e(asset('js/script.js')) ?>"></script>
+
+<script>
+    /* The endpoints, handed over rather than hardcoded, so the widget works
+       unchanged whether the site is served from the domain root or a
+       subdirectory. Token endpoint is shared with the offline logbook queue. */
+    window.TourSyncChat = {
+        askUrl:   <?= json_encode(base_url('/api/chat/ask.php')) ?>,
+        tokenUrl: <?= json_encode(base_url('/api/arrivals/token.php')) ?>
+    };
+</script>
+<script src="<?= e(asset('js/chat.js')) ?>"></script>
 
 <!-- =============================================================================
      Destination catalogue filter — in place, without reloading the page.

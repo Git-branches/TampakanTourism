@@ -17,6 +17,58 @@ use App\Core\QrService;
 
 Auth::require();
 
+/* The last gate before ink.
+ *
+ * Disabling the buttons on the index page is a courtesy; this is the guard.
+ * Anyone can reach poster.php by typing the address, and the whole point of
+ * the check is that the mistake it prevents is invisible and permanent — a
+ * laminated sign that opens nothing, discovered by a tourist months later.
+ *
+ * Refusing here costs an officer one trip to Settings. Not refusing costs the
+ * municipality a reprint of every sign in the field. */
+if (!QrService::isPublishable()) {
+    http_response_code(409);
+    header('Content-Type: text/html; charset=utf-8');
+    ?>
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Cannot print yet — TourSync</title>
+        <style>
+            body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 1.5rem;
+                   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; background: #F4F6F4; color: #16211A; }
+            .box { max-width: 34rem; background: #fff; border: 1px solid #DCE5DE; border-left: 4px solid #C62828;
+                   border-radius: 12px; padding: 1.8rem; line-height: 1.65; }
+            h1 { margin: 0 0 .6rem; font-size: 1.3rem; }
+            p  { margin: 0 0 .8rem; color: #43514A; }
+            code { background: #F1F3F2; padding: .12rem .4rem; border-radius: 4px; }
+            a { color: #2E7D32; font-weight: 600; }
+        </style>
+    </head>
+    <body>
+        <div class="box">
+            <h1>These posters cannot be printed yet</h1>
+            <p>
+                The codes would point at <code><?= e(QrService::publicBase()) ?>/d/&hellip;</code> —
+                <?= e(QrService::unpublishableReason()) ?>
+            </p>
+            <p>
+                A sign printed now would be mounted in the field and open nothing, and nobody would
+                find out until a visitor tried it.
+            </p>
+            <p>
+                <a href="<?= e(base_url('/admin/settings/index.php')) ?>">Set the public website address</a>,
+                then print.
+            </p>
+        </div>
+    </body>
+    </html>
+    <?php
+    exit;
+}
+
 if (!empty($_GET['all'])) {
     $destinations = Database::all(
         "SELECT id, name, barangay, qr_token, qr_version FROM destinations
@@ -188,7 +240,7 @@ $instructions = QrService::posterInstructions();
 
 <?php foreach ($destinations as $d): ?>
 <div class="poster">
-    <img class="poster__seal" src="<?= e(asset('img/tampakan_logo.jpg')) ?>"
+    <img class="poster__seal" src="<?= e(asset('img/tampakan_logo.png')) ?>"
          alt="Seal of the Municipality of Tampakan">
 
     <p class="poster__office">Municipal Tourism Office</p>

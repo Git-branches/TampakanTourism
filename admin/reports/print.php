@@ -120,7 +120,7 @@ $user = Auth::user();
 
 <div class="sheet">
     <header class="letterhead">
-        <img src="<?= e(asset('img/tampakan_logo.jpg')) ?>" alt="Seal of the Municipality of Tampakan">
+        <img src="<?= e(asset('img/tampakan_logo.png')) ?>" alt="Seal of the Municipality of Tampakan">
         <div>
             <h1>Municipal Tourism Office</h1>
             <p><?= e((string) setting('office_municipality', 'Municipality of Tampakan')) ?>

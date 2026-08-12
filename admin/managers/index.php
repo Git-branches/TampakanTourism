@@ -141,6 +141,18 @@ require __DIR__ . '/../_partials/head.php';
                         </td>
                         <td class="text-end">
                             <a href="edit.php?id=<?= (int) $m['id'] ?>" class="btn btn-sm btn-outline-secondary">Edit</a>
+
+                            <?php if (Auth::isOfficer()): ?>
+                                <!-- Officer only. Issuing a sign-in hands someone the ability to
+                                     file figures that become the municipality's official
+                                     statistics — not a staff-level action. -->
+                                <a href="access.php?id=<?= (int) $m['id'] ?>"
+                                   class="btn btn-sm btn-outline-<?= ($m['username'] ?? null) ? 'secondary' : 'primary' ?>">
+                                    <i class="fa-solid fa-key"></i>
+                                    <?= ($m['username'] ?? null) ? 'Access' : 'Issue sign-in' ?>
+                                </a>
+                            <?php endif; ?>
+
                             <form method="post" class="d-inline">
                                 <?= csrf_field() ?>
                                 <input type="hidden" name="id" value="<?= (int) $m['id'] ?>">

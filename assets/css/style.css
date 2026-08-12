@@ -859,32 +859,10 @@ img { max-width: 100%; height: auto; }
 
 .hero__actions { display: flex; flex-wrap: wrap; gap: 1rem; }
 
-/* ---- Slider controls ---- */
-.hero__control {
-    width: 62px;
-    opacity: 0;
-    transition: opacity .4s var(--ease);
-}
-.hero:hover .hero__control { opacity: 1; }
-.hero__control i {
-    display: grid;
-    place-items: center;
-    width: 52px;
-    height: 52px;
-    border-radius: 50%;
-    background: var(--glass-bg);
-    border: 1px solid var(--glass-brd);
-    backdrop-filter: var(--glass-blur);
-    -webkit-backdrop-filter: var(--glass-blur);
-    color: var(--white);
-    font-size: 1rem;
-    transition: all .3s var(--ease);
-}
-.hero__control:hover i {
-    background: var(--white);
-    color: var(--green-dark);
-    transform: scale(1.1);
-}
+/* The prev/next chevrons were removed from the hero along with their styles.
+   The indicators below are now the only manual control, which is the better
+   one anyway: they reach any slide directly rather than one step at a time.
+   See the comment in index.php where the buttons used to be. */
 
 .hero__indicators {
     bottom: 11rem;
@@ -2383,27 +2361,103 @@ img { max-width: 100%; height: auto; }
 
     .main-nav { top: 0; }   /* utility bar is hidden below lg */
 
-    .hero { height: auto; min-height: 100vh; }
+    /* -----------------------------------------------------------------------
+       The hero stops guessing.
+       -----------------------------------------------------------------------
+       On desktop the facts strip is absolutely positioned over the photograph
+       and the container reserves a fixed gap for it. That arrangement cannot
+       survive a narrow screen: the strip becomes two rows instead of one, the
+       heading wraps to three lines, and the reserved gap is simultaneously too
+       large for the space available and too small for the strip. Measured at
+       390px it left 208px for 334px of content — the excess was clipped by
+       .hero's overflow:hidden, which is why the headline lost its first lines
+       and the buttons sat underneath the stats card.
+
+       Below this width the strip simply flows after the slide. Nothing is
+       positioned into a guessed gap, so nothing can overlap or be cut, and the
+       hero is exactly as tall as it needs to be.
+       -------------------------------------------------------------------- */
+    .hero {
+        height: auto;
+        min-height: 0;
+    }
     .hero__container {
-        padding-top: calc(var(--nav-h) + 3rem);
-        padding-bottom: 16rem;
+        height: auto;
+        align-items: flex-start;
+        padding-top: calc(var(--nav-h) + 2.25rem);
+        padding-bottom: 3.5rem;   /* clears the indicators below */
     }
     .hero__scroll { display: none; }
-    .hero__indicators { bottom: 14rem; }
 
-    /* Facts strip becomes a 2-column grid */
+    /* Back to the foot of the slide, where they belong once the slide is only
+       as tall as its content. */
+    .hero__indicators {
+        bottom: 1rem;
+        margin-left: 0;
+        justify-content: center;
+    }
+
+    .hero__facts {
+        position: static;
+        padding-bottom: 2.25rem;
+    }
+
+    /* -------------------------------------------------------------------------
+       The strip stops being glass the moment it stops being on the photograph.
+       -------------------------------------------------------------------------
+       Above, position: static lifts the facts strip out of the hero and drops
+       it onto the page — which is white. Everything about its appearance was
+       designed for the opposite: a 12%-white fill, a white hairline border, and
+       white text, all of which read beautifully over a forest photograph and
+       vanish completely over white. Only the green icons survived, which is
+       exactly what the strip looked like on a phone: four icons and no words.
+
+       A backdrop-filter over an opaque background is also pure cost — it
+       samples and blurs a solid colour to produce the same solid colour.
+
+       So the strip is re-skinned rather than patched: a real white card with
+       ink text, the same shape and the same information, styled for the ground
+       it is actually standing on.
+       ---------------------------------------------------------------------- */
     .glass-strip {
         grid-template-columns: repeat(2, 1fr);
-        gap: 1.1rem;
+        gap: 1.1rem 1.25rem;
         padding: 1.3rem;
+
+        background: var(--white);
+        border-color: var(--gray-200);
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+        box-shadow: var(--shadow-md);
     }
+
+    .glass-strip__item        { color: var(--ink); }
+    .glass-strip__item strong { color: var(--ink); }
+
+    /* --ink-soft, not --gray-500. The pale grey that reads as a quiet caption
+       over a photograph only reaches 3.06:1 on white — below the 4.5:1 the
+       label needs to be legible outdoors on a phone, which is where this strip
+       is actually read. --ink-soft clears it at 7.63:1. */
+    .glass-strip__item span   { color: var(--ink-soft); }
+
+    /* --green-light is tuned for a dark photograph; on white it is too pale to
+       carry an icon. The full green is the same brand mark at usable weight. */
+    .glass-strip__item i      { color: var(--green); }
+
+    /* The live weather chip is a link, and its hover colours were also written
+       for white-on-photograph. */
+    .glass-strip__item--live:hover,
+    .glass-strip__item--live:focus-visible { color: var(--green-dark); }
+    .glass-strip__item--live:hover strong  { color: var(--green-dark); }
+    .glass-strip__item--live:hover span    { color: var(--gray-700); }
+
     .glass-strip__item + .glass-strip__item {
         border-left: none;
         padding-left: 0;
     }
     .glass-strip__item:nth-child(even) {
-        border-left: 1px solid rgba(255, 255, 255, .16);
-        padding-left: 1rem;
+        border-left: 1px solid var(--gray-200);
+        padding-left: 1.1rem;
     }
 
     .masonry { column-count: 2; }
@@ -2430,18 +2484,29 @@ img { max-width: 100%; height: auto; }
     .brand__text strong { font-size: 1.1rem; }
     .brand__text small  { font-size: .6rem; }
 
-    .hero { min-height: 620px; }
-    .hero__container { padding-bottom: 18rem; }
-    .hero__title { font-size: clamp(2rem, 8vw, 2.7rem); }
-    .hero__actions { flex-direction: column; align-items: stretch; }
+    /* No fixed minimum: the content sets the height. A phone hero that is
+       taller than its content is empty space the visitor has to scroll past
+       before reaching the destinations they came for. */
+    .hero__title { font-size: clamp(1.9rem, 7.5vw, 2.6rem); }
+    .hero__text  { font-size: 1rem; }
+    .hero__actions { flex-direction: column; align-items: stretch; gap: .75rem; }
     .hero__actions .btn { width: 100%; }
-    .hero__control { display: none; }
-    .hero__indicators { bottom: 16rem; margin-left: 1.5rem; }
 
     .glass-strip { grid-template-columns: 1fr 1fr; padding: 1.1rem; }
     .glass-strip__item i { font-size: 1.1rem; }
     .glass-strip__item strong { font-size: .9rem; }
     .glass-strip__item span { font-size: .68rem; }
+
+    /* Long words in a narrow column — "500–1,200 m", a barangay name, a
+       destination title — break rather than push the layout wider than the
+       screen. body carries overflow-x: clip, so an overflow here would not
+       scroll; it would silently cut the text off. */
+    .section-title,
+    .hero__title,
+    .dest-card__title,
+    .glass-strip__item strong { overflow-wrap: break-word; }
+
+    .section-title { text-wrap: balance; }
 
     .map-legend { grid-template-columns: 1fr; }
     #touristMap { height: 340px; }
@@ -2494,9 +2559,33 @@ img { max-width: 100%; height: auto; }
 /* ---- Very small screens ---- */
 @media (max-width: 479.98px) {
     .masonry { column-count: 1; }
-    .glass-strip { grid-template-columns: 1fr; }
+
+    /* One fact per row below this width. Two columns of "500–1,200 m" and
+       "Partly cloudy now" at 320px leaves about 130px per cell, which wraps
+       every label to three lines and reads worse than a single column. */
+    .glass-strip { grid-template-columns: 1fr; gap: .85rem; }
     .glass-strip__item:nth-child(even) { border-left: none; padding-left: 0; }
+    .glass-strip__item + .glass-strip__item {
+        padding-top: .85rem;
+        /* Grey, not white — same reason as the re-skin above: on a phone this
+           strip sits on a white card, and a white rule on white is no rule. */
+        border-top: 1px solid var(--gray-200);
+    }
+
     .brand__text { display: none; }   /* logos only — saves horizontal space */
+
+    /* The floor for headings. Below 1.65rem the hierarchy stops reading as a
+       heading at all; above it, "Explore Destinations" no longer fits one line
+       at 320px and wraps cleanly instead of being cut by the body's clip. */
+    .section-title { font-size: clamp(1.65rem, 7vw, 2rem); }
+    .hero__title   { font-size: clamp(1.75rem, 8vw, 2.2rem); }
+
+    .section-sub { font-size: .95rem; }
+
+    .hero__container {
+        padding-top: calc(var(--nav-h) + 1.75rem);
+        padding-bottom: 3rem;
+    }
 }
 
 
@@ -2528,7 +2617,6 @@ img { max-width: 100%; height: auto; }
     .preloader,
     .topbar,
     .main-nav,
-    .hero__control,
     .hero__indicators,
     .hero__scroll,
     .back-to-top,
@@ -4171,4 +4259,436 @@ body [data-aos="tt-pop"][data-aos] {
         display: block;
         opacity: 1;
     }
+}
+
+
+/* =============================================================================
+   30. VISITOR ASSISTANT                                            Feature 4
+   -----------------------------------------------------------------------------
+   Fixed to the corner so it is reachable from every section of the landing
+   page. Green rather than the usual "AI purple": this is a municipal service
+   answering from municipal records, and it should look like part of the site
+   rather than a bolted-on third-party widget.
+   ========================================================================== */
+
+.visually-hidden {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* ---- Sharing the corner with the back-to-top button ----------------------
+   Both are fixed to the bottom right, so without this they sit on top of one
+   another. They stack instead: the launcher keeps the corner because it is the
+   primary action, and the back-to-top lifts above it.
+
+   The height is declared rather than left to line-height so the offset below
+   is arithmetic instead of a guess, and the offset is applied only under
+   .has-chat-dock — a class chat.js adds when the launcher actually appears.
+   On destination.php, map.php and every other page without the assistant, the
+   back-to-top stays exactly where it was.
+   -------------------------------------------------------------------------- */
+:root {
+    --dock-edge:   1.25rem;   /* distance from the viewport corner */
+    --dock-gap:    .7rem;     /* breathing room between the two buttons */
+    --dock-height: 52px;      /* the launcher's height, fixed below */
+}
+
+body.has-chat-dock .back-to-top {
+    right: var(--dock-edge);
+    bottom: calc(var(--dock-edge) + var(--dock-height) + var(--dock-gap));
+}
+
+/* ---- Launcher ------------------------------------------------------------ */
+.chat-launcher {
+    position: fixed;
+    right: var(--dock-edge);
+    bottom: var(--dock-edge);
+    z-index: 1050;          /* above the back-to-top, below the navbar */
+    height: var(--dock-height);
+    display: inline-flex;
+    align-items: center;
+    gap: .6rem;
+    padding: 0 1.35rem;
+    border: none;
+    border-radius: var(--radius-pill);
+    background: var(--grad-brand);
+    color: var(--white);
+    font-family: inherit;
+    font-size: .92rem;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 10px 30px -8px rgba(27, 94, 32, .5);
+    transition: transform .25s var(--ease), box-shadow .25s var(--ease);
+}
+.chat-launcher[hidden] { display: none; }
+.chat-launcher:hover { transform: translateY(-3px); box-shadow: 0 16px 38px -10px rgba(27, 94, 32, .6); }
+.chat-launcher:focus-visible { outline: 3px solid var(--blue-light, #4FC3F7); outline-offset: 3px; }
+.chat-launcher i { font-size: 1.05rem; }
+
+/* ---- Panel --------------------------------------------------------------- */
+.chat-panel {
+    position: fixed;
+    right: 1.25rem;
+    bottom: 1.25rem;
+    z-index: 1051;
+    width: min(24rem, calc(100vw - 2.5rem));
+
+    /* Taller than the first pass. At 34rem the header, the suggestion row, the
+       composer and the footnote left the transcript a two-line slot, so an
+       answer was cut off the moment it arrived — the one thing the panel
+       exists to show. */
+    max-height: min(38rem, calc(100vh - 2.5rem));
+
+    /* dvh, where it exists.
+     *
+     * On a phone, 100vh is the viewport with the browser chrome hidden — a
+     * height the page does not actually have while the address bar is showing,
+     * and certainly not while the keyboard is up. Sized in vh, the composer
+     * ends up under the keyboard the moment someone taps the input, which is
+     * the one thing they tapped it to use. dvh tracks the space that is really
+     * there. The vh line above stays as the fallback for older browsers. */
+    max-height: min(38rem, calc(100dvh - 2.5rem));
+    display: flex;
+    flex-direction: column;
+    background: var(--white);
+    border: 1px solid var(--gray-200);
+    border-radius: 18px;
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+}
+.chat-panel[hidden] { display: none; }
+
+.chat-panel__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.05rem 1.2rem;
+    background: var(--grad-brand);
+    color: var(--white);
+}
+.chat-panel__head h2 { margin: 0; font-size: 1rem; font-weight: 700; color: var(--white); }
+.chat-panel__head p  { margin: .15rem 0 0; font-size: .78rem; opacity: .85; }
+
+.chat-panel__close {
+    background: rgba(255, 255, 255, .18);
+    border: none;
+    color: var(--white);
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    cursor: pointer;
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+}
+.chat-panel__close:hover { background: rgba(255, 255, 255, .3); }
+
+/* ---- Transcript ---------------------------------------------------------- */
+.chat-log {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1.1rem;
+    display: flex;
+    flex-direction: column;
+    gap: .8rem;
+    background: var(--gray-100);
+
+    /* The transcript is the point of the panel and is not allowed to be
+       squeezed into a sliver by whatever sits under it. Without this the
+       suggestion row wins the space fight and the answer is clipped to two
+       lines. */
+    min-height: 13rem;
+}
+
+.chat-msg { display: flex; }
+.chat-msg--bot  { justify-content: flex-start; }
+.chat-msg--user { justify-content: flex-end; }
+
+.chat-bubble {
+    max-width: 85%;
+    padding: .7rem .95rem;
+    border-radius: 14px;
+    font-size: .9rem;
+    line-height: 1.6;
+    background: var(--white);
+    color: var(--gray-700);
+    border: 1px solid var(--gray-200);
+}
+.chat-msg--user .chat-bubble {
+    background: var(--green-dark);
+    color: var(--white);
+    border-color: transparent;
+}
+.chat-msg--error .chat-bubble { border-color: #F0C0BA; background: #FDECEA; color: #A0332A; }
+.chat-bubble p { margin: 0; }
+.chat-bubble p + p { margin-top: .6rem; }
+
+/* Fact rows: label left, value right, so a list of fees scans down the page. */
+.chat-facts {
+    margin: .7rem 0 0;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: .3rem .8rem;
+    font-size: .85rem;
+    padding-top: .7rem;
+    border-top: 1px solid var(--gray-200);
+}
+.chat-facts dt { font-weight: 600; color: var(--ink); }
+.chat-facts dd { margin: 0; color: var(--gray-700); }
+
+.chat-links { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: .75rem; }
+.chat-links a {
+    font-size: .78rem;
+    font-weight: 600;
+    color: var(--green-dark);
+    background: var(--green-pale);
+    padding: .32rem .7rem;
+    border-radius: var(--radius-pill);
+    text-decoration: none;
+}
+.chat-links a:hover { background: var(--green); color: var(--white); }
+
+/* ---- Suggested questions --------------------------------------------------
+   Wrapping, and nothing is ever clipped.
+
+   Two earlier attempts failed for opposite reasons. Wrapped full sentences
+   became four stacked rows that ate the transcript. Scrolling them sideways
+   fixed the height but sliced a pill in half at the panel edge, which reads as
+   broken layout rather than as "there is more" — nobody swipes a button they
+   think is a rendering fault.
+
+   The fix was upstream: the labels are short now (Chatbot::suggest splits the
+   pill's text from the question it asks), so four or five fit in two rows with
+   no clipping and no gesture to discover.
+   -------------------------------------------------------------------------- */
+.chat-suggest {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .4rem;
+    padding: .7rem 1.1rem;
+    background: var(--white);
+}
+.chat-suggest:empty { display: none; }
+
+.chat-chip {
+    font-family: inherit;
+    font-size: .77rem;
+    padding: .38rem .8rem;
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--gray-200);
+    background: var(--white);
+    color: var(--gray-700);
+    cursor: pointer;
+    transition: border-color .2s var(--ease), color .2s var(--ease);
+
+    /* Never broken across lines — a chip whose text wraps stops reading as a
+       single tappable thing. Short labels are what make this safe. */
+    white-space: nowrap;
+    max-width: 100%;
+}
+.chat-chip:hover { border-color: var(--green); color: var(--green-dark); }
+.chat-chip:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+
+/* ---- Composer ------------------------------------------------------------- */
+.chat-form {
+    display: flex;
+    gap: .5rem;
+    padding: .15rem 1.1rem .7rem;
+    background: var(--white);
+}
+.chat-form input {
+    flex: 1;
+    min-width: 0;
+    height: 42px;
+    padding: 0 1rem;
+    border: 1.5px solid var(--gray-200);
+    border-radius: var(--radius-pill);
+    font-family: inherit;
+    font-size: .88rem;
+    background: var(--white);
+    color: var(--ink);
+}
+.chat-form input:focus { outline: none; border-color: var(--green); }
+
+.chat-form button {
+    width: 42px; height: 42px;
+    flex-shrink: 0;
+    border: none;
+    border-radius: 50%;
+    background: var(--grad-brand);
+    color: var(--white);
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+}
+.chat-form button:disabled { opacity: .55; cursor: not-allowed; }
+
+/* One line. The disclosure has to be there — a visitor is entitled to know
+   they are not talking to a person — but two wrapped lines of grey text were
+   costing the transcript more room than the notice is worth. */
+.chat-foot {
+    margin: 0;
+    padding: 0 1.1rem .75rem;
+    font-size: .67rem;
+    line-height: 1.4;
+    color: var(--gray-500);
+    background: var(--white);
+    text-align: center;
+}
+
+/* ---- "Looking that up" ---------------------------------------------------- */
+.chat-dots { display: inline-flex; gap: .28rem; align-items: center; padding: .15rem 0; }
+.chat-dots i {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--gray-500);
+    animation: chatDot 1.2s infinite ease-in-out;
+}
+.chat-dots i:nth-child(2) { animation-delay: .18s; }
+.chat-dots i:nth-child(3) { animation-delay: .36s; }
+
+@keyframes chatDot {
+    0%, 60%, 100% { opacity: .3; transform: translateY(0); }
+    30%           { opacity: 1;  transform: translateY(-3px); }
+}
+
+/* ---- Phones ---------------------------------------------------------------
+   Full-bleed below the fold. On a 360px screen a floating card leaves too
+   little room for an answer with a fact table in it. */
+@media (max-width: 575.98px) {
+    /* Icon only, and a circle rather than a pill — a phone screen has no room
+       for a label, and the tokens keep the back-to-top stacked correctly
+       without repeating the arithmetic. */
+    :root {
+        --dock-edge:   1rem;
+        --dock-height: 48px;
+    }
+
+    .chat-launcher__label { display: none; }
+    .chat-launcher { width: var(--dock-height); padding: 0; justify-content: center; border-radius: 50%; }
+
+    /* The launcher floats over whatever is at the foot of the screen, which is
+       harmless while scrolling and not harmless at the very bottom of the page,
+       where it would sit on the last row of footer links permanently. A strip
+       of clearance under the footer gives it somewhere to rest. Applied only
+       when the launcher actually exists — see .has-chat-dock in chat.js. */
+    body.has-chat-dock .footer__bottom {
+        padding-bottom: calc(var(--dock-edge) * 2 + var(--dock-height));
+    }
+
+    .chat-panel {
+        right: 0; left: 0; bottom: 0;
+        width: 100%;
+
+        /* dvh, not vh.
+         *
+         * On a phone, vh is the viewport with the browser chrome retracted —
+         * a height the page does not actually have while the address bar is
+         * showing, and certainly not while the keyboard is up. At 86vh the
+         * composer sat below the fold exactly when the visitor was typing into
+         * it. dvh tracks the space that is really there, so the input stays on
+         * screen as the keyboard opens. vh is kept first as the fallback for
+         * browsers that do not know dvh. */
+        max-height: 86vh;
+        max-height: 86dvh;
+
+        border-radius: 18px 18px 0 0;
+        border-left: none;
+        border-right: none;
+        border-bottom: none;
+    }
+
+    /* Anything long — a Gemini paragraph, a destination name, a URL a visitor
+       pastes in — wraps inside the bubble instead of widening the panel. */
+    .chat-bubble { max-width: 88%; overflow-wrap: break-word; }
+    .chat-log { min-height: 9rem; }
+    .chat-facts { grid-template-columns: minmax(0, auto) minmax(0, 1fr); }
+    .chat-facts dd { overflow-wrap: break-word; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .chat-launcher, .chat-dots i { transition: none; animation: none; }
+}
+
+
+/* ---- Assistant: header tools, quick actions, retry -------------------------
+   Added with the Gemini half. The quick actions are a grid rather than a chip
+   row: they are the opening screen, they carry two lines of text each, and a
+   visitor who has not typed anything yet benefits from seeing all six at once.
+   -------------------------------------------------------------------------- */
+.chat-panel__title { min-width: 0; }
+.chat-panel__tools { display: flex; gap: .35rem; flex-shrink: 0; }
+
+.chat-icon-btn {
+    background: rgba(255, 255, 255, .18);
+    border: none;
+    color: var(--white);
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+    font-size: .82rem;
+    transition: background .2s var(--ease);
+}
+.chat-icon-btn:hover { background: rgba(255, 255, 255, .32); }
+.chat-icon-btn:focus-visible { outline: 2px solid var(--white); outline-offset: 2px; }
+
+.chat-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: .45rem;
+    margin-top: .3rem;
+}
+
+.chat-action {
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+    text-align: left;
+    font-family: inherit;
+    font-size: .78rem;
+    line-height: 1.3;
+    font-weight: 500;
+    padding: .6rem .7rem;
+    border-radius: 10px;
+    border: 1px solid var(--gray-200);
+    background: var(--white);
+    color: var(--gray-700);
+    cursor: pointer;
+    transition: border-color .2s var(--ease), color .2s var(--ease), transform .2s var(--ease);
+}
+.chat-action:hover {
+    border-color: var(--green);
+    color: var(--green-dark);
+    transform: translateY(-1px);
+}
+.chat-action:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+.chat-action span { font-size: .95rem; line-height: 1; }
+
+/* Offered only where retrying could actually help — a network blip, not a
+   rejected question. */
+.chat-retry {
+    margin-top: .6rem;
+    font-family: inherit;
+    font-size: .78rem;
+    font-weight: 600;
+    padding: .35rem .85rem;
+    border-radius: var(--radius-pill);
+    border: 1px solid currentColor;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+}
+.chat-retry:hover { background: rgba(0, 0, 0, .05); }
+
+/* One column on the narrowest phones — two 78px-wide buttons with wrapping
+   labels read worse than six full-width ones. */
+@media (max-width: 359.98px) {
+    .chat-actions { grid-template-columns: 1fr; }
 }

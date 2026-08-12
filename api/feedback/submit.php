@@ -65,35 +65,58 @@ if ($v->fails()) {
     redirect(base_url('/destination.php?slug=' . ($destination['slug'] ?? '')));
 }
 
-/* The arrival is read from the session, never from the form. A record id in a
-   hidden field could be edited to attach a review to somebody else's visit.
+/* PROOF OF PRESENCE, read from the session and never from the form. A record id
+ * in a hidden field could be edited to attach a review to somebody else's visit.
  *
- * A review REQUIRES a logged visit at this destination. That is the whole
- * proposition of the feature — these reviews come from people who
- * demonstrably stood there — and it closes the obvious spam route of posting
- * to this endpoint directly. */
+ * A review still requires having been at the destination — that is the whole
+ * proposition, these come from people who demonstrably stood there, and it
+ * closes the obvious spam route of posting to this endpoint directly.
+ *
+ * WHAT COUNTS AS PROOF CHANGED WITH FEATURE 1. The QR sign no longer opens a
+ * logbook, so there is no arrival record to point at; the tourist writes in the
+ * paper book at the fill-up station instead. Scanning the sign is now the
+ * evidence, and d/index.php records it. The older arrival-backed path is kept
+ * for any session still carrying one — dropping it would silently refuse a
+ * review from someone mid-visit on the day this shipped. */
 $arrival = Session::get('_last_arrival');
+$scanned = Session::get('_scanned');
 
-if (!is_array($arrival)
-    || !isset($arrival['id'])
-    || (int) ($arrival['destination_id'] ?? 0) !== $destinationId) {
+$hasArrival = is_array($arrival)
+    && isset($arrival['id'])
+    && (int) ($arrival['destination_id'] ?? 0) === $destinationId;
+
+$hasScan = is_array($scanned)
+    && (int) ($scanned['destination_id'] ?? 0) === $destinationId;
+
+if (!$hasArrival && !$hasScan) {
     Session::flash(
         'info',
-        'Reviews are open to visitors who logged their visit on site. Scan the QR code at the destination to leave one.'
+        'Reviews are open to visitors who have been to the destination. Scan the QR code on the sign to leave one.'
     );
     redirect(base_url('/destination.php?slug=' . $destination['slug'] . '#reviews'));
 }
 
-$arrivalId = (int) $arrival['id'];
+$arrivalId = $hasArrival ? (int) $arrival['id'] : null;
 
-/* One review per logged visit, checked two ways.
+/* One review per visit, checked two ways where there is an arrival to check
+ * against.
  *
  * The session flag catches the common case — a visitor tapping submit twice on
  * a slow connection, or using the back button. The database check catches the
  * rest, including a resubmission after the session was cleared. An earlier
  * version relied on the session alone and a double submit produced two
- * reviews, because clearing the arrival made the second request look new. */
-if (!empty($arrival['rated']) || FeedbackRepository::existsForArrival($arrivalId)) {
+ * reviews, because clearing the arrival made the second request look new.
+ *
+ * A scan-backed review has no arrival row, so its backstop is the device hash
+ * already stored on every review — same idea, different key. Without it the
+ * session flag is the only guard, and clearing cookies or reopening the sign in
+ * a private tab makes the next submission look new. */
+$alreadyRated = $hasArrival
+    ? (!empty($arrival['rated']) || FeedbackRepository::existsForArrival($arrivalId))
+    : (!empty($scanned['rated'])
+        || FeedbackRepository::existsForDevice($destinationId, RateLimiter::deviceHash()));
+
+if ($alreadyRated) {
     Session::flash('info', 'You have already rated this visit. Thank you!');
     redirect(base_url('/destination.php?slug=' . $destination['slug'] . '#reviews'));
 }
@@ -115,9 +138,14 @@ try {
 
 /* Mark the visit rated rather than discarding it. Discarding made a repeat
    submission look like a brand-new one, which is exactly how the duplicate
-   slipped through before. */
-$arrival['rated'] = true;
-Session::put('_last_arrival', $arrival);
+   slipped through before. Whichever kind of proof was used gets the flag. */
+if ($hasArrival) {
+    $arrival['rated'] = true;
+    Session::put('_last_arrival', $arrival);
+} else {
+    $scanned['rated'] = true;
+    Session::put('_scanned', $scanned);
+}
 
 /* Said plainly rather than "thank you, your review is live" — it is not live,
    and a visitor who goes looking for it should know why it is not there. */

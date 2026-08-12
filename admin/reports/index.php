@@ -55,7 +55,16 @@ require __DIR__ . '/../_partials/head.php';
 ?>
 
 <section class="panel">
-    <header class="panel__head"><h2><i class="fa-solid fa-sliders"></i> Generate a Report</h2></header>
+    <header class="panel__head">
+        <h2><i class="fa-solid fa-sliders"></i> Generate a Report</h2>
+        <!-- The office's own monthly submission form. Given its own entry rather
+             than folded into the generic report types below: this is the sheet
+             that gets signed and filed, and it has a fixed layout the others
+             do not share. -->
+        <a href="visitor-record.php" class="btn btn-brand btn-sm">
+            <i class="fa-solid fa-table-list"></i> Tourism Attraction Visitor Record
+        </a>
+    </header>
     <div class="panel__body">
 
         <?php if ($range['first'] === null): ?>

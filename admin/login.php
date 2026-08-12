@@ -57,7 +57,7 @@ Session::forget('_expired');
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title>Sign In — TourSync Admin</title>
-<link rel="icon" href="<?= e(asset('img/tampakan_logo.jpg')) ?>" sizes="any">
+<link rel="icon" href="<?= e(asset('img/tampakan_logo.png')) ?>" sizes="any">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
@@ -69,7 +69,7 @@ Session::forget('_expired');
     <div class="login-card">
 
         <div class="login-card__brand">
-            <img src="<?= e(asset('img/tampakan_logo.jpg')) ?>"
+            <img src="<?= e(asset('img/tampakan_logo.png')) ?>"
                  alt="Official Seal of the Municipality of Tampakan" width="76" height="76">
             <h1>TourSync</h1>
             <p>Municipal Tourism Office &middot; Tampakan, South Cotabato</p>
@@ -129,6 +129,16 @@ Session::forget('_expired');
         <p class="login-card__note">
             <i class="fa-solid fa-shield-halved"></i>
             Authorised personnel only. Every sign-in is recorded in the activity log.
+        </p>
+
+        <!-- The two accounts live in separate tables with separate sessions, so
+             this page cannot accept a destination manager and must not pretend
+             to. Without this line a manager types their password in here, is
+             told it is wrong, and has no way of learning why — the manager door
+             is otherwise reachable only by typing the URL from memory. -->
+        <p class="login-card__switch">
+            Managing a tourist destination?
+            <a href="<?= e(base_url('/manager/login.php')) ?>">Sign in to the Destination Manager portal</a>
         </p>
 
         <a href="<?= e(base_url('/')) ?>" class="login-card__back">

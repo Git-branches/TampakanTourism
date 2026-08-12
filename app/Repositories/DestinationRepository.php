@@ -219,10 +219,11 @@ final class DestinationRepository
         return Database::insert(
             "INSERT INTO destinations
                 (category_id, name, slug, short_description, description, history,
-                 operating_hours, entrance_fee, facilities, reminders, barangay, address,
-                 latitude, longitude, contact_person, contact_phone, contact_email,
+                 cultural_heritage, operating_hours, entrance_fee, facilities,
+                 reminders, safety_notes, barangay, address,
+                 latitude, longitude, contact_person, contact_phone, local_hotline, contact_email,
                  qr_token, is_featured, status, created_by)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             [
                 $data['category_id'] ?: null,
                 $data['name'],
@@ -230,16 +231,22 @@ final class DestinationRepository
                 $data['short_description'] ?: null,
                 $data['description'] ?: null,
                 $data['history'] ?: null,
+                /* The three fields the QR sign carries. Nullable, and blank is a
+                   real answer — a placeholder hotline printed on a sign at a
+                   waterfall is worse than none, because somebody dials it. */
+                $data['cultural_heritage'] ?? null ?: null,
                 $data['operating_hours'] ?: null,
                 $data['entrance_fee'] ?: null,
                 self::encodeFacilities($data['facilities'] ?? ''),
                 $data['reminders'] ?: null,
+                $data['safety_notes'] ?? null ?: null,
                 $data['barangay'] ?: null,
                 $data['address'] ?: null,
                 $data['latitude'] !== '' ? $data['latitude'] : null,
                 $data['longitude'] !== '' ? $data['longitude'] : null,
                 $data['contact_person'] ?: null,
                 $data['contact_phone'] ?: null,
+                $data['local_hotline'] ?? null ?: null,
                 $data['contact_email'] ?: null,
                 self::newToken(),
                 !empty($data['is_featured']) ? 1 : 0,
@@ -254,9 +261,11 @@ final class DestinationRepository
         Database::run(
             "UPDATE destinations SET
                 category_id = ?, name = ?, short_description = ?, description = ?, history = ?,
-                operating_hours = ?, entrance_fee = ?, facilities = ?, reminders = ?,
+                cultural_heritage = ?, operating_hours = ?, entrance_fee = ?, facilities = ?,
+                reminders = ?, safety_notes = ?,
                 barangay = ?, address = ?, latitude = ?, longitude = ?,
-                contact_person = ?, contact_phone = ?, contact_email = ?, is_featured = ?
+                contact_person = ?, contact_phone = ?, local_hotline = ?, contact_email = ?,
+                is_featured = ?
              WHERE id = ?",
             [
                 $data['category_id'] ?: null,
@@ -264,16 +273,19 @@ final class DestinationRepository
                 $data['short_description'] ?: null,
                 $data['description'] ?: null,
                 $data['history'] ?: null,
+                $data['cultural_heritage'] ?? null ?: null,
                 $data['operating_hours'] ?: null,
                 $data['entrance_fee'] ?: null,
                 self::encodeFacilities($data['facilities'] ?? ''),
                 $data['reminders'] ?: null,
+                $data['safety_notes'] ?? null ?: null,
                 $data['barangay'] ?: null,
                 $data['address'] ?: null,
                 $data['latitude'] !== '' ? $data['latitude'] : null,
                 $data['longitude'] !== '' ? $data['longitude'] : null,
                 $data['contact_person'] ?: null,
                 $data['contact_phone'] ?: null,
+                $data['local_hotline'] ?? null ?: null,
                 $data['contact_email'] ?: null,
                 !empty($data['is_featured']) ? 1 : 0,
                 $id,

@@ -56,8 +56,8 @@ final class ArrivalRepository
                      origin_country, origin_province, origin_city, purpose,
                      companions_count, total_visitors, consent_given, source,
                      recorded_by, qr_version_used, device_hash, distance_m,
-                     status, flag_reason)
-                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                     status, flag_reason, client_uuid, synced_at)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 [
                     $data['destination_id'],
                     $data['visit_date'],
@@ -84,6 +84,14 @@ final class ArrivalRepository
                     $data['distance_m']      ?? null,
                     $data['status']          ?? 'valid',
                     ($data['flag_reason']    ?? '') ?: null,
+
+                    /* Both null for an ordinary online submission. Set only
+                       when the record was captured on a device with no signal
+                       and replayed later — client_uuid is what stops a retried
+                       replay counting twice, synced_at is what proves the delay
+                       was the network's and not the visitor's. */
+                    ($data['client_uuid']    ?? '') ?: null,
+                    ($data['synced_at']      ?? '') ?: null,
                 ]
             );
 
@@ -172,6 +180,31 @@ final class ArrivalRepository
               WHERE device_hash = ? AND destination_id = ?
                 AND arrived_at >= DATE_SUB(NOW(), INTERVAL ? HOUR)',
             [$deviceHash, $destinationId, $withinHours]
+        );
+    }
+
+    /**
+     * Has this device-generated record already been stored?
+     *
+     * The question a synchronising phone asks before it gives up. A replay that
+     * was interrupted after the INSERT but before the response reached the
+     * device will be retried; without this lookup the retry becomes a second
+     * arrival, and a bad signal quietly inflates the municipality's figures.
+     */
+    public static function findByClientUuid(string $uuid): ?array
+    {
+        if ($uuid === '') {
+            return null;
+        }
+
+        return Database::first(
+            'SELECT a.id, a.destination_id, a.companions_count, a.arrived_at,
+                    d.name AS destination_name, d.slug AS destination_slug, d.qr_token
+               FROM tourist_arrivals a
+               JOIN destinations d ON d.id = a.destination_id
+              WHERE a.client_uuid = ?
+              LIMIT 1',
+            [$uuid]
         );
     }
 

@@ -40,7 +40,7 @@ $alreadyRated    = !empty($_GET['rated']);
 <meta name="robots" content="noindex">
 <title>Visit Recorded — Tampakan Tourism</title>
 <meta name="theme-color" content="#2E7D32">
-<link rel="icon" href="<?= e(asset('img/tampakan_logo.jpg')) ?>" sizes="any">
+<link rel="icon" href="<?= e(asset('img/tampakan_logo.png')) ?>" sizes="any">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
 <link rel="stylesheet" href="<?= e(asset('css/logbook.css')) ?>">
@@ -48,7 +48,7 @@ $alreadyRated    = !empty($_GET['rated']);
 <body class="lb-body">
 
 <header class="lb-gov">
-    <img src="<?= e(asset('img/tampakan_logo.jpg')) ?>" alt="Seal of the Municipality of Tampakan" width="34" height="34">
+    <img src="<?= e(asset('img/tampakan_logo.png')) ?>" alt="Seal of the Municipality of Tampakan" width="34" height="34">
     <div>
         <strong>Municipal Tourism Office</strong>
         <span>Municipality of Tampakan, South Cotabato</span>

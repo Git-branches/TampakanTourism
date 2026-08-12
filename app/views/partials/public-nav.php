@@ -100,7 +100,7 @@ $activeMatch = match ($current) {
 
         <a class="navbar-brand brand" href="<?= e($navTransparent ? '#home' : base_url('/')) ?>">
             <span class="brand__logos">
-                <img src="<?= e(base_url('assets/img/tampakan_logo.jpg')) ?>"
+                <img src="<?= e(base_url('assets/img/tampakan_logo.png')) ?>"
                      alt="Official Seal of the Municipality of Tampakan, Province of South Cotabato"
                      width="58" height="58">
             </span>

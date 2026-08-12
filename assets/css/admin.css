@@ -179,6 +179,27 @@ a { text-decoration: none; }
 }
 .login-card__back:hover { color: var(--green); }
 
+/* The other door. TourSync has two sign-in pages because officers and
+   destination managers are separate accounts in separate tables, and each page
+   has to say so — otherwise somebody types a correct password into the wrong
+   form and is told it is wrong. Given weight, not hidden as fine print: this is
+   the line that gets a manager to the right screen. */
+.login-card__switch {
+    font-size: .82rem;
+    text-align: center;
+    color: var(--ink-2);
+    margin: .9rem 0 0;
+}
+.login-card__switch a {
+    display: inline-block;
+    margin-top: .15rem;
+    font-weight: 600;
+    color: var(--green);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+.login-card__switch a:hover { color: var(--green-dark, #1b4332); }
+
 /* =============================================================================
    SHELL
    ========================================================================== */
@@ -954,6 +975,11 @@ a { text-decoration: none; }
 .pill--qr     { background: var(--blue-pale);  color: #01579B; }
 .pill--manual { background: #F1F3F2;           color: var(--ink-2); }
 
+/* Amber, not red: an arrival that waited on a phone is a success of the offline
+   path, not a fault. It sits beside the source pill rather than replacing it,
+   because how the visit was captured and how it travelled are two facts. */
+.pill--offline { background: #FBF1DE; color: #8A5A00; }
+
 /* ---- Record detail ------------------------------------------------------- */
 .detail-grid {
     display: grid;
@@ -1470,4 +1496,295 @@ a { text-decoration: none; }
     .chart-box--sm,
     .chart-box--tall,
     .chart-box--wide { height: 240px; }
+}
+
+
+/* ---- Budget planner ------------------------------------------------------
+   The working is shown on every row, so the amount column carries two lines:
+   the figure, and the arithmetic that produced it. An unpriced line is tinted
+   rather than hidden — a zero the office has not yet replaced is information,
+   and a total built partly from zeros must not look finished.
+   -------------------------------------------------------------------------- */
+.budget-table td .cell-sub {
+    font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+    font-size: .7rem;
+    color: var(--ink-3);
+}
+.budget-table tr.is-unpriced { background: #FCF8EE; }
+.budget-table tr.is-unpriced input { border-color: #E4C77E; }
+
+.budget-table tfoot th { border-top: 1px solid var(--line); font-size: .88rem; }
+.budget-table tfoot .budget-total th {
+    border-top: 2px solid var(--green);
+    font-size: 1rem;
+    color: var(--ink);
+}
+
+/* Sits under a figure and says how the figure was reached. Deliberately plain
+   — this is a footnote, not a callout, and it should read as part of the
+   number rather than as a warning about it. */
+.method-note {
+    margin: 1rem 0 0;
+    padding-top: .9rem;
+    border-top: 1px solid var(--line);
+    font-size: .84rem;
+    line-height: 1.65;
+    color: var(--ink-2);
+}
+
+/* =============================================================================
+   FEATURE 2 — Centralized Tourist Arrival Logbook Submission and Monitoring
+   -----------------------------------------------------------------------------
+   Two things the shared dashboard styles had no reason to carry: the list of
+   supporting logbook documents, and a logbook table that has to survive a
+   360px phone held at a waterfall.
+   ========================================================================== */
+
+/* ---------- Supporting documents ---------- */
+
+.doc-list {
+    display: grid;
+    gap: .75rem;
+}
+
+.doc-card {
+    display: flex;
+    align-items: center;
+    gap: .9rem;
+    padding: .75rem .9rem;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface-2, #fff);
+}
+
+.doc-card__icon {
+    flex: 0 0 auto;
+    width: 2.5rem;
+    height: 2.5rem;
+    display: grid;
+    place-items: center;
+    border-radius: 8px;
+    background: rgba(45, 106, 79, .10);
+    color: var(--brand, #2d6a4f);
+    font-size: 1.1rem;
+}
+
+.doc-card__body {
+    flex: 1 1 auto;
+    min-width: 0;               /* lets a long filename ellipsize instead of
+                                   pushing the actions off the card */
+}
+
+.doc-card__body strong {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.doc-card__actions {
+    flex: 0 0 auto;
+    display: flex;
+    gap: .4rem;
+}
+
+@media (max-width: 575.98px) {
+    .doc-card {
+        flex-wrap: wrap;
+    }
+
+    .doc-card__actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+}
+
+/* ---------- The logbook table, on a phone ----------
+   Below 768px each row becomes a card and every cell carries its own label,
+   so a manager scrolls down through visitors instead of sideways through
+   columns. The page itself never scrolls horizontally: that is the failure
+   this replaces, where the Contact column sits permanently off-screen and the
+   person typing does not know it is there. */
+
+@media (max-width: 767.98px) {
+
+    .logbook-table thead {
+        /* clip-path rather than display:none — the header text stays in the
+           accessibility tree for screen readers while leaving the layout. */
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+
+    .logbook-table,
+    .logbook-table tbody,
+    .logbook-table tr,
+    .logbook-table td {
+        display: block;
+        width: 100%;
+    }
+
+    .logbook-table tr {
+        margin-bottom: .85rem;
+        padding: .75rem .85rem .85rem;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--surface-2, #fff);
+    }
+
+    .logbook-table td {
+        display: flex;
+        align-items: center;
+        gap: .75rem;
+        padding: .3rem 0;
+        border: 0;
+        text-align: left !important;
+    }
+
+    /* The label comes from the cell itself, so adding a column to the table
+       cannot leave a card row unlabelled. */
+    .logbook-table td::before {
+        content: attr(data-label);
+        flex: 0 0 6.5rem;
+        font-size: .78rem;
+        font-weight: 600;
+        color: var(--ink-soft, #52796f);
+        text-transform: uppercase;
+        letter-spacing: .02em;
+    }
+
+    .logbook-table td[data-label="#"] {
+        padding-bottom: .5rem;
+        margin-bottom: .35rem;
+        border-bottom: 1px dashed var(--line);
+        font-weight: 600;
+    }
+
+    .logbook-table td .form-control,
+    .logbook-table td .form-select {
+        flex: 1 1 auto;
+        min-width: 0;
+        /* 16px stops iOS Safari zooming the viewport on focus, which on a
+           narrow phone leaves the manager scrolled somewhere unrelated. */
+        font-size: 16px;
+    }
+
+    /* The wrapper must not create its own scroll area once the table is
+       cards — otherwise the cards sit inside a scroller that can move. */
+    .logbook-scroll {
+        overflow-x: visible;
+    }
+}
+
+@media (min-width: 768px) {
+    .logbook-table td::before {
+        content: none;
+    }
+}
+
+/* =============================================================================
+   Tourism Attraction Visitor Record — the office's monthly sheet
+   -----------------------------------------------------------------------------
+   Styled to read like the paper form rather than like the rest of the
+   dashboard: hairline rules on every cell, tight rows, figures right-aligned.
+   An officer holds this next to the printed sheet, so the closer it looks the
+   less checking they have to do.
+   ========================================================================== */
+
+.visitor-record {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .74rem;
+    line-height: 1.3;
+    background: #fff;
+    color: #111;
+}
+
+.visitor-record th,
+.visitor-record td {
+    border: 1px solid #444;
+    padding: .3rem .4rem;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.visitor-record thead th {
+    background: #f2f2ef;
+    text-align: center;
+    font-weight: 600;
+    vertical-align: middle;
+}
+
+.visitor-record .vr-band { text-align: center; }
+.visitor-record .vr-sub  { font-weight: 400; font-size: .68rem; color: #555; }
+
+/* The name column is the only prose in the table, so it is the only one that
+   reads left and is allowed to wrap. */
+.visitor-record .vr-name {
+    text-align: left;
+    white-space: normal;
+    min-width: 13rem;
+}
+
+.visitor-record .vr-code {
+    text-align: center;
+    min-width: 5rem;
+}
+
+/* The subhead row carries Male/Female/Total under the two Philippines bands
+   only; the cells above the other columns are intentionally empty, matching
+   the paper form's rowspans. */
+.visitor-record .vr-subhead th { background: #f7f7f5; }
+
+.visitor-record .vr-group td {
+    text-align: left;
+    font-weight: 700;
+    background: #eceae4;
+}
+
+.visitor-record .vr-total { font-weight: 600; }
+
+.visitor-record tfoot .vr-grand th {
+    background: #e8e6df;
+    font-weight: 700;
+}
+.visitor-record tfoot .vr-grand th:first-child { text-align: left; }
+
+.vr-footnote {
+    margin: .5rem 0 0;
+    font-size: .72rem;
+    color: var(--ink-2, #444);
+}
+
+.vr-signatures {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2rem 4rem;
+    margin-top: 2.5rem;
+}
+
+.vr-signatures > div { min-width: 15rem; }
+
+.vr-signatures__label {
+    display: block;
+    font-size: .78rem;
+    margin-bottom: 2.2rem;      /* the space a pen needs */
+}
+
+.vr-signatures__name {
+    display: block;
+    font-weight: 700;
+    font-size: .82rem;
+    border-top: 1px solid #333;
+    padding-top: .2rem;
+    text-transform: uppercase;
+}
+
+.vr-signatures__title {
+    display: block;
+    font-size: .74rem;
+    color: var(--ink-2, #444);
 }

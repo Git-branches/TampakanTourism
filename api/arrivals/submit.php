@@ -25,6 +25,16 @@ declare(strict_types=1);
  *    6. QR token          — resolves the destination; nothing else can
  *    7. Field validation  — server side, always
  *    8. Duplicate check   — FLAGS, never blocks
+ *
+ *  TWO CALLERS, ONE PIPELINE.                                        Feature 2
+ *
+ *  A browser posts this form and expects a redirect. A phone replaying a visit
+ *  it captured with no signal posts the same fields with mode=sync and expects
+ *  JSON. Every check above runs identically for both — the sync path is not a
+ *  side door, it is the same door answered in a different language. What the
+ *  sync caller additionally sends is a client_uuid, so a retry cannot be
+ *  counted twice, and a captured_at, so the visit is dated to when the visitor
+ *  stood there rather than to when the signal came back.
  * =============================================================================
  */
 
@@ -46,11 +56,45 @@ if (!is_post()) {
 $token      = (string) ($_POST['token'] ?? '');
 $backToForm = base_url('/logbook.php?token=' . urlencode($token));
 
+/* Is this a phone draining its offline queue, or a browser posting a form? */
+$isSync = ($_POST['mode'] ?? '') === 'sync';
+
+/**
+ * Ends the request the way this caller expects.
+ *
+ * The browser path is untouched: flash the errors, redirect back to the form,
+ * repopulate. The sync path cannot use a session flash — nobody is going to
+ * look at that page — so it answers with the errors in the body and a status
+ * the device can act on. 422 means "this record is wrong, stop retrying it";
+ * anything the device should retry is signalled with 503 instead.
+ */
+$fail = static function (array $errors, string $redirectTo, int $status = 422) use ($isSync, $backToForm): void {
+    if ($isSync) {
+        http_response_code($status);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode([
+            'ok'        => false,
+            'retryable' => $status >= 500,
+            'errors'    => $errors,
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    flash_back($errors, $_POST, $redirectTo ?: $backToForm);
+};
+
 /* ---- 2. Honeypot -------------------------------------------------------
    A real visitor never sees this field. Anything that fills it is automated.
    The response is a normal-looking success page: telling a bot why it was
    rejected only teaches it to try again correctly. Nothing is written. */
 if (trim((string) ($_POST['website'] ?? '')) !== '') {
+    if ($isSync) {
+        /* Reported as accepted so the device stops retrying and drops it from
+           the queue. Nothing is written, and a bot learns nothing. */
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['ok' => true, 'stored' => false]);
+        exit;
+    }
     redirect(base_url('/logbook-success.php?ok=1'));
 }
 
@@ -62,8 +106,52 @@ if ($renderedAt > 0 && (time() - $renderedAt) < 2) {
     redirect(base_url('/logbook-success.php?ok=1'));
 }
 
-/* ---- 4. CSRF ------------------------------------------------------------ */
+/* ---- 4. CSRF ------------------------------------------------------------
+   A replaying device gets a fresh token from api/arrivals/token.php first,
+   because the one baked into the form it filled offline may be hours old and
+   belong to a session that has since expired. The guard is not relaxed for
+   sync; the caller is simply expected to hold a current token, same as a
+   browser with the page open. */
 Csrf::verify();
+
+/* ---- 4b. Already stored? -----------------------------------------------
+   The device generates client_uuid before the record leaves it. If a previous
+   attempt inserted the row and the acknowledgement never arrived, the retry
+   lands here and is answered with the same success as the first attempt —
+   which is what lets the device delete it from the queue with confidence.
+
+   Without this, the honest failure mode of a bad signal is a tourism figure
+   that counts one visitor twice. */
+$clientUuid = trim((string) ($_POST['client_uuid'] ?? ''));
+
+if ($clientUuid !== '' && preg_match('/^[0-9a-f-]{36}$/i', $clientUuid) === 1) {
+    $existing = ArrivalRepository::findByClientUuid($clientUuid);
+
+    if ($existing !== null) {
+        if ($isSync) {
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode([
+                'ok'        => true,
+                'stored'    => true,
+                'duplicate' => true,
+                'arrival_id' => (int) $existing['id'],
+            ]);
+            exit;
+        }
+
+        Session::put('_last_arrival', [
+            'id'             => (int) $existing['id'],
+            'destination_id' => (int) $existing['destination_id'],
+            'destination'    => $existing['destination_name'],
+            'slug'           => $existing['destination_slug'],
+            'token'          => $existing['qr_token'],
+            'visitors'       => 1 + (int) $existing['companions_count'],
+        ]);
+        redirect(base_url('/logbook-success.php'));
+    }
+} else {
+    $clientUuid = '';
+}
 
 /* ---- 5. Rate limit -----------------------------------------------------
    Ten submissions per address per destination in fifteen minutes. Generous
@@ -74,10 +162,15 @@ $maxPer15   = (int) (setting('rate_limit_per_15m') ?? 10);
 
 if (!RateLimiter::allow($limitKey, $maxPer15, 900)) {
     $wait = (int) ceil(RateLimiter::retryAfter($limitKey, 900) / 60);
-    flash_back(
+
+    /* 503 for a syncing device, not 422: the record is fine, the moment is
+       wrong. A phone draining a queue of six visits after a day with no signal
+       will hit this legitimately, and it must keep them and try later rather
+       than throw them away as invalid. */
+    $fail(
         ['form' => "Too many submissions from this connection. Please try again in about {$wait} minute(s), or ask the site attendant for help."],
-        $_POST,
-        $backToForm
+        $backToForm,
+        503
     );
 }
 
@@ -88,9 +181,8 @@ if (!RateLimiter::allow($limitKey, $maxPer15, 900)) {
 $destination = DestinationRepository::findByQrToken($token);
 
 if ($destination === null) {
-    flash_back(
+    $fail(
         ['form' => 'This QR code is no longer active. Please scan the code again, or report the sign to the Tourism Office.'],
-        $_POST,
         destinations_url()
     );
 }
@@ -118,7 +210,7 @@ if (empty($_POST['consent'])) {
 }
 
 if ($v->fails()) {
-    flash_back($v->errors(), $_POST, $backToForm);
+    $fail($v->errors(), $backToForm);
 }
 
 /* ---- 8. Duplicate detection --------------------------------------------
@@ -127,6 +219,37 @@ if ($v->fails()) {
    arrivals — a worse failure than counting a duplicate the officer can review.
    Reports count only 'valid' rows, so a flagged record sits outside the
    published figure until somebody looks at it. */
+/* ---- 8a. When did this visit actually happen? --------------------------
+   Two clocks, and confusing them corrupts the report.
+
+   arrived_at is when the visitor stood at the destination. For an online
+   submission that is now. For a record captured at a waterfall with no signal
+   and synced from the town centre three hours later, "now" is a lie that would
+   file a Tuesday morning arrival against Tuesday afternoon — and, across a
+   date boundary, against the wrong day entirely.
+
+   So the device sends the moment it captured the visit, and it is trusted
+   within bounds it cannot abuse: never in the future beyond a little clock
+   skew, and never older than the retention window for a queued record. A value
+   outside those bounds is not an argument to reject the visit — it is a reason
+   to fall back to server time and keep the arrival. */
+$now          = time();
+$capturedAt   = (int) ($_POST['captured_at'] ?? 0);
+$maxQueueDays = 30;
+
+$capturedIsSane = $capturedAt > 0
+    && $capturedAt <= $now + 300
+    && $capturedAt >= $now - ($maxQueueDays * 86400);
+
+$arrivedAt = $capturedIsSane ? $capturedAt : $now;
+
+/* Only a record that genuinely waited is marked as synced. A submission that
+   travelled straight through leaves synced_at null, so the column means
+   exactly one thing: this arrival spent time on a device before it reached us. */
+$syncedAt = ($capturedIsSane && ($now - $capturedAt) > 60)
+    ? date('Y-m-d H:i:s', $now)
+    : null;
+
 $deviceHash  = RateLimiter::deviceHash();
 $dedupeHours = (int) (setting('dedupe_window_hours') ?? 6);
 $recent      = ArrivalRepository::recentFromDevice($deviceHash, (int) $destination['id'], $dedupeHours);
@@ -143,8 +266,8 @@ if ($recent > 0) {
 try {
     $arrivalId = ArrivalRepository::record([
         'destination_id'   => (int) $destination['id'],
-        'visit_date'       => date('Y-m-d'),
-        'arrived_at'       => date('Y-m-d H:i:s'),
+        'visit_date'       => date('Y-m-d', $arrivedAt),
+        'arrived_at'       => date('Y-m-d H:i:s', $arrivedAt),
         'full_name'        => (string) $v->value('full_name', ''),
         'age_bracket'      => (string) $v->value('age_bracket', ''),
         'sex'              => (string) $v->value('sex', ''),
@@ -164,18 +287,38 @@ try {
         'device_hash'      => $deviceHash,
         'status'           => $status,
         'flag_reason'      => $flagReason,
+        'client_uuid'      => $clientUuid,
+        'synced_at'        => $syncedAt,
     ]);
 } catch (Throwable $e) {
     error_log('Arrival submission failed: ' . $e->getMessage());
-    flash_back(
+
+    /* 503, so a syncing device keeps the record and tries again. A database
+       that was briefly unreachable must not cost the municipality an arrival
+       that a phone was faithfully holding on to. */
+    $fail(
         ['form' => 'Your visit could not be saved just now. Please check your connection and try again.'],
-        $_POST,
-        $backToForm
+        $backToForm,
+        503
     );
 }
 
 if ($status === 'flagged') {
     ActivityLog::record('arrival.flagged', 'arrival', $arrivalId, $flagReason);
+}
+
+/* A device draining its queue has no session worth writing to and no page to
+   be redirected to. It gets the answer and goes back to the next record. */
+if ($isSync) {
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode([
+        'ok'         => true,
+        'stored'     => true,
+        'duplicate'  => false,
+        'arrival_id' => $arrivalId,
+        'flagged'    => $status === 'flagged',
+    ]);
+    exit;
 }
 
 /* The arrival id is carried in the session, not the URL: it lets the
