@@ -86,7 +86,7 @@ final class DocumentUploader
      * @param  array<string, mixed> $file One entry from $_FILES
      * @return array{stored_name:string, original_name:string, mime_type:string, byte_size:int}|null
      */
-    public function store(array $file): ?array
+    public function store(array $file, string $kind = 'logbooks'): ?array
     {
         $this->errors = [];
 
@@ -99,7 +99,7 @@ final class DocumentUploader
         $extension = self::ALLOWED[$mime];
         $stored    = bin2hex(random_bytes(16)) . '.' . $extension;
 
-        $directory = self::directory();
+        $directory = self::directory($kind);
 
         if ($directory === null) {
             $this->errors[] = 'The document folder could not be created.';
@@ -291,10 +291,27 @@ final class DocumentUploader
         return trim($name) !== '' ? trim($name) : 'document';
     }
 
-    /** storage/logbooks — outside the served tree, under a deny-all .htaccess. */
-    public static function directory(): ?string
+    /**
+     * Where a kind of document lives, under storage/ and its deny-all rule.
+     *
+     * An allowlist, not a free path. The subfolder is always chosen by calling
+     * code and never taken from a request, but writing the allowlist down is
+     * what keeps that true after the third caller is added by someone who did
+     * not read this comment.
+     */
+    private const FOLDERS = [
+        'logbooks'    => 'logbooks',      // Feature 2 — photographed logbook pages
+        'inspections' => 'inspections',   // Compliance evidence photos
+    ];
+
+    public static function directory(string $kind = 'logbooks'): ?string
     {
-        $directory = dirname(APP_PATH) . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'logbooks';
+        if (!isset(self::FOLDERS[$kind])) {
+            return null;
+        }
+
+        $directory = dirname(APP_PATH) . DIRECTORY_SEPARATOR . 'storage'
+            . DIRECTORY_SEPARATOR . self::FOLDERS[$kind];
 
         if (!is_dir($directory) && !mkdir($directory, 0755, true) && !is_dir($directory)) {
             return null;
@@ -310,13 +327,13 @@ final class DocumentUploader
      * than trusted from the database, so a row tampered with directly still
      * cannot point the reader at a file elsewhere on disk.
      */
-    public static function pathFor(string $storedName): ?string
+    public static function pathFor(string $storedName, string $kind = 'logbooks'): ?string
     {
         if (preg_match('/^[a-f0-9]{32}\.(jpg|png|pdf)$/', $storedName) !== 1) {
             return null;
         }
 
-        $directory = self::directory();
+        $directory = self::directory($kind);
 
         if ($directory === null) {
             return null;
@@ -327,13 +344,13 @@ final class DocumentUploader
         return is_file($absolute) ? $absolute : null;
     }
 
-    public static function delete(?string $storedName): void
+    public static function delete(?string $storedName, string $kind = 'logbooks'): void
     {
         if ($storedName === null || $storedName === '') {
             return;
         }
 
-        $absolute = self::pathFor($storedName);
+        $absolute = self::pathFor($storedName, $kind);
 
         if ($absolute !== null) {
             @unlink($absolute);

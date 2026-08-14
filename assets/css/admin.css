@@ -1788,3 +1788,81 @@ a { text-decoration: none; }
     font-size: .74rem;
     color: var(--ink-2, #444);
 }
+
+/* =============================================================================
+   Digital Compliance Inspection — evidence photographs
+   -----------------------------------------------------------------------------
+   A grid of thumbnails an officer scans quickly and a manager checks on a
+   phone. Fixed-height, object-fit covered tiles, because compliance photos come
+   in every aspect ratio a phone camera produces and a ragged grid is harder to
+   read down than across.
+   ========================================================================== */
+
+.evidence-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    gap: .9rem;
+}
+
+.evidence {
+    margin: 0;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--surface);
+}
+
+.evidence img {
+    display: block;
+    width: 100%;
+    height: 150px;
+    object-fit: cover;
+    background: var(--canvas);
+    transition: transform .18s var(--ease);
+}
+
+.evidence a:hover img { transform: scale(1.04); }
+
+.evidence figcaption {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .3rem .5rem;
+    padding: .45rem .6rem .55rem;
+    border-top: 1px solid var(--line-soft);
+    font-size: .76rem;
+    color: var(--ink-2);
+}
+
+.evidence__caption {
+    flex: 1 1 100%;
+    font-weight: 600;
+    color: var(--ink);
+    /* A caption is one line: the grid must stay scannable, and the full text is
+       on the photo's own page. */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+@media (max-width: 575.98px) {
+    .evidence-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+    .evidence img  { height: 118px; }
+}
+
+/* The urgent-alert count, on every admin screen.
+   Red because it is the one badge in this interface that means somebody is
+   waiting at a destination for a response. */
+.sidebar__badge {
+    margin-left: auto;
+    min-width: 1.35rem;
+    padding: .05rem .35rem;
+    border-radius: 999px;
+    background: var(--red);
+    color: #fff;
+    font-size: .7rem;
+    font-style: normal;
+    font-weight: 700;
+    line-height: 1.35;
+    text-align: center;
+}

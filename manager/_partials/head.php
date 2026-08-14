@@ -30,9 +30,11 @@ $mgrNav = [
        highlighted rather than dropping the sidebar's sense of place. */
     ['label' => 'Tourist Arrival Reports', 'icon' => 'fa-file-lines', 'href' => 'reports.php',
      'file' => 'reports.php', 'also' => ['report-form.php', 'logbook.php', 'import.php']],
+    ['label' => 'Compliance Inspection', 'icon' => 'fa-clipboard-check', 'href' => 'inspection.php',
+     'file' => 'inspection.php', 'also' => ['inspections.php', 'inspection-view.php']],
     /* Priority 7. Marked pending rather than linked, so it reads as "not built
        yet" instead of handing a manager a 404 during a demo. */
-    ['label' => 'Report an Alert',  'icon' => 'fa-triangle-exclamation', 'href' => 'alert.php', 'file' => 'alert.php', 'pending' => true],
+    ['label' => 'Report an Alert',  'icon' => 'fa-triangle-exclamation', 'href' => 'alert.php', 'file' => 'alert.php'],
 ];
 
 $current = basename($_SERVER['SCRIPT_NAME'] ?? '');

@@ -23,6 +23,20 @@ $current    = basename($_SERVER['SCRIPT_NAME']);
 $currentDir = basename(dirname($_SERVER['SCRIPT_NAME']));
 $flashes    = Session::takeFlash();
 
+/* Urgent alerts nobody has picked up, on EVERY admin screen.
+ *
+ * An alert that only appears on the alerts page is an alert that waits for
+ * somebody to open the alerts page. A manager reporting an injury needs the
+ * count to follow the officer around the dashboard. One cheap COUNT, and it
+ * fails silently — a badge is not worth breaking a page over. */
+$urgentAlerts = 0;
+
+try {
+    $urgentAlerts = \App\Repositories\AlertRepository::urgentWaiting();
+} catch (\Throwable $e) {
+    $urgentAlerts = 0;
+}
+
 /**
  * Sidebar definition. 'phase' marks modules that are not built yet — they
  * render as visibly pending rather than as broken links, so the build
@@ -38,6 +52,10 @@ $nav = [
         ['label' => 'Destinations',    'icon' => 'fa-mountain-sun',     'href' => 'destinations/index.php', 'dir' => 'destinations'],
         ['label' => 'QR Codes',        'icon' => 'fa-qrcode',           'href' => 'qrcodes/index.php',      'dir' => 'qrcodes'],
         ['label' => 'Feedback',        'icon' => 'fa-comment-dots',     'href' => 'feedback/index.php',     'dir' => 'feedback'],
+    ]],
+    ['group' => 'Standards', 'items' => [
+        ['label' => 'Destination Alerts', 'icon' => 'fa-tower-broadcast', 'href' => 'alerts/index.php', 'dir' => 'alerts'],
+        ['label' => 'Compliance Review','icon' => 'fa-clipboard-check', 'href' => 'inspections/index.php',  'dir' => 'inspections'],
     ]],
     ['group' => 'Communication', 'items' => [
         ['label' => 'Announcements',   'icon' => 'fa-bullhorn',         'href' => 'announcements/index.php','dir' => 'announcements'],
@@ -104,6 +122,9 @@ $nav = [
                            <?= $isPending ? 'aria-disabled="true" title="Arrives in Phase ' . (int) $item['phase'] . '"' : '' ?>>
                             <i class="fa-solid <?= e($item['icon']) ?>"></i>
                             <span><?= e($item['label']) ?></span>
+                            <?php if ($item['dir'] === 'alerts' && $urgentAlerts > 0): ?>
+                                <em class="sidebar__badge" title="Urgent alerts not yet picked up"><?= n($urgentAlerts) ?></em>
+                            <?php endif; ?>
                             <?php if ($isPending): ?>
                                 <em class="sidebar__phase">P<?= (int) $item['phase'] ?></em>
                             <?php endif; ?>

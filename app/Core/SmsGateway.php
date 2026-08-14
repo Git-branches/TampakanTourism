@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Core;
 
 use App\Core\Sms\LogDriver;
+use App\Core\Sms\PhilSmsDriver;
 use App\Core\Sms\SemaphoreDriver;
 use App\Core\Sms\SmsDriver;
 
@@ -23,6 +24,27 @@ final class SmsGateway
 
     private static ?SmsDriver $driver = null;
 
+    /**
+     * Forces a driver for the rest of this process.
+     *
+     * Exists for two real situations, both of which end badly without it:
+     *
+     *   rehearsals   an officer wants to walk through an announcement blast
+     *                before the real one, without spending credits or texting
+     *                forty managers a test
+     *
+     *   automated    the test suites drive the alert workflow end to end. With
+     *   tests        a live provider configured, a test that exercises "reply
+     *                to the manager" sends a REAL text to whatever number the
+     *                fixture invented — which is somebody's phone.
+     *
+     * Pass null to fall back to the configured driver.
+     */
+    public static function useDriver(?SmsDriver $driver): void
+    {
+        self::$driver = $driver;
+    }
+
     public static function driver(): SmsDriver
     {
         if (self::$driver instanceof SmsDriver) {
@@ -34,6 +56,10 @@ final class SmsGateway
         // Falls back to the log driver rather than failing: an announcement
         // that cannot be texted should still publish to the website.
         self::$driver = match ($configured) {
+            'philsms' => new PhilSmsDriver(
+                (string) config('sms.api_key', ''),
+                (string) config('sms.sender_id', '')
+            ),
             'semaphore' => new SemaphoreDriver(
                 (string) config('sms.api_key', ''),
                 (string) config('sms.sender_id', '')
