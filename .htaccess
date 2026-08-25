@@ -22,6 +22,16 @@ ErrorDocument 403 /404.php
     # visitor has: fewer characters means a lower-density code, which stays
     # readable when scuffed, faded, or photographed at an angle.
     RewriteRule ^d/([a-f0-9]{32})/?$ d/index.php?token=$1 [L,QSA]
+
+    # The same trade for tour guide IDs: https://host/g/<32-hex-token>
+    #
+    # It matters MORE here than on signage, not less. A guide's card is 2.63 in
+    # wide and the code has perhaps 18 mm of it; the old address —
+    # /guide-verify.php?id=<token> — was 69 characters, which at error level H
+    # is a 49x49 grid, and 49 modules across 18 mm is 0.37 mm each. Every
+    # character removed from the URL is a coarser, more forgiving code on a card
+    # that lives in a pocket and gets rained on.
+    RewriteRule ^g/([a-f0-9]{32})/?$ g/index.php?t=$1 [L,QSA]
 </IfModule>
 
 <IfModule mod_headers.c>

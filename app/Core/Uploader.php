@@ -23,7 +23,35 @@ namespace App\Core;
  */
 final class Uploader
 {
-    private const MAX_BYTES = 5 * 1024 * 1024;   // 5 MB
+    /**
+     * What the office asked for. NOT necessarily what gets accepted — see
+     * maxBytes() below, which is the number that actually applies.
+     *
+     * Raised from 5 MB because that rejected ordinary phone photographs. A
+     * current handset produces 3-12 MB per shot and the office was being told
+     * their own camera was wrong.
+     */
+    private const WANTED_BYTES = 50 * 1024 * 1024;
+
+    /**
+     * A ceiling on PIXELS, which is a different question from bytes and the one
+     * that actually decides whether this survives.
+     *
+     * GD decodes to an uncompressed bitmap at roughly 4 bytes per pixel, and
+     * downscale() holds a second image while it resizes. A 40 MB JPEG can carry
+     * 150 megapixels — 600 MB for the source bitmap alone, against a 512 MB
+     * memory_limit. That is a fatal error and a white screen, not a message
+     * anybody can act on.
+     *
+     * So the dimensions are read from the header first, before GD is handed
+     * anything. 60 megapixels clears every phone on the market — a 48 MP iPhone
+     * frame is well inside it — and peaks around 250 MB, which the limit holds.
+     *
+     * This also closes a decompression bomb: a few KB of PNG can declare
+     * 30000x30000, pass any byte check ever written, and take the process down.
+     */
+    private const MAX_PIXELS = 60_000_000;
+
     private const MAX_WIDTH = 1920;              // downscale anything larger
 
     private const ALLOWED = [
@@ -145,8 +173,8 @@ final class Uploader
             return false;
         }
 
-        if (($file['size'] ?? 0) > self::MAX_BYTES) {
-            $this->errors[] = 'Images must be 5 MB or smaller.';
+        if (($file['size'] ?? 0) > self::maxBytes()) {
+            $this->errors[] = 'Images must be ' . self::maxMegabytes() . ' MB or smaller.';
             return false;
         }
 
@@ -158,12 +186,47 @@ final class Uploader
 
         // getimagesize on a non-image returns false even when the first bytes
         // were crafted to look like one.
-        if (@getimagesize($file['tmp_name']) === false) {
+        $size = @getimagesize($file['tmp_name']);
+
+        if ($size === false) {
             $this->errors[] = 'That file is not a valid image.';
             return false;
         }
 
+        /* THE DIMENSION CHECK, and it happens HERE — after the header has been
+           read and before GD is handed the file. getimagesize reads the header
+           only; imagecreatefrom* allocates the whole bitmap. Getting these two
+           in the wrong order is the difference between a message and a crash. */
+        $pixels = (int) $size[0] * (int) $size[1];
+
+        if ($pixels > self::MAX_PIXELS) {
+            $this->errors[] = 'That image is ' . round($pixels / 1_000_000) . ' megapixels, which is too '
+                . 'large to process. Please resize it, or use your phone\'s standard photo setting.';
+            return false;
+        }
+
         return true;
+    }
+
+    /**
+     * The size an upload may actually be.
+     *
+     * The smaller of what the office wanted and what PHP will physically let
+     * through. upload_max_filesize and post_max_size reject a file before a
+     * single line of this application runs, so promising more than they allow
+     * produces an upload that fails with no explanation anybody can act on —
+     * and, when post_max_size is what was exceeded, an empty $_POST that fails
+     * CSRF instead, which is a bewildering thing to debug.
+     */
+    public static function maxBytes(): int
+    {
+        return min(self::WANTED_BYTES, upload_limit_bytes());
+    }
+
+    /** The same figure as a whole number, for saying out loud in a form. */
+    public static function maxMegabytes(): int
+    {
+        return (int) floor(self::maxBytes() / 1048576);
     }
 
     private function detectMime(string $path): ?string
@@ -228,7 +291,12 @@ final class Uploader
     {
         // Allowlist: the subfolder is chosen by the calling page, never by
         // the request, but an allowlist makes that guarantee explicit.
-        if (!in_array($subfolder, ['destinations', 'banners', 'qr'], true)) {
+        //
+        // 'guides' — tour guide profile photographs. Public on purpose: the
+        // picture appears on the printed ID and on the verification page a
+        // visitor opens by scanning it. The scanned CERTIFICATES are the
+        // private half and go through DocumentUploader into storage/ instead.
+        if (!in_array($subfolder, ['destinations', 'banners', 'qr', 'guides'], true)) {
             $this->errors[] = 'Invalid upload destination.';
             return null;
         }

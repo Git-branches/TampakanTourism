@@ -36,6 +36,17 @@ $editable = [
     'office_phone'        => ['label' => 'Telephone',              'type' => 'text', 'max' => 60],
     'office_email'        => ['label' => 'Email address',          'type' => 'email','max' => 160],
 
+    /* Printed on the back of the tour guide ID. A page NAME rather than a URL:
+       it is read off a laminated card by somebody who will then type it into
+       the Facebook search box, and a full https:// address is longer, harder to
+       read at 2 mm, and no easier to act on. */
+    'office_facebook'     => ['label' => 'Facebook page',          'type' => 'text', 'max' => 160],
+
+    /* Printed on the tour guide receipt so a visitor knows when they can turn
+       up. It had no field on this page at all until now: the code asked for it,
+       found nothing, and quietly said nothing. */
+    'office_hours'        => ['label' => 'Opening hours',          'type' => 'text', 'max' => 120],
+
     /* The one setting that gets printed onto physical objects.
        Everything else here can be corrected with a page refresh; this ends up
        laminated on a post at a waterfall, so it is stated deliberately once
@@ -54,6 +65,23 @@ $editable = [
     'hotline_rescue'      => ['label' => 'MDRRMO / rescue',            'type' => 'text', 'max' => 60],
     'hotline_fire'        => ['label' => 'Fire station',               'type' => 'text', 'max' => 60],
     'hotline_tourism'     => ['label' => 'Municipal Tourism Office',   'type' => 'text', 'max' => 60],
+
+    /* WHO IS TEXTED WHEN SOMETHING NEEDS THE OFFICE.
+       Urgent destination alerts and every tour guide request go to the officers
+       who have opted in on My Account, PLUS whatever is listed here — numbers
+       with no account behind them: the office landline, a barangay captain,
+       the MDRRMO duty phone.
+
+       It had no field anywhere in the system, so the only way to reach it was
+       to edit the database by hand. */
+    'alert_sms_recipients' => ['label' => 'Extra numbers to text', 'type' => 'text', 'max' => 400],
+
+    /* Shown on EVERY destination's QR page, unlike destinations.cultural_heritage
+       which describes one place. Same words at every sign, because it is the
+       same municipality. 'text' with a large max — the validator only measures
+       length, and the textarea is chosen at render time. */
+    'municipal_heritage_title' => ['label' => 'Heading', 'type' => 'text', 'max' => 120],
+    'municipal_heritage'       => ['label' => 'The text itself', 'type' => 'text', 'max' => 4000],
 
     'retention_months'    => ['label' => 'Retain personal data for (months)', 'type' => 'int', 'min' => 6,  'max' => 120],
     'dedupe_window_hours' => ['label' => 'Duplicate detection window (hours)','type' => 'int', 'min' => 1,  'max' => 72],
@@ -156,7 +184,7 @@ require __DIR__ . '/../_partials/head.php';
                         Appears on report letterheads, the SMS signature, and the public footer.
                     </p>
                     <div class="row g-3">
-                        <?php foreach (['office_name', 'office_municipality', 'office_province', 'office_address', 'office_phone', 'office_email'] as $key):
+                        <?php foreach (['office_name', 'office_municipality', 'office_province', 'office_address', 'office_phone', 'office_email', 'office_hours', 'office_facebook'] as $key):
                             $rules = $editable[$key]; ?>
                             <div class="col-md-<?= $key === 'office_address' ? '12' : '6' ?>">
                                 <label for="<?= e($key) ?>" class="form-label"><?= e($rules['label']) ?></label>
@@ -200,6 +228,112 @@ require __DIR__ . '/../_partials/head.php';
                                 <?php if (has_error($key)): ?><div class="field-error"><?= e(error_for($key)) ?></div><?php endif; ?>
                             </div>
                         <?php endforeach; ?>
+                    </div>
+
+                    <?php
+                    /* WHO ACTUALLY GETS TEXTED — counted, not described.
+                       "Nobody" is the state this installation was in, and no
+                       screen anywhere said so. */
+                    $reachable = [];
+
+                    try {
+                        $reachable = \App\Repositories\AlertRepository::officeRecipients();
+                    } catch (\Throwable $e) {
+                        $reachable = [];
+                    }
+                    ?>
+
+                    <hr class="my-4">
+
+                    <h3 class="h6 mb-2"><i class="fa-solid fa-comment-sms"></i> Who the system texts</h3>
+
+                    <?php if ($reachable === []): ?>
+                        <div class="alert alert-danger">
+                            <i class="fa-solid fa-triangle-exclamation"></i>
+                            <div>
+                                <strong>Nobody is reachable by SMS.</strong>
+                                <p class="mb-0">
+                                    Urgent destination alerts and tour guide requests are texted to the
+                                    office &mdash; and right now that message goes to no one. An officer
+                                    is reached only if they have a mobile number on
+                                    <a href="<?= e(base_url('/admin/account/index.php')) ?>">My Account</a>
+                                    <em>and</em> have kept the alert tick-box on. Add a number there, or
+                                    list one below.
+                                </p>
+                            </div>
+                        </div>
+                    <?php else: ?>
+                        <p class="text-muted small mb-3">
+                            <?= n(count($reachable)) ?> number<?= count($reachable) === 1 ? '' : 's' ?>
+                            will be texted: <?= e(implode(', ', $reachable)) ?>.
+                        </p>
+                    <?php endif; ?>
+
+                    <p class="text-muted small mb-3">
+                        Officers are reached through their own account. Use the box below only for
+                        numbers with no account behind them &mdash; the office landline, a barangay
+                        captain, the MDRRMO duty phone. Separate several with commas.
+                    </p>
+
+                    <?php $extraRules = $editable['alert_sms_recipients']; ?>
+                    <label for="alert_sms_recipients" class="form-label"><?= e($extraRules['label']) ?></label>
+                    <input type="text" id="alert_sms_recipients" name="alert_sms_recipients"
+                           maxlength="<?= (int) $extraRules['max'] ?>"
+                           placeholder="0917 123 4567, 0918 765 4321"
+                           class="form-control <?= has_error('alert_sms_recipients') ? 'is-invalid' : '' ?>"
+                           value="<?= old('alert_sms_recipients', (string) setting('alert_sms_recipients', '')) ?>">
+                    <p class="field-hint">
+                        Anything that is not a Philippine mobile number is ignored rather than refused,
+                        so a landline left here simply never receives one.
+                    </p>
+                    <?php if (has_error('alert_sms_recipients')): ?>
+                        <div class="field-error"><?= e(error_for('alert_sms_recipients')) ?></div>
+                    <?php endif; ?>
+                </div>
+            </section>
+
+            <section class="panel">
+                <header class="panel__head">
+                    <h2><i class="fa-solid fa-people-group"></i> Local Culture &amp; Heritage</h2>
+                </header>
+                <div class="panel__body">
+                    <p class="text-muted small mb-3">
+                        Shown on <strong>every destination's QR page</strong>, below that destination's own
+                        heritage section. This is about Tampakan itself &mdash; the people, the customs, the
+                        history a visitor should know wherever in the municipality they happen to be standing.
+                        Written once here rather than copied into each destination, so correcting it corrects
+                        it everywhere.
+                    </p>
+
+                    <div class="mb-3">
+                        <label for="municipal_heritage_title" class="form-label">
+                            <?= e($editable['municipal_heritage_title']['label']) ?>
+                        </label>
+                        <input type="text" id="municipal_heritage_title" name="municipal_heritage_title"
+                               maxlength="120"
+                               class="form-control <?= has_error('municipal_heritage_title') ? 'is-invalid' : '' ?>"
+                               value="<?= old('municipal_heritage_title', (string) setting('municipal_heritage_title', '')) ?>">
+                        <?php if (has_error('municipal_heritage_title')): ?>
+                            <div class="field-error"><?= e(error_for('municipal_heritage_title')) ?></div>
+                        <?php endif; ?>
+                    </div>
+
+                    <div>
+                        <label for="municipal_heritage" class="form-label">
+                            <?= e($editable['municipal_heritage']['label']) ?>
+                        </label>
+                        <?php /* A textarea, not an input. This is paragraphs — the
+                                 B'laan and T'boli communities of the area, the
+                                 harvest customs, why the mountain matters. */ ?>
+                        <textarea id="municipal_heritage" name="municipal_heritage" rows="8" maxlength="4000"
+                                  class="form-control <?= has_error('municipal_heritage') ? 'is-invalid' : '' ?>"
+                                  placeholder="Tampakan sits at the foot of Mt. Matutum, on land the B'laan people have lived on for generations&hellip;"><?= old('municipal_heritage', (string) setting('municipal_heritage', '')) ?></textarea>
+                        <p class="form-text">
+                            Leave blank and the section simply does not appear on any QR page.
+                        </p>
+                        <?php if (has_error('municipal_heritage')): ?>
+                            <div class="field-error"><?= e(error_for('municipal_heritage')) ?></div>
+                        <?php endif; ?>
                     </div>
                 </div>
             </section>

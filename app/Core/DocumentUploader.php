@@ -300,8 +300,9 @@ final class DocumentUploader
      * not read this comment.
      */
     private const FOLDERS = [
-        'logbooks'    => 'logbooks',      // Feature 2 — photographed logbook pages
-        'inspections' => 'inspections',   // Compliance evidence photos
+        'logbooks'     => 'logbooks',      // Feature 2 — photographed logbook pages
+        'inspections'  => 'inspections',   // Compliance evidence photos
+        'certificates' => 'certificates',  // Tour guide training and accreditation scans
     ];
 
     public static function directory(string $kind = 'logbooks'): ?string

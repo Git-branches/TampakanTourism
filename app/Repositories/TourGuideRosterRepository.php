@@ -143,6 +143,29 @@ final class TourGuideRosterRepository
             $row['effective_status'] = self::effectiveStatus($row);
         }
 
+        unset($row);
+
+        /* FILTERED ON THE DERIVED STATUS, WHICH SQL CANNOT SEE.
+         *
+         * 'expired' and 'no_id' are not values of the `status` column — they are
+         * worked out from valid_until and today's date, deliberately, so the
+         * roster can never disagree with the verification page. That means this
+         * filter has to happen here rather than in the WHERE clause above.
+         *
+         * 'barred' is the officer's question, not the database's: suspended and
+         * revoked are different decisions but the same answer to "can I send
+         * this person to a visitor". */
+        $show = (string) ($filters['show'] ?? '');
+
+        if ($show !== '') {
+            $wanted = $show === 'barred' ? ['suspended', 'revoked'] : [$show];
+
+            $rows = array_values(array_filter(
+                $rows,
+                static fn(array $r): bool => in_array($r['effective_status'], $wanted, true)
+            ));
+        }
+
         return $rows;
     }
 
