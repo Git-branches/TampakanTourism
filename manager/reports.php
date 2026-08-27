@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../bootstrap.php';
 
+use App\Core\Paginator;
 use App\Core\ManagerAuth;
 use App\Repositories\ArrivalReportRepository as Reports;
 
@@ -20,7 +21,8 @@ $pageIcon     = 'fa-file-lines';
 require __DIR__ . '/_partials/head.php';
 
 $destinationId = (int) ManagerAuth::destinationId();
-$reports       = Reports::forDestination($destinationId);
+$pager         = Paginator::slice(Reports::forDestination($destinationId), $_GET['page'] ?? null);
+$reports       = $pager['rows'];
 $counts        = Reports::counts($destinationId);
 ?>
 
@@ -129,5 +131,7 @@ $counts        = Reports::counts($destinationId);
         <?php endif; ?>
     </div>
 </section>
+
+<?php require __DIR__ . '/../app/views/partials/pager.php'; ?>
 
 <?php require __DIR__ . '/_partials/foot.php'; ?>

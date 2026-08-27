@@ -41,6 +41,7 @@ use App\Core\Session;
 use App\Repositories\ArrivalReportRepository as Reports;
 use App\Repositories\LogbookEntryRepository as Entries;
 use App\Repositories\ReportDocumentRepository as Documents;
+use App\Repositories\NotificationRepository as Notifications;
 
 ManagerAuth::require();
 
@@ -198,6 +199,22 @@ if (is_post()) {
                 'report.submitted', 'arrival_report', $id,
                 'Submitted by ' . ManagerAuth::name() . ' for ' . ManagerAuth::destinationName()
                 . ' — ' . Entries::countFor($id) . ' logbook entries'
+            );
+
+            /* The report is the one thing in this system that becomes an
+               official figure, and it cannot until an officer approves it.
+               Until now nothing announced that one was waiting. */
+            Notifications::record(
+                'arrival_report',
+                'Arrival report submitted — ' . ManagerAuth::destinationName(),
+                [
+                    'body'        => Entries::countFor($id) . ' entries for '
+                                   . format_date($start, 'M j') . ' to ' . format_date($end, 'M j')
+                                   . ', from ' . ManagerAuth::name() . '.',
+                    'link'        => base_url('/admin/arrival-reports/review.php?id=' . $id),
+                    'entity_type' => 'arrival_report',
+                    'entity_id'   => $id,
+                ]
             );
 
             Session::flash('success', 'Report submitted. The Municipal Tourism Office can see it now — there is nothing to deliver.');
@@ -448,7 +465,13 @@ require __DIR__ . '/_partials/head.php';
                                         <button type="submit" name="action" value="delete-document"
                                                 form="documentForm"
                                                 class="btn btn-sm btn-outline-danger"
-                                                onclick="document.getElementById('deleteDocId').value='<?= (int) $doc['id'] ?>'; return confirm('Remove this document from the report?');">
+                                                <?php /* The hidden field is set on click and the
+                                                         confirmation is the shared dialog. Both still
+                                                         happen in that order: the id is written before
+                                                         anybody is asked, so a confirmed delete always
+                                                         carries the document it was pressed for. */ ?>
+                                                onclick="document.getElementById('deleteDocId').value='<?= (int) $doc['id'] ?>';"
+                                                data-confirm="Remove this document from the report?">
                                             <i class="fa-solid fa-trash"></i>
                                         </button>
                                     <?php endif; ?>
@@ -470,7 +493,7 @@ require __DIR__ . '/_partials/head.php';
                                 <label for="document" class="form-label">Choose a file</label>
                                 <input type="file" id="document" name="document" class="form-control"
                                        accept="image/jpeg,image/png,application/pdf,.jpg,.jpeg,.png,.pdf"
-                                       capture="environment">
+                                       capture="environment" data-max-mb="<?= n(upload_limit_mb()) ?>">
                             </div>
 
                             <div class="col-md-3">
@@ -621,8 +644,9 @@ require __DIR__ . '/_partials/head.php';
                             : n(count($documents)) . ' logbook document(s)';
                         ?>
                         <button type="submit" name="action" value="submit" class="btn btn-brand btn-sm"
-                                <?= $hasSomething ? '' : 'disabled' ?>
-                                onclick="return confirm('Submit this report to the Municipal Tourism Office?\n\n<?= e($summary) ?>. You will not be able to edit it while they review it.');">
+                                <?= $hasSomething ? '' : 'disabled' ?> data-confirm="Submit this report to the Municipal Tourism Office?
+
+&lt;?= e($summary) ?&gt;. You will not be able to edit it while they review it.">
                             <i class="fa-solid fa-paper-plane"></i> Submit Report
                         </button>
                     </div>

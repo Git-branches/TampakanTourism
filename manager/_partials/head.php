@@ -32,9 +32,9 @@ $mgrNav = [
      'file' => 'reports.php', 'also' => ['report-form.php', 'logbook.php', 'import.php']],
     ['label' => 'Compliance Inspection', 'icon' => 'fa-clipboard-check', 'href' => 'inspection.php',
      'file' => 'inspection.php', 'also' => ['inspections.php', 'inspection-view.php']],
-    /* Priority 7. Marked pending rather than linked, so it reads as "not built
-       yet" instead of handing a manager a 404 during a demo. */
     ['label' => 'Report an Alert',  'icon' => 'fa-triangle-exclamation', 'href' => 'alert.php', 'file' => 'alert.php'],
+    ['label' => 'Update my destination', 'icon' => 'fa-pen-to-square', 'href' => 'update-info.php', 'file' => 'update-info.php'],
+    ['label' => 'My Account',       'icon' => 'fa-user-gear',    'href' => 'account.php', 'file' => 'account.php'],
 ];
 
 $current = basename($_SERVER['SCRIPT_NAME'] ?? '');
@@ -48,10 +48,24 @@ $flashes = App\Core\Session::takeFlash();
 <meta name="robots" content="noindex, nofollow">
 <title><?= e($pageTitle ?? 'Destination Manager') ?> — TourSync</title>
 <link rel="icon" href="<?= e(asset('img/tampakan_logo.png')) ?>" sizes="any">
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
 <link rel="stylesheet" href="<?= e(asset('css/admin.css')) ?>">
+<?php
+/* The rail state before the first paint — see the note in the officer's
+   head.php. The manager shell shares admin.js and the same stylesheet, so it
+   had the same 174-pixel jump on every navigation. */
+?>
+<script>
+(function () {
+    try {
+        if (localStorage.getItem('toursync.sidebar.rail') === '1') {
+            document.documentElement.classList.add('is-rail');
+        }
+    } catch (e) { /* private mode */ }
+})();
+</script>
 </head>
 <body>
 
@@ -77,6 +91,7 @@ $flashes = App\Core\Session::takeFlash();
                     ?>
                     <li>
                         <a class="sidebar__link <?= $active ? 'is-active' : '' ?> <?= $pending ? 'is-pending' : '' ?>"
+                           data-label="<?= e($item['label']) ?>"
                            href="<?= $pending ? '#' : e($item['href']) ?>"
                            <?= $pending ? 'aria-disabled="true" title="Coming soon"' : '' ?>>
                             <i class="fa-solid <?= e($item['icon']) ?>"></i>
@@ -98,6 +113,16 @@ $flashes = App\Core\Session::takeFlash();
         </div>
     </aside>
 
+    <?php /* And the scroll position, once the element exists to be scrolled. */ ?>
+    <script>
+    (function () {
+        try {
+            var at = sessionStorage.getItem('toursync.sidebar.scroll');
+            if (at !== null) { document.getElementById('sidebar').scrollTop = parseInt(at, 10) || 0; }
+        } catch (e) { /* private mode */ }
+    })();
+    </script>
+
     <div class="sidebar-scrim" id="sidebarScrim" hidden></div>
 
     <div class="admin-main">
@@ -108,6 +133,11 @@ $flashes = App\Core\Session::takeFlash();
         <header class="topbar">
             <button class="topbar__toggle" id="sidebarToggle" aria-label="Toggle navigation">
                 <i class="fa-solid fa-bars"></i>
+            </button>
+
+            <button class="topbar__rail" id="railToggle" type="button"
+                    aria-label="Collapse the sidebar" aria-pressed="false" title="Collapse the sidebar">
+                <i class="fa-solid fa-angles-left" aria-hidden="true"></i>
             </button>
 
             <div class="topbar__title">
@@ -128,6 +158,6 @@ $flashes = App\Core\Session::takeFlash();
 
         <main class="admin-content">
 
-            <?php foreach ($flashes as $flash): ?>
-                <div class="alert alert-<?= e($flash['type']) ?>" role="alert"><?= e($flash['message']) ?></div>
-            <?php endforeach; ?>
+            <?php /* The same dock the officer's shell uses. One system, one
+                     way of confirming a change. */ ?>
+            <?php require __DIR__ . '/../../app/views/partials/toast-dock.php'; ?>

@@ -292,9 +292,9 @@ $itemTone = static fn (string $s): string => match ($s) {
                                         <input type="hidden" name="action" value="remove-photo">
                                         <input type="hidden" name="photo_id" value="<?= (int) $photo['id'] ?>">
                                         <input type="hidden" name="item_id" value="<?= (int) $item['id'] ?>">
-                                        <button type="submit" class="btn btn-sm btn-outline-danger"
-                                                onclick="return confirm('Remove this photo?');">
-                                            <i class="fa-solid fa-trash"></i>
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" data-confirm="Remove this photo?"
+                                                aria-label="Remove this photo">
+                                            <i class="fa-solid fa-trash" aria-hidden="true"></i>
                                         </button>
                                     </form>
                                 <?php endif; ?>
@@ -316,7 +316,8 @@ $itemTone = static fn (string $s): string => match ($s) {
                         <label class="form-label" for="photo<?= (int) $item['id'] ?>">Add a photo</label>
                         <input type="file" id="photo<?= (int) $item['id'] ?>" name="photo" required
                                class="form-control form-control-sm"
-                               accept="image/jpeg,image/png,.jpg,.jpeg,.png" capture="environment">
+                               accept="image/jpeg,image/png,.jpg,.jpeg,.png" capture="environment"
+                               data-max-mb="<?= n(upload_limit_mb()) ?>">
                     </div>
 
                     <div class="col-12 col-md-5">
@@ -379,8 +380,7 @@ $itemTone = static fn (string $s): string => match ($s) {
 
                 <form method="post">
                     <?= csrf_field() ?>
-                    <button type="submit" name="action" value="submit" class="btn btn-brand btn-sm"
-                            onclick="return confirm('Submit this inspection report to the Municipal Tourism Office?');">
+                    <button type="submit" name="action" value="submit" class="btn btn-brand btn-sm" data-confirm="Submit this inspection report to the Municipal Tourism Office?">
                         <i class="fa-solid fa-paper-plane"></i> Submit Inspection Report
                     </button>
                 </form>

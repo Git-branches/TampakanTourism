@@ -449,14 +449,30 @@ require __DIR__ . '/_partials/head.php';
         var tr   = button.closest('tr');
         var name = tr ? tr.querySelector('.lb-name') : null;
 
-        if (name && name.value.trim() !== '' &&
-            !confirm('Remove ' + name.value.trim() + ' from this page?')) {
+        var clear = function () {
+            tr.querySelectorAll('input[type=text]').forEach(function (input) { input.value = ''; });
+            if (name) { name.focus(); }
+            recount();
+        };
+
+        /* An empty row is cleared without asking — there is nothing to lose. */
+        if (!name || name.value.trim() === '') {
+            clear();
             return;
         }
 
-        tr.querySelectorAll('input[type=text]').forEach(function (input) { input.value = ''; });
-        if (name) { name.focus(); }
-        recount();
+        if (window.TourSync) {
+            window.TourSync.confirmAction({
+                title:       'Remove this visitor?',
+                text:        name.value.trim() + ' will be cleared from this page.',
+                confirmText: 'Yes, remove',
+                tone:        'danger',
+                onConfirm:   clear
+            });
+            return;
+        }
+
+        if (window.confirm('Remove ' + name.value.trim() + ' from this page?')) { clear(); }
     });
 
     /* Enter moves down the Name column instead of submitting. Transcribing a

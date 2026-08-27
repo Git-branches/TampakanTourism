@@ -1,10 +1,33 @@
 # TourSync — uploaded files are data, never code.
 # An image that is secretly a PHP script is the classic upload attack; this
 # makes the directory incapable of running one even if validation is bypassed.
+#
+# THREE INDEPENDENT DEFENCES, because each one fails on a different host.
+#
+# php_flag is the strongest and the least portable. It is a mod_php directive:
+# where PHP runs as FastCGI, PHP-FPM or LiteSpeed — which is the normal setup on
+# a modern cPanel host — Apache does not recognise it and answers the whole
+# directory with 500 Internal Server Error. Unguarded, that takes down every
+# photograph on the site the moment it is deployed, and the cause looks nothing
+# like the symptom.
+#
+# So it is asked for only where it exists. AddType and the rewrite below do the
+# same job without it, so nothing is lost on a host that skips this block.
 
-php_flag engine off
+<IfModule mod_php.c>
+    php_flag engine off
+</IfModule>
+<IfModule mod_php7.c>
+    php_flag engine off
+</IfModule>
+<IfModule mod_php5.c>
+    php_flag engine off
+</IfModule>
+
+# Served as plain text rather than executed. Works on every SAPI.
 AddType text/plain .php .php3 .php4 .php5 .phtml .pl .py .cgi .asp .sh
 
+# Refused outright before any handler sees it.
 <IfModule mod_rewrite.c>
     RewriteEngine On
     RewriteRule \.(php|php3|php4|php5|phtml|pl|py|cgi|asp|sh)$ - [F,L,NC]

@@ -11,6 +11,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../bootstrap.php';
 
+use App\Core\Paginator;
 use App\Core\ManagerAuth;
 use App\Repositories\InspectionRepository as Inspections;
 
@@ -20,7 +21,8 @@ $pageIcon  = 'fa-clock-rotate-left';
 require __DIR__ . '/_partials/head.php';
 
 $destinationId = (int) ManagerAuth::destinationId();
-$reports       = Inspections::forDestination($destinationId);
+$pager         = Paginator::slice(Inspections::forDestination($destinationId), $_GET['page'] ?? null);
+$reports       = $pager['rows'];
 $counts        = Inspections::counts($destinationId);
 $standing      = Inspections::currentStanding($destinationId);
 ?>
@@ -157,5 +159,7 @@ $standing      = Inspections::currentStanding($destinationId);
         <?php endif; ?>
     </div>
 </section>
+
+<?php require __DIR__ . '/../app/views/partials/pager.php'; ?>
 
 <?php require __DIR__ . '/_partials/foot.php'; ?>

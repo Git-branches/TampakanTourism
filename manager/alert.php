@@ -23,6 +23,7 @@ use App\Core\RateLimiter;
 use App\Core\Session;
 use App\Core\SmsGateway;
 use App\Repositories\AlertRepository as Alerts;
+use App\Repositories\NotificationRepository as Notifications;
 
 ManagerAuth::require();
 
@@ -75,6 +76,20 @@ if (is_post()) {
         /* Urgent alerts text the officer. Without this the alert is a row in a
            table waiting for somebody to open a page. */
         $texted = Alerts::notifyOffice($id);
+
+        /* And on the bell, urgent or not. A "crowding" alert does not warrant a
+           text at eleven at night; it does warrant being on the screen when
+           somebody next signs in. */
+        Notifications::record(
+            'alert',
+            strtoupper($severity) . ' — ' . $category . ' at ' . ManagerAuth::destinationName(),
+            [
+                'body'        => mb_substr($message, 0, 200),
+                'link'        => base_url('/admin/alerts/index.php'),
+                'entity_type' => 'destination_alert',
+                'entity_id'   => $id,
+            ]
+        );
 
         if ($severity === 'urgent') {
             Session::flash('success', $texted > 0
@@ -248,9 +263,31 @@ require __DIR__ . '/_partials/head.php';
                                     <?php endif; ?>
                                 </td>
                                 <td class="small">
-                                    <?= $a['resolution_note']
-                                        ? e(mb_substr((string) $a['resolution_note'], 0, 80))
-                                        : '<span class="text-muted">&mdash;</span>' ?>
+                                    <?php
+                                    /* The reply comes first: it is the Office
+                                       speaking to this manager. The resolution
+                                       note is what was done, written for the
+                                       record — useful, but second. */
+                                    ?>
+                                    <?php if ($a['office_reply']): ?>
+                                        <span class="cell-strong"><?= e((string) $a['office_reply']) ?></span>
+                                        <?php if ($a['replied_at']): ?>
+                                            <span class="cell-sub">
+                                                <?= e(format_date((string) $a['replied_at'], 'M j, g:i A')) ?>
+                                                <?= $a['reply_sent_at'] ? '· texted' : '' ?>
+                                            </span>
+                                        <?php endif; ?>
+                                    <?php endif; ?>
+
+                                    <?php if ($a['resolution_note']): ?>
+                                        <span class="<?= $a['office_reply'] ? 'cell-sub' : '' ?>">
+                                            <?= e(mb_substr((string) $a['resolution_note'], 0, 80)) ?>
+                                        </span>
+                                    <?php endif; ?>
+
+                                    <?php if (!$a['office_reply'] && !$a['resolution_note']): ?>
+                                        <span class="text-muted">&mdash;</span>
+                                    <?php endif; ?>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
