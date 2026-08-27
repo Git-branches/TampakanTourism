@@ -1,0 +1,761 @@
+/**
+ * TourSync — shell behaviour for the officer and manager dashboards.
+ *
+ * Both shells load this. They share admin.css and the same markup, so sharing
+ * the script too is what stops the two drifting into different behaviour for
+ * the same control.
+ *
+ * Everything here is progressive: with the script blocked, the sidebar is
+ * simply always expanded and toasts stay on screen until dismissed by hand.
+ * Nothing becomes unreachable.
+ */
+(function () {
+    'use strict';
+
+    /* ---------------------------------------------------------------------
+       Sidebar — overlay on phones, rail on desktop
+       ------------------------------------------------------------------ */
+
+    var shell   = document.querySelector('.admin-shell');
+    var sidebar = document.getElementById('sidebar');
+    var scrim   = document.getElementById('sidebarScrim');
+    var toggle  = document.getElementById('sidebarToggle');
+    var rail    = document.getElementById('railToggle');
+
+    if (sidebar && toggle) {
+        var open  = function () { sidebar.classList.add('is-open');    if (scrim) scrim.hidden = false; };
+        var close = function () { sidebar.classList.remove('is-open'); if (scrim) scrim.hidden = true;  };
+
+        toggle.addEventListener('click', function () {
+            sidebar.classList.contains('is-open') ? close() : open();
+        });
+
+        if (scrim) scrim.addEventListener('click', close);
+
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') close();
+        });
+    }
+
+    if (shell && rail) {
+        var KEY  = 'toursync.sidebar.rail';
+        var root = document.documentElement;
+
+        /* THE CLASS LIVES ON <html>, NOT ON THE SHELL.
+         *
+         * head.php sets it inline before the browser paints, which is the only
+         * way the sidebar can be drawn at the right width the first time. That
+         * script runs before <body> exists, so <html> is the only element it
+         * can reach — and both places must agree, or pressing the button would
+         * fight what the page loaded with. */
+        var paint = function (railed) {
+            root.classList.toggle('is-rail', railed);
+            rail.setAttribute('aria-pressed', railed ? 'true' : 'false');
+
+            var label = railed ? 'Expand the sidebar' : 'Collapse the sidebar';
+            rail.setAttribute('aria-label', label);
+            rail.setAttribute('title', label);
+
+            var icon = rail.querySelector('i');
+            if (icon) {
+                icon.className = railed ? 'fa-solid fa-angles-right' : 'fa-solid fa-angles-left';
+            }
+        };
+
+        /* Already applied by head.php before the first paint — this only brings
+           the button's label and icon into line with it. Reading localStorage
+           again would be a second chance to disagree with what is on screen, so
+           the class already on the page is the authority. */
+        paint(root.classList.contains('is-rail'));
+
+        rail.addEventListener('click', function () {
+            var next = !root.classList.contains('is-rail');
+            paint(next);
+
+            /* Remembered per browser. Re-collapsing on every page load is the
+               reason people stop using a control like this. */
+            try { window.localStorage.setItem(KEY, next ? '1' : '0'); } catch (e) { /* private mode */ }
+
+            /* Leaflet and Chart.js size themselves to their container once, so
+               a layout that changed width under them stays the old width until
+               something tells them to look again. */
+            window.dispatchEvent(new Event('resize'));
+        });
+    }
+
+    /* ---------------------------------------------------------------------
+       The sidebar keeps its place
+       ---------------------------------------------------------------------
+       .sidebar is its own scroll container, so every navigation reset it to the
+       top. On the officer's sidebar that is nineteen links: somebody working in
+       Settings, at the bottom, scrolled back down after every single save.
+
+       sessionStorage rather than localStorage — the position belongs to this
+       browsing session, not to the machine forever.
+       ------------------------------------------------------------------ */
+
+    if (sidebar) {
+        var SCROLL_KEY = 'toursync.sidebar.scroll';
+
+        /* Restoring it here is what made the sidebar visibly jump: this file
+           loads from the foot, so the browser had already painted the sidebar
+           at the top. head.php now sets scrollTop inline the moment the element
+           has been parsed. All that is left here is remembering it. */
+        var remember = function () {
+            try { window.sessionStorage.setItem(SCROLL_KEY, String(sidebar.scrollTop)); }
+            catch (e) { /* private mode */ }
+        };
+
+        /* Written on a timer rather than on every scroll event — a fast wheel
+           fires dozens of them and each one is a synchronous storage write. */
+        var scrollTimer = null;
+
+        sidebar.addEventListener('scroll', function () {
+            if (scrollTimer) { window.clearTimeout(scrollTimer); }
+            scrollTimer = window.setTimeout(remember, 120);
+        });
+
+        /* And once more on the way out, so a click that navigates immediately
+           still records where the person was. */
+        window.addEventListener('pagehide', remember);
+    }
+
+    /* ---------------------------------------------------------------------
+       Toasts
+       ------------------------------------------------------------------ */
+
+    var dock = document.getElementById('toastDock');
+
+    if (dock) {
+        var dismiss = function (toast) {
+            if (!toast || toast.classList.contains('is-leaving')) return;
+
+            toast.classList.add('is-leaving');
+
+            /* Removed after the leave animation, or straight away when the
+               person has asked for reduced motion and there is none. */
+            var done = function () { if (toast.parentNode) toast.parentNode.removeChild(toast); };
+            var motion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+            if (motion) { done(); return; }
+
+            toast.addEventListener('animationend', done, { once: true });
+            window.setTimeout(done, 400);   // in case the animation never fires
+        };
+
+        Array.prototype.forEach.call(dock.querySelectorAll('.toast'), function (toast) {
+            var close = toast.querySelector('.toast__close');
+            if (close) close.addEventListener('click', function () { dismiss(toast); });
+
+            /* THE FIVE SECONDS ARE COUNTED BY CSS, not by a timer here.
+               .toast__timer runs a 5s animation and CSS pauses it on hover or
+               focus-within, so a long message cannot escape somebody still
+               reading it — and pausing needs no bookkeeping in JavaScript. */
+            var timer = toast.querySelector('.toast__timer');
+
+            if (timer) {
+                timer.addEventListener('animationend', function () { dismiss(toast); });
+            }
+
+            /* Esc closes the one being hovered or focused. */
+            toast.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape') dismiss(toast);
+            });
+        });
+    }
+
+    /* ---------------------------------------------------------------------
+       Confirmation
+       ---------------------------------------------------------------------
+       Twenty-five actions across the system asked for confirmation through the
+       browser's confirm(). Reliable, but outside the design and unable to give
+       the consequence any emphasis.
+
+       Same sentences, same decisions — a dialog that belongs to the page.
+       Built on <dialog>, so focus trapping, Escape and the backdrop are the
+       browser's job rather than this script's.
+
+       A form or button opts in with data-confirm="the question". Add
+       data-confirm-tone="normal" when the action is not destructive, which
+       repaints the icon; the default assumes it is.
+
+       PROGRESSIVE: if <dialog> is unsupported the native confirm() runs instead,
+       which is exactly what these controls did before.
+       ------------------------------------------------------------------ */
+
+    var dialog = null;
+
+    var askFirst = function (message, tone, proceed) {
+        /* SweetAlert2 when it is loaded, which is everywhere the shells run.
+           The <dialog> below is what answers if notify.js or the library did
+           not load — kept rather than deleted because it is the difference
+           between a delete being questioned and a delete just happening. */
+        if (window.TourSync && window.TourSync.hasSwal) {
+            /* THE BUTTON SAYS WHAT IT WILL DO.
+             *
+             * Every destructive action shared one label, "Yes, continue" — the
+             * same word for deleting a video, voiding an arrival and revoking
+             * an account. A confirmation is read in a hurry, and the button is
+             * the part that gets read; it should name the act, not agree to an
+             * unspecified one.
+             *
+             * Taken from the question rather than from a new attribute on
+             * twenty-five call sites, all of which already say plainly what
+             * they are about to do. */
+            var verb = 'Yes, continue';
+
+            if (tone !== 'normal') {
+                if (/\bdelete/i.test(message))      { verb = 'Yes, delete it'; }
+                else if (/\bremove/i.test(message)) { verb = 'Yes, remove it'; }
+                else if (/\bvoid/i.test(message))   { verb = 'Yes, void it'; }
+                else if (/\brevoke/i.test(message)) { verb = 'Yes, revoke it'; }
+                else if (/\bwithdraw/i.test(message)) { verb = 'Yes, withdraw it'; }
+            } else {
+                verb = 'Continue';
+            }
+
+            window.TourSync.confirmAction({
+                title:       tone === 'normal' ? 'Please confirm' : 'Are you sure?',
+                text:        message,
+                confirmText: verb,
+                tone:        tone === 'normal' ? 'normal' : 'danger',
+                onConfirm:   proceed
+            });
+            return;
+        }
+
+        if (!window.HTMLDialogElement) {
+            if (window.confirm(message)) { proceed(); }
+            return;
+        }
+
+        if (!dialog) {
+            dialog = document.createElement('dialog');
+            dialog.className = 'confirm-dialog';
+            dialog.innerHTML =
+                '<form method="dialog" class="confirm-dialog__form">'
+              +   '<div class="confirm-dialog__body">'
+              +     '<span class="confirm-dialog__icon"><i class="fa-solid fa-triangle-exclamation"></i></span>'
+              +     '<div class="confirm-dialog__text">'
+              +       '<h2>Please confirm</h2><p></p>'
+              +     '</div>'
+              +   '</div>'
+              +   '<div class="confirm-dialog__actions">'
+              +     '<button value="cancel" class="btn btn-sm btn-outline-secondary">Cancel</button>'
+              +     '<button value="go" class="btn btn-sm btn-outline-danger" data-confirm-go>Continue</button>'
+              +   '</div>'
+              + '</form>';
+            document.body.appendChild(dialog);
+        }
+
+        dialog.setAttribute('data-tone', tone === 'normal' ? 'normal' : 'danger');
+        dialog.querySelector('.confirm-dialog__text p').textContent = message;
+
+        var go = dialog.querySelector('[data-confirm-go]');
+        go.className = 'btn btn-sm ' + (tone === 'normal' ? 'btn-success' : 'btn-outline-danger');
+
+        dialog.querySelector('.confirm-dialog__icon i').className = tone === 'normal'
+            ? 'fa-solid fa-circle-question'
+            : 'fa-solid fa-triangle-exclamation';
+
+        /* once:true — the dialog element is reused, and a listener left behind
+           would fire again for the next thing anybody confirms. */
+        dialog.addEventListener('close', function () {
+            if (dialog.returnValue === 'go') { proceed(); }
+        }, { once: true });
+
+        dialog.showModal();
+    };
+
+    document.addEventListener('submit', function (event) {
+        var form = event.target;
+        var ask  = form.getAttribute && form.getAttribute('data-confirm');
+
+        if (!ask || form.dataset.confirmed === 'yes') { return; }
+
+        event.preventDefault();
+
+        askFirst(ask, form.getAttribute('data-confirm-tone'), function () {
+            /* Marked before resubmitting so this handler stands aside the second
+               time, rather than asking again in a loop. */
+            form.dataset.confirmed = 'yes';
+
+            if (typeof form.requestSubmit === 'function') {
+                form.requestSubmit(event.submitter || undefined);
+            } else {
+                form.submit();
+            }
+        });
+    }, true);
+
+    /* Buttons and links that carry the attribute themselves — a submit button
+       whose form has several actions, or a plain link that deletes. */
+    document.addEventListener('click', function (event) {
+        var el = event.target.closest && event.target.closest('[data-confirm]');
+
+        if (!el || el.tagName === 'FORM' || el.dataset.confirmed === 'yes') { return; }
+
+        event.preventDefault();
+
+        askFirst(el.getAttribute('data-confirm'), el.getAttribute('data-confirm-tone'), function () {
+            el.dataset.confirmed = 'yes';
+            el.click();
+        });
+    }, true);
+
+    /* ---------------------------------------------------------------------
+       Sheets — a form in a dialog
+       ---------------------------------------------------------------------
+       Started on the videos screen and moved here the moment a second page
+       wanted one. A button opens a sheet with data-dialog="theId"; anything
+       inside closes it with data-dialog-close.
+
+       A sheet carrying data-open opens itself on load, which is how a form
+       comes back with its validation errors still on screen: the server
+       redirects to the list, the list renders the sheet with the rejected
+       input in it, and the sheet reopens over the list.
+
+       Native <dialog>, so focus trapping, Escape and the backdrop are the
+       browser's. Where it is unsupported the markup is still a real form on
+       the page rather than a template, so nothing becomes unreachable.
+       ------------------------------------------------------------------ */
+
+    /* <dialog> has no "opened" event of its own, and something inside one may
+       need to know. A Leaflet map built in a closed dialog measures its
+       container as zero pixels and paints grey tiles for ever — it has to be
+       told to measure again once it can be seen. */
+    function openSheet(sheet) {
+        if (!sheet || !sheet.showModal) { return false; }
+
+        sheet.showModal();
+        sheet.dispatchEvent(new CustomEvent('sheet:open', { bubbles: true }));
+
+        return true;
+    }
+
+    document.addEventListener('click', function (event) {
+        var opener = event.target.closest && event.target.closest('[data-dialog]');
+
+        if (opener) {
+            var sheet = document.getElementById(opener.getAttribute('data-dialog'));
+
+            if (openSheet(sheet)) { event.preventDefault(); }
+
+            return;
+        }
+
+        var closer = event.target.closest && event.target.closest('[data-dialog-close]');
+
+        if (closer) {
+            var owner = closer.closest('dialog');
+
+            if (owner && owner.close) {
+                event.preventDefault();
+                owner.close();
+            }
+        }
+    });
+
+    Array.prototype.forEach.call(document.querySelectorAll('dialog[data-open]'), openSheet);
+
+    /* Only one kebab menu open at a time — two overlapping menus is how
+       somebody presses Delete on the wrong row. */
+    document.addEventListener('toggle', function (event) {
+        var opened = event.target;
+
+        if (opened.tagName !== 'DETAILS' || !opened.open || !opened.classList.contains('kebab')) {
+            return;
+        }
+
+        Array.prototype.forEach.call(document.querySelectorAll('details.kebab[open]'), function (other) {
+            if (other !== opened) { other.open = false; }
+        });
+    }, true);
+
+    /* ---------------------------------------------------------------------
+       A file too big for the server, caught before it is sent
+       ---------------------------------------------------------------------
+       A 56MB video was chosen, uploaded for a minute over an office
+       connection, and thrown away by PHP before a line of this application
+       ran — post_max_size empties $_POST and $_FILES both, so the page saw a
+       POST with no CSRF token and answered "your session expired".
+
+       Nothing was wrong with the session. The file was sixteen megabytes over.
+
+       Checked here first because the browser knows the size instantly and the
+       upload never has to start. app/bootstrap.php still catches it server
+       side for anything that gets past this.
+
+       Opt in with data-max-mb on the input; the value comes from php.ini
+       through upload_limit_mb(), so it cannot drift from what the server
+       will actually take.
+       ------------------------------------------------------------------ */
+
+    function tooBig(input) {
+        var cap = parseFloat(input.getAttribute('data-max-mb'));
+
+        if (!cap || !input.files || !input.files.length) { return null; }
+
+        var total = 0;
+        var worst = 0;
+
+        Array.prototype.forEach.call(input.files, function (f) {
+            total += f.size;
+            if (f.size > worst) { worst = f.size; }
+        });
+
+        /* Multiple files travel in one submission, so the total is what the
+           server weighs — but a single oversized file is the likelier mistake
+           and deserves the clearer sentence. */
+        var limit = cap * 1048576;
+
+        if (worst > limit) {
+            return 'That file is ' + (worst / 1048576).toFixed(1) + ' MB. '
+                 + 'This server accepts ' + cap + ' MB per upload.';
+        }
+
+        if (total > limit) {
+            return 'Those files come to ' + (total / 1048576).toFixed(1) + ' MB together. '
+                 + 'This server accepts ' + cap + ' MB per submission.';
+        }
+
+        return null;
+    }
+
+    function complain(input, message) {
+        input.value = '';
+
+        if (window.TourSync) {
+            window.TourSync.alertWarning('File too large', message);
+        } else {
+            window.alert(message);
+        }
+    }
+
+    /* On choosing it, so the answer comes back immediately rather than after a
+       minute of watching a progress bar. */
+    document.addEventListener('change', function (event) {
+        var input = event.target;
+
+        if (!input || input.type !== 'file' || !input.hasAttribute('data-max-mb')) { return; }
+
+        var problem = tooBig(input);
+        if (problem) { complain(input, problem); }
+    });
+
+    /* And again on submit, for a file dropped in by other means. */
+    document.addEventListener('submit', function (event) {
+        var form = event.target;
+
+        if (!form || !form.querySelectorAll) { return; }
+
+        var inputs = form.querySelectorAll('input[type=file][data-max-mb]');
+
+        for (var i = 0; i < inputs.length; i++) {
+            var problem = tooBig(inputs[i]);
+
+            if (problem) {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                complain(inputs[i], problem);
+                return;
+            }
+        }
+    }, true);
+
+    /* ---------------------------------------------------------------------
+       Modules that do not exist yet explain themselves
+       ------------------------------------------------------------------ */
+
+    Array.prototype.forEach.call(document.querySelectorAll('.sidebar__link.is-pending'), function (link) {
+        link.addEventListener('click', function (e) {
+            e.preventDefault();
+            var phase = link.querySelector('.sidebar__phase');
+            var when  = phase ? 'Phase ' + phase.textContent.replace('P', '') : 'a later phase';
+
+            /* Was a bare alert(), which announced itself as "localhost says". */
+            if (window.TourSync) {
+                window.TourSync.alertInfo('Not built yet',
+                    'This module is scheduled for ' + when + '.');
+            } else {
+                window.alert('This module is scheduled for ' + when + ' and has not been built yet.');
+            }
+        });
+    });
+
+    /* ---------------------------------------------------------------------
+       The bell
+       ---------------------------------------------------------------------
+       The badge and the first five rows are already on the page, printed by
+       head.php. This keeps them current, and it never does arithmetic: every
+       reply from the server carries the whole answer — the count AND the list —
+       and the browser prints what it was told.
+
+       A badge maintained by adding and subtracting in the browser drifts out of
+       step with the database the first time two tabs are open, and what people
+       then see is a 3 that will not go away.
+
+       POLLING, because this deploys to shared hosting with no long-lived
+       process and no WebSocket. Twenty seconds, paused while the tab is hidden:
+       an officer with the dashboard open in a background tab all afternoon
+       should not be asking the server anything.
+       ------------------------------------------------------------------ */
+
+    /* IN ITS OWN SCOPE, and this is not decoration.
+     *
+     * Everything above is `var` inside one long IIFE, so `var` is function
+     * scoped and every block shares one namespace. The bell arrived with its
+     * own open()/close()/timer/ask() and quietly took over the sidebar's,
+     * because those names were already taken thirty lines from the top — the
+     * hamburger on a phone then called the bell's open() and did nothing
+     * visible. Names that only exist inside the bell now stay inside it. */
+    (function () {
+        var bell = document.getElementById('bell');
+
+        if (!bell || !window.TourSyncBell) { return; }
+
+        var conf   = window.TourSyncBell;
+        var button = document.getElementById('bellButton');
+        var panel  = document.getElementById('bellPanel');
+        var badge  = document.getElementById('bellBadge');
+        var list   = document.getElementById('bellList');
+        var empty  = document.getElementById('bellEmpty');
+        var foot   = document.getElementById('bellFoot');
+        var allBtn = document.getElementById('bellMarkAll');
+
+        var esc = function (text) {
+            var d = document.createElement('div');
+            d.textContent = text == null ? '' : String(text);
+            return d.innerHTML;
+        };
+
+        /* Everything on screen, from one answer. */
+        var render = function (data) {
+            if (!data) { return; }
+
+            var unread = parseInt(data.unread, 10) || 0;
+
+            badge.textContent = unread;
+            badge.hidden = unread === 0;
+            allBtn.disabled = unread === 0;
+
+            var items = data.items || [];
+
+            list.innerHTML = items.map(function (n) {
+                return '<li class="bell__item' + (n.unread ? ' is-unread' : '') + '"'
+                     + ' data-notification="' + n.id + '">'
+                     + '<a class="bell__link" href="' + esc(n.link || '#') + '">'
+                     + '<span class="bell__icon bell__icon--' + esc(n.tone) + '">'
+                     + '<i class="fa-solid ' + esc(n.icon) + '" aria-hidden="true"></i></span>'
+                     + '<span class="bell__text"><strong>' + esc(n.title) + '</strong>'
+                     + (n.body ? '<span class="bell__body">' + esc(n.body) + '</span>' : '')
+                     + '<span class="bell__when" title="' + esc(n.exact) + '">'
+                     + esc(n.label) + ' &middot; ' + esc(n.when) + '</span></span></a>'
+                     + '<button type="button" class="bell__toggle" data-notification-toggle'
+                     + ' title="' + (n.unread ? 'Mark as read' : 'Mark as unread') + '"'
+                     + ' aria-label="' + (n.unread ? 'Mark as read' : 'Mark as unread') + '"></button>'
+                     + '</li>';
+            }).join('');
+
+            empty.hidden = items.length !== 0;
+
+            if (foot) {
+                foot.hidden = (parseInt(data.total, 10) || 0) <= items.length;
+            }
+        };
+
+        var ask = function (body) {
+            var options = { credentials: 'same-origin' };
+
+            if (body) {
+                body.append('_token', conf.token);
+                options.method = 'POST';
+                options.body = body;
+            }
+
+            return fetch(conf.url, options)
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(render)
+                .catch(function () { /* A dropped poll is not worth a message. */ });
+        };
+
+        var act = function (action, id) {
+            var body = new FormData();
+            body.append('action', action);
+
+            if (id) { body.append('id', id); }
+
+            return ask(body);
+        };
+
+        /* ---- opening it ------------------------------------------------
+           Opening the panel deliberately marks nothing. Somebody glancing at
+           what arrived has not dealt with any of it, and a bell that empties
+           itself on a look is a bell that loses things. */
+        var open = function (yes) {
+            panel.hidden = !yes;
+            button.setAttribute('aria-expanded', yes ? 'true' : 'false');
+            bell.classList.toggle('is-open', yes);
+
+            if (yes) { ask(null); }
+        };
+
+        button.addEventListener('click', function (event) {
+            event.stopPropagation();
+            open(panel.hidden);
+        });
+
+        document.addEventListener('click', function (event) {
+            if (!panel.hidden && !bell.contains(event.target)) { open(false); }
+        });
+
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape' && !panel.hidden) { open(false); button.focus(); }
+        });
+
+        /* ---- one row -----------------------------------------------------
+           The small button on the right toggles read state and stays put. The
+           row itself is a link: following it marks that one read and takes the
+           officer to the thing it is about. */
+        list.addEventListener('click', function (event) {
+            var row = event.target.closest('[data-notification]');
+            if (!row) { return; }
+
+            var id = row.getAttribute('data-notification');
+
+            if (event.target.closest('[data-notification-toggle]')) {
+                event.preventDefault();
+                act(row.classList.contains('is-unread') ? 'read' : 'unread', id);
+                return;
+            }
+
+            var link = event.target.closest('.bell__link');
+
+            if (link) {
+                /* Marked read before the page changes, and the navigation is
+                   left to happen on its own — waiting for the response first
+                   would put a visible pause between the click and the page. */
+                if (row.classList.contains('is-unread')) { act('read', id); }
+            }
+        });
+
+        allBtn.addEventListener('click', function () { act('read-all'); });
+
+        /* ---- keeping up --------------------------------------------------- */
+        var timer = null;
+
+        var start = function () {
+            stop();
+            timer = window.setInterval(function () { ask(null); },
+                Math.max(5000, parseInt(conf.every, 10) || 20000));
+        };
+
+        var stop = function () {
+            if (timer) { window.clearInterval(timer); timer = null; }
+        };
+
+        document.addEventListener('visibilitychange', function () {
+            if (document.hidden) {
+                stop();
+            } else {
+                /* Straight away on coming back, then on the timer. Somebody
+                   returning to the tab should not wait twenty seconds to find
+                   out what happened while they were away. */
+                ask(null);
+                start();
+            }
+        });
+
+        if (!document.hidden) { start(); }
+    })();
+
+    /* ---------------------------------------------------------------------
+       Collapsing a section
+       ---------------------------------------------------------------------
+       Any panel whose header came from section_head() carries a [data-collapse]
+       button. Settings, User Accounts and My Account all use it, so the
+       behaviour lives here rather than being copied into each page.
+
+       Which sections an officer keeps folded is a working habit, not a setting,
+       so it stays in localStorage and never reaches the server.
+       ------------------------------------------------------------------ */
+    (function () {
+        var toggles = document.querySelectorAll('[data-collapse]');
+
+        if (!toggles.length) { return; }
+
+        var KEY = 'toursync.folded';
+
+        function folded() {
+            try {
+                return JSON.parse(window.localStorage.getItem(KEY) || '[]') || [];
+            } catch (e) {
+                return [];   /* private window, storage off, or corrupt JSON */
+            }
+        }
+
+        function remember(list) {
+            try {
+                window.localStorage.setItem(KEY, JSON.stringify(list));
+            } catch (e) { /* folding still works for this visit */ }
+        }
+
+        /* Keyed on the page path plus the heading text. Not on a position: panels
+           get added and reordered, and an index would quietly start folding a
+           different section the next time somebody inserts one above it. */
+        function keyOf(panel) {
+            var h = panel.querySelector('.set-head__text h2');
+
+            return window.location.pathname + '#' + (h ? (h.textContent || '').trim() : '');
+        }
+
+        function fold(panel, shut) {
+            var toggle = panel.querySelector('[data-collapse]');
+
+            panel.classList.toggle('is-collapsed', shut);
+
+            if (toggle) {
+                toggle.setAttribute('aria-expanded', shut ? 'false' : 'true');
+                toggle.setAttribute('aria-label', (shut ? 'Expand' : 'Collapse') + ' this section');
+            }
+        }
+
+        var shut = folded();
+
+        document.querySelectorAll('.panel').forEach(function (panel) {
+            if (panel.querySelector('[data-collapse]') && shut.indexOf(keyOf(panel)) !== -1) {
+                fold(panel, true);
+            }
+        });
+
+        document.addEventListener('click', function (event) {
+            var toggle = event.target.closest && event.target.closest('[data-collapse]');
+
+            if (!toggle) { return; }
+
+            var panel = toggle.closest('.panel');
+            var close = !panel.classList.contains('is-collapsed');
+            var key   = keyOf(panel);
+            var list  = folded().filter(function (k) { return k !== key; });
+
+            fold(panel, close);
+
+            if (close) { list.push(key); }
+
+            remember(list);
+        });
+
+        /* A FOLDED SECTION MUST NOT SWALLOW AN ERROR.
+           The fields still post while folded — display:none does not stop a
+           control being submitted — but a message nobody can see is a refusal
+           with no reason given. */
+        var bad = document.querySelector('.is-invalid, .field-error');
+
+        if (bad) {
+            var owner = bad.closest('.panel');
+
+            if (owner) { fold(owner, false); }
+        }
+    })();
+
+})();

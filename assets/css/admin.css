@@ -697,21 +697,9 @@ a { text-decoration: none; }
 }
 .dest-tile__actions .btn { font-size: .77rem; }
 
-/* ---- Pager --------------------------------------------------------------- */
-.pager { display: flex; gap: .3rem; justify-content: center; margin-top: 1.4rem; }
-.pager a {
-    min-width: 34px;
-    height: 34px;
-    display: grid;
-    place-items: center;
-    border: 1px solid var(--line);
-    border-radius: var(--radius-sm);
-    font-size: .82rem;
-    color: var(--ink-2);
-    background: var(--surface);
-}
-.pager a:hover { border-color: var(--green); color: var(--green); }
-.pager a.is-current { background: var(--green); border-color: var(--green); color: #fff; font-weight: 600; }
+/* The pager lives with the rest of the house vocabulary further down, where it
+   is styled for the shared partial that renders it. This copy assumed a bare row
+   of numbers with no count and no prev/next. */
 
 /* ---- Forms --------------------------------------------------------------- */
 .form-grid .form-label { font-size: .82rem; font-weight: 600; color: var(--ink-2); margin-bottom: .3rem; }
@@ -725,6 +713,30 @@ a { text-decoration: none; }
 
 .req { color: var(--red); }
 .field-hint { font-size: .75rem; color: var(--ink-3); margin: .3rem 0 0; }
+
+/* ---- Note list -----------------------------------------------------------
+   A short list of plain statements, each opened by an icon: the security notes
+   on the account screen, and anywhere else a panel needs to say four things
+   rather than show four values.
+
+   It exists because the account screen was borrowing .lb-list from logbook.css,
+   which the admin never loads — the class did nothing and six inline style
+   declarations were quietly doing the whole job. A class that only lives in an
+   attribute cannot be restyled, and the next person to copy that markup copies
+   the inline styles with it.
+   ------------------------------------------------------------------------ */
+.note-list {
+    list-style: none;
+    display: grid;
+    gap: .6rem;
+    margin: 0;
+    padding: 0;
+    font-size: .82rem;
+    color: var(--ink-2);
+    line-height: 1.5;
+}
+.note-list li { display: flex; gap: .55rem; }
+.note-list i { color: var(--green); flex: 0 0 15px; margin-top: .18rem; }
 .field-hint code {
     font-size: .72rem;
     background: var(--canvas);
@@ -903,6 +915,16 @@ a { text-decoration: none; }
 .panel__head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 .panel__link { font-size: .78rem; color: var(--green); font-weight: 500; }
 .panel__link:hover { text-decoration: underline; }
+
+/* How many rows the filter left behind. The pager carries this too, but it only
+   renders past one page — so a filter that narrows fourteen down to three would
+   otherwise answer with silence, and silence reads the same as a broken filter. */
+.panel__count {
+    margin: 0;
+    font-size: .78rem;
+    color: var(--ink-2);
+    white-space: nowrap;
+}
 
 /* ---- Filter bar ---------------------------------------------------------- */
 .filter-bar {
@@ -1865,4 +1887,2642 @@ a { text-decoration: none; }
     font-weight: 700;
     line-height: 1.35;
     text-align: center;
+}
+
+/* =============================================================================
+   SIGN-IN — the two front doors
+   -----------------------------------------------------------------------------
+   One set of classes, used by /admin/login.php and /manager/login.php. The two
+   pages cross-link to each other, so a person who clicks through must not land
+   on something that looks like a different system.
+
+   The left panel is a photograph of a Tampakan waterfall, cropped twice: a
+   portrait frame for the tall desktop column and a wide band for the mobile
+   header. One image stretched to serve both loses the waterfall at one size or
+   the other, and the waterfall is the whole point of the picture.
+   ========================================================================== */
+
+:root {
+    --auth-forest:   #123A1B;
+    --auth-emerald:  #1B5E20;
+    --auth-leaf:     #2E7D32;
+    --auth-gold:     #E9A93C;
+    --auth-paper:    #F7F9F7;
+    --auth-ink:      #16211A;
+    --auth-ink-2:    #4A5A50;
+    --auth-ink-3:    #7C8C82;
+    --auth-line:     #DCE5DE;
+}
+
+.auth-body {
+    margin: 0;
+    background: var(--auth-paper);
+    color: var(--auth-ink);
+    font-family: 'Poppins', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+.auth-grid {
+    display: grid;
+    grid-template-columns: 52fr 48fr;
+    min-height: 100vh;
+    min-height: 100dvh;   /* the bar at the bottom of a phone browser is real */
+}
+
+/* ---------- LEFT: the photograph ---------- */
+
+.auth-hero {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: clamp(2rem, 4vw, 3.5rem);
+    background-color: var(--auth-forest);
+    background-image: url("../img/login-hero.jpg");
+    background-size: cover;
+    background-position: center center;
+    overflow: hidden;
+}
+
+/* Two stops, not one: a light wash over the whole frame so the greens sit back,
+   and a deep foot so the type has ground under it wherever the crop lands. */
+.auth-hero::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+        linear-gradient(to bottom,
+            rgba(18, 58, 27, .28) 0%,
+            rgba(18, 58, 27, .10) 35%,
+            rgba(12, 40, 19, .72) 78%,
+            rgba(9, 31, 15, .93) 100%);
+}
+
+/* No decorative overlay on the photograph.
+   A contour pattern sat here. Over a valley of trees it read as scratches
+   on the lens rather than as texture — the thing it was meant to evoke is
+   already in the picture, in the actual ridgeline. */
+
+.auth-hero__inner { position: relative; z-index: 1; max-width: 34rem; }
+
+.auth-hero__script {
+    display: block;
+    font-family: "Dancing Script", cursive;
+    font-size: clamp(1.9rem, 3.4vw, 2.7rem);
+    font-weight: 600;
+    line-height: 1;
+    color: var(--auth-gold);
+    margin-bottom: -.12em;
+}
+
+.auth-hero__title {
+    margin: 0;
+    font-size: clamp(3rem, 7.2vw, 5.4rem);
+    font-weight: 800;
+    line-height: .92;
+    letter-spacing: -.02em;
+    color: #fff;
+    text-shadow: 0 2px 24px rgba(0, 0, 0, .35);
+}
+
+.auth-hero__sub {
+    display: block;
+    margin-top: .4rem;
+    font-size: clamp(.85rem, 1.5vw, 1.1rem);
+    font-weight: 600;
+    letter-spacing: .32em;
+    text-transform: uppercase;
+    color: #9FD6A5;
+}
+
+.auth-hero__rule {
+    width: 4.5rem;
+    height: 3px;
+    margin: 1.4rem 0 1.1rem;
+    border-radius: 2px;
+    background: var(--auth-gold);
+}
+
+.auth-hero__lede {
+    margin: 0;
+    max-width: 26rem;
+    font-size: clamp(.95rem, 1.3vw, 1.05rem);
+    line-height: 1.6;
+    color: rgba(255, 255, 255, .9);
+}
+
+.auth-hero__foot {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: flex-start;
+    gap: .7rem;
+    margin-top: clamp(2rem, 6vh, 4rem);
+}
+
+.auth-hero__pin { color: var(--auth-gold); font-size: 1.35rem; line-height: 1.2; }
+
+.auth-hero__place { display: block; color: #fff; font-weight: 600; font-size: 1rem; }
+
+.auth-hero__tag {
+    display: block;
+    margin-top: .1rem;
+    font-size: .74rem;
+    font-weight: 600;
+    letter-spacing: .2em;
+    color: #9FD6A5;
+}
+
+/* ---------- RIGHT: the form ---------- */
+
+.auth-panel {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: clamp(1.75rem, 4vw, 3.5rem) clamp(1.25rem, 4vw, 3rem);
+    background: var(--auth-paper);
+}
+
+.auth-card { width: 100%; max-width: 27rem; }
+
+.auth-card__brand { text-align: center; margin-bottom: 1.9rem; }
+
+.auth-card__seal {
+    width: 92px;
+    height: 92px;
+    object-fit: contain;
+    margin-bottom: .9rem;
+}
+
+.auth-card__office {
+    margin: 0;
+    font-size: .78rem;
+    font-weight: 700;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+    color: var(--auth-emerald);
+}
+
+.auth-card__welcome {
+    margin: .35rem 0 0;
+    font-size: clamp(1.85rem, 4vw, 2.35rem);
+    font-weight: 700;
+    letter-spacing: -.02em;
+    color: var(--auth-forest);
+}
+
+/* A rule with a gold node at its centre — the one flourish on this side. */
+.auth-card__divider {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: .55rem;
+    margin: .85rem 0 1rem;
+}
+.auth-card__divider::before,
+.auth-card__divider::after {
+    content: "";
+    width: 3rem;
+    height: 1px;
+    background: var(--auth-line);
+}
+.auth-card__divider i {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--auth-gold);
+}
+
+.auth-card__lede {
+    margin: 0;
+    font-size: .93rem;
+    line-height: 1.55;
+    color: var(--auth-ink-2);
+}
+.auth-card__lede strong { color: var(--auth-ink); font-weight: 600; }
+
+.auth-field { margin-bottom: 1.1rem; }
+
+.auth-field > label {
+    display: block;
+    margin-bottom: .42rem;
+    font-size: .84rem;
+    font-weight: 600;
+    color: var(--auth-ink);
+}
+
+.auth-input { position: relative; }
+
+.auth-input__icon {
+    position: absolute;
+    left: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--auth-ink-3);
+    font-size: .95rem;
+    pointer-events: none;
+}
+
+.auth-input input {
+    width: 100%;
+    height: 54px;
+    padding: 0 3rem 0 2.9rem;
+    /* 16px exactly: below it, iOS Safari zooms the viewport on focus and the
+       person loses their place in the form. */
+    font-size: 16px;
+    font-family: inherit;
+    color: var(--auth-ink);
+    background: #fff;
+    border: 1.5px solid var(--auth-line);
+    border-radius: 12px;
+    transition: border-color .18s ease, box-shadow .18s ease;
+}
+
+.auth-input input::placeholder { color: #9AA8A0; }
+
+.auth-input input:focus {
+    outline: none;
+    border-color: var(--auth-leaf);
+    box-shadow: 0 0 0 4px rgba(46, 125, 50, .13);
+}
+
+.auth-input input.is-invalid {
+    border-color: #C62828;
+    background: #FDF6F5;
+}
+
+.auth-input__reveal {
+    position: absolute;
+    right: .55rem;
+    top: 50%;
+    transform: translateY(-50%);
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    border: 0;
+    border-radius: 9px;
+    background: none;
+    color: var(--auth-ink-3);
+    cursor: pointer;
+}
+.auth-input__reveal:hover { color: var(--auth-leaf); background: rgba(46, 125, 50, .07); }
+
+.auth-error { margin: .4rem 0 0; font-size: .82rem; color: #C62828; }
+
+.auth-submit {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: .6rem;
+    width: 100%;
+    height: 56px;
+    margin-top: .3rem;
+    border: 0;
+    border-radius: 12px;
+    background: linear-gradient(135deg, var(--auth-leaf), var(--auth-emerald));
+    color: #fff;
+    font-family: inherit;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 6px 18px rgba(27, 94, 32, .22);
+    transition: transform .18s ease, box-shadow .18s ease;
+}
+.auth-submit i { color: var(--auth-gold); }
+.auth-submit:hover { transform: translateY(-2px); box-shadow: 0 12px 26px rgba(27, 94, 32, .3); }
+.auth-submit:active { transform: translateY(0); }
+
+.auth-notice {
+    display: flex;
+    gap: .55rem;
+    margin: 1.5rem 0 0;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--auth-line);
+    font-size: .79rem;
+    line-height: 1.55;
+    color: var(--auth-ink-3);
+}
+.auth-notice i { margin-top: .15rem; }
+
+/* The other portal. Recognisably a second door without competing with the
+   button above it — a bordered block, not a filled one. */
+.auth-switch {
+    margin: 1.25rem 0 0;
+    padding: .95rem 1rem;
+    border: 1px solid var(--auth-line);
+    border-radius: 12px;
+    background: #fff;
+    text-align: center;
+    font-size: .86rem;
+    color: var(--auth-ink-2);
+}
+.auth-switch a {
+    display: inline-block;
+    margin-top: .2rem;
+    font-weight: 600;
+    color: var(--auth-emerald);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+.auth-switch a:hover { color: var(--auth-leaf); }
+
+.auth-back {
+    display: block;
+    margin-top: 1.1rem;
+    text-align: center;
+    font-size: .84rem;
+    color: var(--auth-ink-3);
+}
+.auth-back:hover { color: var(--auth-emerald); }
+
+.auth-alert {
+    display: flex;
+    gap: .6rem;
+    padding: .8rem .95rem;
+    margin-bottom: 1rem;
+    border-radius: 11px;
+    font-size: .87rem;
+    line-height: 1.5;
+}
+.auth-alert i { margin-top: .12rem; }
+.auth-alert--danger  { background: #FDECEA; color: #8E1F1B; }
+.auth-alert--warning { background: #FEF6E7; color: #7A5510; }
+.auth-alert--success { background: #E8F3E9; color: #1B5E20; }
+.auth-alert--info    { background: #E1F1FA; color: #0B4F72; }
+
+/* ---------- stacked ---------- */
+
+@media (max-width: 899.98px) {
+    .auth-grid { grid-template-columns: 1fr; min-height: 0; }
+
+    /* The photograph becomes a header band, not half a screen. The form is what
+       somebody came for on a phone, and it should be near the top. */
+    .auth-hero {
+        min-height: 34vh;
+        padding: 1.5rem 1.35rem 1.6rem;
+        background-image: url("../img/login-hero-wide.jpg");
+        background-position: center center;
+    }
+
+    .auth-hero__foot,
+    .auth-hero__lede { display: none; }
+    .auth-hero__rule { margin: .9rem 0 0; }
+
+    .auth-panel { padding: 1.75rem 1.25rem 2.5rem; }
+    .auth-card__seal { width: 74px; height: 74px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .auth-submit,
+    .auth-input input { transition: none; }
+    .auth-submit:hover { transform: none; }
+}
+
+/* =============================================================================
+   SIGN-IN — making the desktop page fit the screen
+   -----------------------------------------------------------------------------
+   The card was about 870px tall against a 768px viewport, so a 1366x768 laptop
+   — the machine this office actually uses — got a scrollbar on a page that has
+   one job.
+
+   Fixed by compressing the vertical rhythm, not by removing anything. Every
+   measurement below that used to be a fixed rem is now a clamp with a vh middle
+   term: on a 1080px screen it resolves to the original spacing, and on a 768px
+   screen it tightens just enough to fit. Nothing is hidden, clipped or moved
+   off-screen.
+
+   DESKTOP ONLY. The lock lives inside a min-width query because a phone in
+   landscape, or a laptop at 200% zoom, genuinely needs to scroll — and an
+   overflow:hidden on <body> would trap the form's lower half behind the fold
+   with no way to reach it.
+   ========================================================================== */
+
+@media (min-width: 900px) {
+
+    html.auth-html,
+    html.auth-html body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+    }
+
+    .auth-grid {
+        height: 100vh;
+        height: 100dvh;
+        min-height: 0;        /* min-height would win over height and reintroduce the overflow */
+        overflow: hidden;
+    }
+
+    /* Its own scroll container as a last resort. If a translation or a long
+       lockout message ever pushes the card past the screen, it scrolls inside
+       the panel instead of dragging the photograph up with it. */
+    .auth-panel {
+        overflow-y: auto;
+        padding: clamp(1rem, 3vh, 3.5rem) clamp(1.25rem, 3vw, 3rem);
+    }
+
+    .auth-card__seal {
+        width:  clamp(58px, 9vh, 92px);
+        height: clamp(58px, 9vh, 92px);
+        margin-bottom: clamp(.5rem, 1.4vh, .9rem);
+    }
+
+    .auth-card__brand  { margin-bottom: clamp(.9rem, 2.4vh, 1.9rem); }
+    .auth-card__welcome { font-size: clamp(1.6rem, 3.6vh, 2.35rem); }
+    .auth-card__divider { margin: clamp(.5rem, 1.2vh, .85rem) 0 clamp(.55rem, 1.4vh, 1rem); }
+
+    .auth-field { margin-bottom: clamp(.65rem, 1.7vh, 1.1rem); }
+
+    .auth-input input { height: clamp(46px, 6.4vh, 54px); }
+    .auth-submit      { height: clamp(48px, 6.8vh, 56px); }
+
+    .auth-notice {
+        margin-top:  clamp(.9rem, 2vh, 1.5rem);
+        padding-top: clamp(.75rem, 1.7vh, 1.25rem);
+    }
+
+    .auth-switch {
+        margin-top: clamp(.75rem, 1.7vh, 1.25rem);
+        padding: clamp(.6rem, 1.4vh, .95rem) 1rem;
+    }
+
+    .auth-back { margin-top: clamp(.7rem, 1.5vh, 1.1rem); }
+}
+
+/* Short desktop windows — a laptop with a taskbar, or a browser with two
+   toolbars. Trims the two blocks that can lose a line without losing meaning. */
+@media (min-width: 900px) and (max-height: 700px) {
+    .auth-card__lede  { font-size: .86rem; }
+    .auth-notice      { font-size: .74rem; }
+    .auth-switch      { font-size: .8rem; }
+    .auth-hero__lede  { display: none; }   /* the photo panel, not the form */
+}
+
+
+/* =============================================================================
+   ADMIN & MANAGER — UI pass
+   -----------------------------------------------------------------------------
+   Both shells share this stylesheet, so everything below lands on the officer's
+   screens and the manager's at once. That is the point: they are one system and
+   a fix applied to one of them only is the start of the next inconsistency.
+   ========================================================================== */
+
+
+/* -----------------------------------------------------------------------------
+   1. TOASTS — the confirmation that a change was saved
+   -----------------------------------------------------------------------------
+   Flash messages used to render inline at the top of the content column. Two
+   problems with that: on a long form the confirmation appeared above the fold
+   the person had already scrolled past, and it stayed on screen until the next
+   navigation, so a stale "Saved." sat over unrelated work.
+
+   Now they are toasts. Top-LEFT rather than the customary top-right, because
+   the right-hand side of the topbar already holds the account block and a toast
+   there covers the name of whoever is signed in — which matters on a shared
+   office machine.
+
+   Auto-dismiss at five seconds, with the timer PAUSED on hover or focus so a
+   long message cannot escape somebody still reading it. Dismissible by hand
+   either way, and never auto-dismissed for screen readers mid-announcement:
+   role=alert on errors, role=status on the rest.
+   -------------------------------------------------------------------------- */
+
+.toast-dock {
+    position: fixed;
+    top: calc(var(--topbar-h) + .75rem);
+    left: calc(var(--sidebar-w) + 1rem);
+    z-index: 1080;               /* above the sticky topbar and the form bar */
+    display: flex;
+    flex-direction: column;
+    gap: .55rem;
+    width: min(380px, calc(100vw - 2rem));
+    pointer-events: none;        /* the gap between toasts stays clickable */
+}
+
+.toast-dock:empty { display: none; }
+
+/* THE DOCK MUST LET GO OF THE SIDEBAR WHEN THE SIDEBAR LETS GO OF THE PAGE.
+ *
+ * 991.98px is where the sidebar slides off-canvas and .admin-main drops its
+ * margin. The dock did not follow, because it is placed from --sidebar-w
+ * rather than from the sidebar itself — so it kept a 258px indent against a
+ * bar that was no longer taking the room.
+ *
+ * Measured at a phone-width viewport: a 380px dock at left:274px, its right
+ * edge 169px past the screen. What stayed visible of "Profile updated." was
+ * roughly the coloured border.
+ *
+ * Scope, honestly: notify.js removes this dock and redraws the flashes as
+ * SweetAlert2 toasts, which position themselves. So this is the no-script
+ * path — JavaScript off or blocked, the vendor bundle failing, and the moment
+ * between first paint and notify.js running. Narrow, but it is the path that
+ * exists so the office never silently loses a message, and a message rendered
+ * off the side of the screen is losing it.
+ *
+ * It lives HERE, right after the rule it corrects, rather than up in the
+ * 991.98px block beside the sidebar rules it belongs with: a media query adds
+ * no specificity, so an override written earlier in the file loses to the base
+ * rule on source order. I wrote it there first and measured an unchanged
+ * left:274px, which is the only reason I know.
+ * ------------------------------------------------------------------------ */
+@media (max-width: 991.98px) {
+    /* right as well as left, so it shrinks with a narrow screen; max-width so a
+       tablet does not get a 705px-wide box holding "Profile updated." */
+    .toast-dock { left: 1rem; right: 1rem; width: auto; max-width: 420px; }
+}
+
+/* .toast-dock .toast, NOT .toast — Bootstrap owns this class name too.
+ *
+ * bootstrap@5.3.3 is loaded two lines above admin.css in both shells, and it
+ * carries `.toast:not(.show) { display: none }` for its own toast component,
+ * which is shown by adding .show from its JavaScript. :not() takes the
+ * specificity of its argument, so that rule is (0,2,0) and the house rule
+ * below was (0,1,0). Specificity is settled before source order, so loading
+ * admin.css afterwards never mattered: every server-rendered flash in this
+ * dock computed to display:none.
+ *
+ * That is the whole no-JavaScript path. notify.js redraws the flashes as
+ * SweetAlert2 toasts and removes this dock, so with scripts running nobody
+ * ever saw the fault — but with scripts off, or the vendor bundle failing to
+ * load, "Password changed." was in the HTML, correct and announced to screen
+ * readers, and painted nothing. It has been that way since Bootstrap and this
+ * dock first shared a page.
+ *
+ * Scoping to the dock lifts the house rule to (0,2,0), which ties Bootstrap
+ * and then wins on source order. Every toast in the system is written by
+ * app/views/partials/toast-dock.php and is always inside .toast-dock, so the
+ * scope loses nothing. The real cure is a name that cannot collide, and that
+ * is worth doing when the class is next touched for its own reasons.
+ * ------------------------------------------------------------------------ */
+.toast-dock .toast {
+    pointer-events: auto;
+    display: flex;
+    /* Bootstrap also sizes its toast (width: var(--bs-toast-max-width), 350px).
+       The dock is what decides the width here — 380px on a desktop, the screen
+       less its gutters on a phone — so the toast fills it rather than sitting
+       350px wide inside a 380px box with a 30px ledge down one side. */
+    width: 100%;
+    align-items: flex-start;
+    gap: .65rem;
+    padding: .8rem .9rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--ink-3);
+    background: var(--surface);
+    box-shadow: 0 10px 30px -10px rgba(16, 34, 20, .35);
+    font-size: .87rem;
+    line-height: 1.5;
+    color: var(--ink);
+    animation: toast-in .22s var(--ease) both;
+}
+
+.toast__icon { flex-shrink: 0; margin-top: .1rem; font-size: .95rem; }
+.toast__body { flex: 1; min-width: 0; word-break: break-word; }
+
+.toast__close {
+    flex-shrink: 0;
+    width: 26px;
+    height: 26px;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    color: var(--ink-3);
+    font-size: .8rem;
+    cursor: pointer;
+}
+.toast__close:hover { background: var(--canvas); color: var(--ink); }
+
+.toast--success { border-left-color: #2E7D32; }
+.toast--success .toast__icon { color: #2E7D32; }
+.toast--danger  { border-left-color: #C62828; }
+.toast--danger  .toast__icon { color: #C62828; }
+.toast--warning { border-left-color: #EF6C00; }
+.toast--warning .toast__icon { color: #EF6C00; }
+.toast--info    { border-left-color: #0277BD; }
+.toast--info    .toast__icon { color: #0277BD; }
+
+/* The remaining time, drawn rather than described. Somebody who sees the bar
+   running knows the message is about to go and can hover to keep it. */
+.toast__timer {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    height: 2px;
+    width: 100%;
+    transform-origin: left;
+    background: currentColor;
+    opacity: .35;
+    animation: toast-timer 5s linear forwards;
+}
+.toast { position: relative; overflow: hidden; }
+.toast:hover .toast__timer,
+.toast:focus-within .toast__timer { animation-play-state: paused; }
+
+.toast.is-leaving { animation: toast-out .2s var(--ease) both; }
+
+@keyframes toast-in  { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: none; } }
+@keyframes toast-out { to   { opacity: 0; transform: translateX(-12px); } }
+@keyframes toast-timer { to { transform: scaleX(0); } }
+
+@media (prefers-reduced-motion: reduce) {
+    .toast, .toast.is-leaving { animation: none; }
+    .toast__timer { display: none; }
+}
+
+
+/* -----------------------------------------------------------------------------
+   2. SIDEBAR COLLAPSE
+   -----------------------------------------------------------------------------
+   A rail of icons instead of 258px of labels. The officer's screens carry wide
+   tables — the DOT form, the visitor register, the activity log — and 258px is
+   the difference between a table that fits and one that scrolls sideways.
+
+   Labels are not deleted, they are hidden and restored as tooltips, so nothing
+   becomes unreachable and nothing has to be learned by icon alone. The choice
+   is remembered per browser: somebody who collapses it wants it collapsed
+   tomorrow too, and re-collapsing on every page load is the reason people stop
+   using a control like this.
+
+   DESKTOP ONLY. Below 992px the same button already opens the sidebar as an
+   overlay, which is the right behaviour on a phone and must not be replaced.
+   -------------------------------------------------------------------------- */
+
+@media (min-width: 992px) {
+    /* 84px, not 68. The rail carries the label under the icon, and a label of
+       "Destinations" needs somewhere to sit. Still 174px narrower than the full
+       sidebar, which is the point on the wide tables here. */
+    /* The class is set on <html> by an inline script in head.php, before the
+       browser paints, so the sidebar is never drawn at the wrong width and
+       the page never jumps sideways after loading. A descendant selector
+       rather than .admin-shell.is-rail for that reason. */
+    .is-rail .admin-shell { --sidebar-w: 84px; }
+
+    .is-rail .sidebar__brand span,
+    .is-rail .sidebar__brand div,
+    .is-rail .sidebar__group,
+    .is-rail .sidebar__phase { display: none; }
+
+    .is-rail .sidebar__brand { justify-content: center; padding-inline: 0; }
+
+    /* THE LABEL STAYS, under the icon.
+     *
+     * It was a hover tooltip first — an ::after positioned outside the link at
+     * left: 100%. That never appeared once: .sidebar carries overflow-y: auto,
+     * which makes overflow-x auto too, and anything placed beyond the sidebar's
+     * own width is clipped by it. The tooltip was invisible from the moment it
+     * was written.
+     *
+     * Under the icon there is nothing to clip, nothing to hover for, and the
+     * name is readable at a glance — which is what a collapsed rail is for. */
+    .is-rail .sidebar__link {
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        gap: .18rem;
+        padding: .55rem .25rem;
+        text-align: center;
+        border-left-width: 0;
+        border-right: 3px solid transparent;
+    }
+    .is-rail .sidebar__link.is-active { border-right-color: var(--green-light); }
+    .is-rail .sidebar__link i { font-size: 1.05rem; }
+
+    .is-rail .sidebar__link span {
+        display: block;
+        width: 100%;
+        font-size: .62rem;
+        line-height: 1.2;
+        letter-spacing: .01em;
+        /* Two lines at most. "Destination Managers" would otherwise push every
+           row in the rail to a different height. */
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    /* The badge cannot sit beside a label that is now below the icon, so it
+       rides on the icon's corner. */
+    .is-rail .sidebar__link { position: relative; }
+    .is-rail .sidebar__badge {
+        position: absolute;
+        top: .3rem;
+        right: 1.1rem;
+        min-width: 16px;
+        padding: 0 .25rem;
+        font-size: .6rem;
+        line-height: 16px;
+    }
+
+    .is-rail .sidebar__foot .sidebar__link { flex-direction: column; }
+
+    /* The toast dock follows the rail, or it floats over the sidebar. */
+    .is-rail .toast-dock { left: calc(84px + 1rem); }
+}
+
+/* The collapse control itself. Sits in the topbar beside the mobile toggle and
+   is hidden on the widths where the mobile toggle is the right control. */
+.topbar__rail {
+    display: none;
+    width: 38px;
+    height: 38px;
+    place-items: center;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--ink-2);
+    cursor: pointer;
+    transition: background .15s var(--ease), color .15s var(--ease);
+}
+.topbar__rail:hover { background: var(--canvas); color: var(--ink); }
+
+@media (min-width: 992px) {
+    .topbar__rail { display: grid; }
+}
+
+
+/* -----------------------------------------------------------------------------
+   3. DESTINATION TILES — the picture and the four buttons
+   -----------------------------------------------------------------------------
+   Two faults, both visible the moment a real photograph was uploaded.
+
+   THE PICTURE. .dest-tile__media carried aspect-ratio: 16/10, but it is a flex
+   item in a column flex container, and a stretched row let the box grow past
+   its ratio — so a portrait waterfall stood taller than a landscape ridge and
+   the cards beside it no longer lined up. flex: 0 0 auto pins the box to its
+   ratio whatever the row does with the rest of the card.
+
+   THE BUTTONS. Four of them — Edit, Photos, Directions, and a view link with no
+   label — inside a 268px column. They did not fit, so the labels wrapped under
+   the icons and the row grew to two lines of ragged, differently-sized buttons.
+   They are one size now, and the labels move into tooltips at the widths where
+   they cannot fit.
+   -------------------------------------------------------------------------- */
+
+.dest-tile__media {
+    flex: 0 0 auto;             /* never stretched by the row's tallest card */
+    aspect-ratio: 16 / 10;
+    overflow: hidden;
+}
+.dest-tile__media img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    display: block;
+}
+
+/* The badge sits over the photograph, so it needs its own ground — over a pale
+   sky the white text was unreadable. */
+.dest-tile__flag {
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    gap: .28rem;
+    line-height: 1.35;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .28);
+}
+
+/* The body takes the slack, so every card in a row ends with its buttons on the
+   same line rather than floating at the height its own text happened to reach. */
+.dest-tile__body { flex: 1 1 auto; }
+
+.dest-tile__actions {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;      /* four equal buttons, always */
+    gap: .35rem;
+    padding: .7rem .8rem;
+    background: #FAFCFA;
+    border-top: 1px solid var(--line-soft);
+}
+
+.dest-tile__actions .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: .35rem;
+    min-width: 0;
+    height: 34px;
+    padding-inline: .4rem;
+    font-size: .76rem;
+    white-space: nowrap;         /* a label may not wrap under its icon */
+    overflow: hidden;
+}
+
+/* Below this the four labels cannot fit at a readable size, so they go and the
+   title attribute carries them instead. */
+@media (max-width: 1400px) {
+    .dest-tile__actions .btn-label { display: none; }
+    .dest-tile__actions .btn { gap: 0; }
+}
+
+
+/* -----------------------------------------------------------------------------
+   4. FILTER BAR
+   -----------------------------------------------------------------------------
+   It was a flex row that wrapped, so at some widths a lone "Apply" landed on a
+   line of its own under an otherwise empty row. A grid of equal-width controls
+   reflows in whole columns instead, and the actions stay welded to the end.
+   -------------------------------------------------------------------------- */
+
+.filter-bar__row {
+    display: flex;
+    gap: .5rem;
+    align-items: center;
+    flex-wrap: wrap;
+    row-gap: .5rem;
+}
+
+.filter-bar .form-select,
+.filter-bar .form-control {
+    width: auto;
+    min-width: 132px;
+    max-width: 100%;
+    height: 36px;
+    font-size: .82rem;
+}
+
+/* The search field earns the leftover width rather than sitting at 132px beside
+   a metre of empty bar. */
+.filter-bar__search { flex: 1 1 220px; min-width: 180px; }
+
+.filter-bar__actions {
+    display: flex;
+    gap: .4rem;
+    align-items: center;
+    margin-left: auto;
+}
+
+@media (max-width: 767.98px) {
+    .filter-bar__row { flex-direction: column; align-items: stretch; }
+    .filter-bar .form-select,
+    .filter-bar .form-control { min-width: 0; width: 100%; }
+    .filter-bar__actions { margin-left: 0; }
+    .filter-bar__actions .btn { flex: 1; }
+    .filter-bar__spacer { display: none; }
+}
+
+
+/* -----------------------------------------------------------------------------
+   5. THE STICKY SAVE BAR OVER THE MAP
+   -----------------------------------------------------------------------------
+   .picker-map carried z-index: 1 and Leaflet gives the container position:
+   relative on init, so the map won a stacking contest against the sticky
+   .form-actions bar, which had no z-index at all. Scrolled to the right place,
+   the map's attribution control painted straight through the Save button.
+
+   The bar now stacks above the map and has a solid ground under it instead of a
+   gradient fading to transparent — a button you can see the map through is a
+   button somebody hesitates over.
+   -------------------------------------------------------------------------- */
+
+.form-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 20;
+    display: flex;
+    justify-content: flex-end;
+    gap: .6rem;
+    padding: .85rem 0;
+    margin-top: .5rem;
+    background: var(--canvas);
+    border-top: 1px solid var(--line);
+}
+
+/* Below the sticky bar, and below the topbar it was already kept under. */
+.picker-map { z-index: 0; }
+
+
+/* Buttons are defined once, with the rest of the house vocabulary, further down
+   this file. This block set three of the same properties and was written before
+   the roles were worked out. */
+
+/* A slot held open for an action that does not apply — an archived destination
+   has no public page. Shown rather than omitted so the other three buttons keep
+   their width and every card in the grid has the same row under it. */
+.btn.is-disabled {
+    opacity: .45;
+    pointer-events: none;
+    cursor: default;
+}
+
+/* ---- Promotional videos --------------------------------------------------
+   The source picker is a pair of radio cards rather than a select, because the
+   two choices have different consequences worth spelling out — a 40MB ceiling
+   on one side, somebody else's player on the other — and a dropdown has nowhere
+   to say so.
+   ------------------------------------------------------------------------ */
+.video-source {
+    display: flex;
+    align-items: center;
+    gap: .7rem;
+    flex: 1 1 240px;
+    padding: .8rem .95rem;
+    border: 1.5px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    cursor: pointer;
+    transition: border-color .15s var(--ease), background .15s var(--ease);
+}
+.video-source:hover      { border-color: var(--green-light); }
+.video-source.is-active  { border-color: var(--green); background: rgba(76, 175, 80, .07); }
+.video-source input      { margin: 0; flex-shrink: 0; }
+.video-source > i        { font-size: 1.15rem; color: var(--ink-3); }
+.video-source.is-active > i { color: var(--green); }
+.video-source span       { display: flex; flex-direction: column; min-width: 0; }
+.video-source strong     { font-size: .87rem; font-weight: 600; }
+.video-source small      { font-size: .76rem; color: var(--ink-3); }
+
+/* THE SAME RECTANGLE THE PUBLIC PAGE USES.
+ *
+ * This was object-fit: cover, which filled the box by CROPPING — an officer
+ * approving a portrait upload saw a zoomed middle strip of it and nothing to
+ * say the top and bottom existed. They were signing off a video they had not
+ * been shown.
+ *
+ * contain now, matching .dest-video__frame exactly, so the preview here and
+ * the player out there are the same picture in the same shape. */
+.video-preview {
+    display: block;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    object-fit: contain;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--line);
+    background: #000;
+}
+
+/* An iframe has no intrinsic ratio, so the box supplies one — otherwise the
+   embed collapses to whatever height the provider's default happens to be. */
+.video-embed {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    border: 1px solid var(--line);
+    background: #000;
+}
+.video-embed iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+
+
+/* =============================================================================
+   THE HOUSE UI VOCABULARY
+   -----------------------------------------------------------------------------
+   Written from a census of what the system already uses, not from a fresh idea
+   about what it should. Every class below was already in the markup; what was
+   missing was a shared rhythm and, for the Bootstrap variants, the house palette
+   instead of Bootstrap's.
+
+   THE ROLES, and what each already means here:
+
+     .btn-brand              the primary action — Save, Submit, Add, Send
+     .btn-success            an affirmative decision — Approve, Assign, Publish
+     .btn-outline-success    restoring something — Unarchive, Unlock
+     .btn-outline-secondary  everything secondary — Edit, View, Cancel, Back
+     .btn-outline-danger     destructive — Delete, Void, Reject, Archive
+     .btn-link               clearing a filter, and nothing else
+
+   A new button picks the role that matches what it does. There is no new class
+   to learn, and nothing here changes what any existing button does.
+   ========================================================================== */
+
+/* One rhythm. .btn-sm was already 34px; the full size follows at 42, and both
+   are set here so a row of mixed variants sits on one line. */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: .45rem;
+    height: 42px;
+    padding-inline: 1rem;
+    border-radius: var(--radius-sm);
+    font-size: .88rem;
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+    vertical-align: middle;
+    transition: background .16s var(--ease), color .16s var(--ease),
+                border-color .16s var(--ease), box-shadow .16s var(--ease);
+}
+
+.btn-sm  { height: 34px; padding-inline: .75rem; font-size: .8rem; }
+.btn-lg  { height: 48px; padding-inline: 1.35rem; font-size: .95rem; }
+.btn-icon { width: 34px; padding-inline: 0; gap: 0; }
+
+/* .btn-brand carried its own height, which made it the one button that never
+   lined up with anything beside it. */
+.btn-brand { height: 42px; }
+.btn-brand.btn-sm { height: 34px; }
+.btn-brand.btn-lg { height: 48px; }
+
+/* Bootstrap ships its own greens and reds. Repainted to the municipal palette so
+   an Approve button is the same green as the rest of the system. */
+.btn-success {
+    background: var(--green);
+    border-color: var(--green);
+    color: #fff;
+}
+.btn-success:hover,
+.btn-success:focus {
+    background: var(--green-dark);
+    border-color: var(--green-dark);
+    color: #fff;
+}
+
+.btn-outline-success {
+    color: var(--green-dark);
+    border-color: var(--green);
+    background: transparent;
+}
+.btn-outline-success:hover { background: var(--green); border-color: var(--green); color: #fff; }
+
+/* Clearing a filter is not a link to somewhere else — it is the quietest control
+   in the row. Bootstrap's blue underline made it the loudest. */
+.btn-link {
+    color: var(--ink-3);
+    text-decoration: none;
+    padding-inline: .5rem;
+}
+.btn-link:hover { color: var(--ink); text-decoration: underline; }
+
+/* Keyboard focus must be visible on every variant, including the outlined ones
+   where Bootstrap's default ring disappears against a pale border. */
+.btn:focus-visible {
+    outline: 2px solid var(--green-dark);
+    outline-offset: 2px;
+    box-shadow: none;
+}
+
+/* A row of buttons wraps as a row, never as a column of orphans. */
+.btn-row { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
+
+
+/* -----------------------------------------------------------------------------
+   PAGER
+   -----------------------------------------------------------------------------
+   One partial renders this now. Four modules had grown their own, each with a
+   different window and its own query-string handling — two of which dropped the
+   active filter on page two.
+   -------------------------------------------------------------------------- */
+
+.pager {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-top: 1.25rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--line);
+}
+
+/* "Showing 7–12 of 48" — the thing that tells somebody whether paging is even
+   worth it, and the thing every copy of the old pager left out. */
+.pager__count { margin: 0; font-size: .82rem; color: var(--ink-3); }
+
+.pager__links { display: flex; align-items: center; gap: .25rem; flex-wrap: wrap; }
+
+.pager__links a,
+.pager__links span {
+    min-width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    padding-inline: .4rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--ink-2);
+    font-size: .82rem;
+    font-weight: 600;
+    text-decoration: none;
+}
+.pager__links a:hover { border-color: var(--green); color: var(--green-dark); }
+
+.pager__links .is-current {
+    background: var(--green);
+    border-color: var(--green);
+    color: #fff;
+}
+
+/* Held rather than hidden at the ends: a row that changes width as you page
+   makes the number you were about to press move under the cursor. */
+.pager__step.is-disabled { opacity: .38; background: var(--canvas); }
+
+.pager__gap { border: 0; background: none; color: var(--ink-3); min-width: 18px; }
+
+@media (max-width: 575.98px) {
+    .pager { justify-content: center; }
+    .pager__count { width: 100%; text-align: center; }
+}
+
+
+/* -----------------------------------------------------------------------------
+   CONFIRMATION
+   -----------------------------------------------------------------------------
+   Twenty-five destructive or costly actions asked for confirmation through the
+   browser's own confirm(), which is reliable but sits outside the system's
+   design and cannot show what is about to happen with any emphasis.
+
+   This replaces the box, not the habit: the same sentences, in a dialog that
+   belongs to the page. Built on <dialog>, so focus trapping, Escape and the
+   backdrop are the browser's job rather than a script's.
+   -------------------------------------------------------------------------- */
+
+.confirm-dialog {
+    width: min(28rem, calc(100vw - 2rem));
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: 0 24px 60px -20px rgba(16, 34, 20, .5);
+    color: var(--ink);
+    background: var(--surface);
+}
+.confirm-dialog::backdrop { background: rgba(12, 26, 15, .45); }
+
+.confirm-dialog__body { display: flex; gap: .9rem; padding: 1.35rem 1.35rem 1rem; }
+
+.confirm-dialog__icon {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: #FDECEA;
+    color: #C62828;
+    font-size: 1.05rem;
+}
+.confirm-dialog[data-tone="normal"] .confirm-dialog__icon { background: var(--green-pale); color: var(--green-dark); }
+
+.confirm-dialog__text { min-width: 0; }
+.confirm-dialog__text h2 { margin: 0 0 .3rem; font-size: 1rem; font-weight: 700; }
+
+/* white-space: pre-line — the messages already carry line breaks, written when
+   they were confirm() strings, and those breaks are where the consequence is
+   separated from the question. */
+.confirm-dialog__text p {
+    margin: 0;
+    font-size: .88rem;
+    line-height: 1.6;
+    color: var(--ink-2);
+    white-space: pre-line;
+}
+
+.confirm-dialog__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: .5rem;
+    padding: 0 1.35rem 1.35rem;
+}
+
+
+/* =============================================================================
+   SWEETALERT2, WEARING THE SYSTEM'S CLOTHES
+   =============================================================================
+   The library ships its own buttons, its own radius and its own blue. Left
+   alone, a confirmation looks like it came from a different application than
+   the form behind it. buttonsStyling:false in notify.js hands the buttons back
+   to .btn above; the rest is here.
+   ========================================================================== */
+
+.ts-swal {
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg);
+    font-family: inherit;
+    padding: 1.6rem 1.5rem 1.35rem;
+}
+
+.ts-swal__title {
+    font-size: 1.08rem;
+    font-weight: 600;
+    color: var(--ink);
+    padding: 0;
+}
+
+.ts-swal__text,
+.ts-swal .swal2-html-container {
+    font-size: .88rem;
+    color: var(--ink-2);
+    line-height: 1.55;
+    margin: .55rem 0 0;
+}
+
+/* The actions row reads as one group at the bottom right, the same shape the
+   panels and the confirm dialog already use. */
+.ts-swal .swal2-actions {
+    gap: .5rem;
+    margin: 1.35rem 0 0;
+    justify-content: flex-end;
+    width: 100%;
+}
+
+.ts-swal .swal2-actions .btn { min-width: 96px; }
+
+.ts-swal .swal2-input,
+.ts-swal .swal2-textarea {
+    font-size: .88rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--line);
+    box-shadow: none;
+    height: 42px;
+    margin: 1rem 0 0;
+}
+
+.ts-swal .swal2-input:focus,
+.ts-swal .swal2-textarea:focus {
+    border-color: var(--green);
+    box-shadow: 0 0 0 3px var(--green-pale);
+}
+
+.ts-swal .swal2-validation-message {
+    background: #FDECEC;
+    color: var(--red);
+    font-size: .8rem;
+    border-radius: var(--radius-sm);
+}
+
+.ts-swal .swal2-icon { margin: .2rem auto 0; width: 62px; height: 62px; }
+.ts-swal .swal2-icon .swal2-icon-content { font-size: 2.4rem; }
+
+/* ---- Toasts -------------------------------------------------------------- */
+.ts-swal--toast {
+    padding: .85rem 1rem;
+    box-shadow: var(--shadow-lg);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+}
+
+.ts-swal--toast .swal2-title {
+    font-size: .86rem;
+    font-weight: 500;
+    color: var(--ink);
+    line-height: 1.45;
+    margin: 0;
+    padding: 0;
+}
+
+.ts-swal--toast .swal2-timer-progress-bar { background: var(--green); }
+.ts-swal--toast.swal2-icon-error   .swal2-timer-progress-bar { background: var(--red); }
+.ts-swal--toast.swal2-icon-warning .swal2-timer-progress-bar { background: var(--amber); }
+.ts-swal--toast.swal2-icon-info    .swal2-timer-progress-bar { background: var(--blue); }
+
+/* Clear of the topbar rather than over it. */
+.swal2-container.swal2-top-end { padding-top: calc(var(--topbar-h) + .5rem); }
+
+@media (max-width: 575.98px) {
+    .swal2-container.swal2-top-end { padding-top: .75rem; }
+    .ts-swal .swal2-actions { flex-direction: column-reverse; }
+    .ts-swal .swal2-actions .btn { width: 100%; }
+}
+
+/* Without JavaScript the dock in the markup is what shows the message; with it,
+   notify.js removes the dock and draws toasts instead. */
+.toast-dock:empty { display: none; }
+
+
+/* =============================================================================
+   BUTTONS THAT ARE ALREADY WORKING
+   =============================================================================
+   A second click on Save submits the form twice: two guides booked, one report
+   approved twice, the same 40MB video uploaded again. notify.js relabels the
+   button and swallows further clicks; this is what that looks like.
+   ========================================================================== */
+
+.btn.is-busy {
+    opacity: .72;
+    cursor: progress;
+    pointer-events: none;
+}
+
+.btn__spin {
+    width: 13px;
+    height: 13px;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    display: inline-block;
+    animation: ts-spin .65s linear infinite;
+    flex: none;
+}
+
+@keyframes ts-spin { to { transform: rotate(360deg); } }
+
+/* Respecting a system setting that exists because motion makes some people
+   ill. The button still says what it is doing; it just stops turning. */
+@media (prefers-reduced-motion: reduce) {
+    .btn__spin { animation: none; opacity: .6; }
+}
+
+
+/* =============================================================================
+   THE THREE BUTTON STATES NOTHING DEFINED
+   =============================================================================
+   The system had hover on five variants and focus on all of them, and that was
+   the whole vocabulary. Three gaps, each of which a person notices:
+
+     PRESSED   Nothing moved on mousedown. On a municipal connection a form can
+               take a second to post, and a button that does not acknowledge the
+               press gets pressed again — which is the duplicate submission the
+               busy state further down was written to stop.
+
+     DISABLED  Bootstrap's .btn:disabled only lowers opacity. .btn-brand paints
+               a gradient, and a gradient at 65% opacity still reads as the
+               brightest thing on the screen — so the one control that is off
+               looked like the one control to press.
+
+     OUTLINED  .btn-outline-secondary and .btn-outline-danger are the two most
+               used buttons in the system after .btn-sm, and neither had a house
+               hover; they fell through to Bootstrap's greys and reds beside the
+               municipal green.
+   ========================================================================== */
+
+.btn:active:not(:disabled):not(.disabled) {
+    transform: translateY(1px);
+    transition-duration: .06s;
+}
+
+/* .btn-brand lifts on hover, so its press has to come back down from there
+   rather than from nothing, or the button appears to jump upward when clicked. */
+.btn-brand:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: 0 4px 12px rgba(46, 125, 50, .28);
+}
+
+.btn:disabled,
+.btn.disabled,
+.btn[aria-disabled="true"] {
+    background: var(--line-soft);
+    border-color: var(--line);
+    color: var(--ink-3);
+    box-shadow: none;
+    opacity: 1;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* The gradient is a background-image and would otherwise paint straight over
+   the flat disabled colour above. */
+.btn-brand:disabled,
+.btn-brand.disabled { background-image: none; }
+
+.btn-outline-secondary {
+    color: var(--ink-2);
+    border-color: var(--line);
+    background: var(--surface);
+}
+.btn-outline-secondary:hover {
+    background: var(--canvas);
+    border-color: var(--ink-3);
+    color: var(--ink);
+}
+
+.btn-outline-danger {
+    color: var(--red);
+    border-color: #E9C4C4;
+    background: var(--surface);
+}
+.btn-outline-danger:hover {
+    background: var(--red);
+    border-color: var(--red);
+    color: #fff;
+}
+
+/* Bootstrap's primary blue has no place in a green system. Anything still
+   asking for it gets the municipal outline instead. */
+.btn-outline-primary {
+    color: var(--green-dark);
+    border-color: var(--green);
+    background: var(--surface);
+}
+.btn-outline-primary:hover { background: var(--green); border-color: var(--green); color: #fff; }
+
+/* An action row is the commonest place for a button to run off a phone screen,
+   because .btn is nowrap by design — a label that breaks over two lines is
+   worse than one that wraps to the next row. */
+.panel__head > div,
+.qr-card__actions,
+.d-flex.gap-2 { flex-wrap: wrap; }
+
+@media (max-width: 575.98px) {
+    .btn { max-width: 100%; }
+    .panel__head { flex-direction: column; align-items: flex-start; gap: .6rem; }
+    .panel__head > div { width: 100%; }
+}
+
+
+/* =============================================================================
+   PROMOTIONAL VIDEOS — a grid of cards, and the sheet that adds one
+   =============================================================================
+   The page was a vertical stack: an eight-field form first, then one full
+   panel per clip with its player, its details and its buttons. Six videos ran
+   to several screens, and the list the page exists for started below the fold
+   because the form was always above it.
+
+   Cards instead, three across, and the form moved into a dialog behind one
+   button. Same fields, same routes, same POST handling — only the shape.
+   ========================================================================== */
+
+.page-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: .9rem;
+}
+
+.video-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(288px, 1fr));
+    gap: 1.1rem;
+    margin-bottom: 1.25rem;
+}
+
+.video-card {
+    display: flex;
+    flex-direction: column;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+    transition: box-shadow .18s var(--ease), border-color .18s var(--ease);
+}
+
+.video-card:hover {
+    box-shadow: var(--shadow);
+    border-color: #D3DED7;
+}
+
+/* A clip published with no destination is live and reachable by nobody. The
+   card says so in words further down; this is so the eye finds it first. */
+.video-card.is-orphaned { border-color: #F0C89A; }
+
+/* ---- The thumbnail ------------------------------------------------------- */
+.video-card__thumb {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    background: #0F1613;
+    overflow: hidden;
+}
+
+.video-card__thumb video {
+    width: 100%;
+    height: 100%;
+    display: block;
+    /* contain, never cover — the officer is looking at this to decide whether
+       it is the right film, and a crop hides what they are deciding about. */
+    object-fit: contain;
+}
+
+.video-card__linked {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: .4rem;
+    color: #8FA096;
+}
+
+.video-card__linked i     { font-size: 1.9rem; }
+.video-card__linked span  { font-size: .78rem; }
+.video-card__linked--broken { color: #E0A96D; }
+
+.video-card__time {
+    position: absolute;
+    top: .55rem;
+    right: .55rem;
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    padding: .2rem .45rem;
+    border-radius: var(--radius-sm);
+    background: rgba(12, 18, 15, .82);
+    color: #fff;
+    font-size: .72rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.video-card__time i { font-size: .62rem; }
+
+.video-card__state {
+    position: absolute;
+    bottom: .55rem;
+    left: .55rem;
+    padding: .2rem .5rem;
+    border-radius: var(--radius-sm);
+    font-size: .7rem;
+    font-weight: 600;
+    color: #fff;
+}
+
+.video-card__state--live  { background: var(--green); }
+.video-card__state--draft { background: #6B7A72; }
+
+/* ---- The words ----------------------------------------------------------- */
+.video-card__body { padding: .85rem .9rem .2rem; flex: 1; }
+
+.video-card__title {
+    margin: 0 0 .4rem;
+    font-size: .92rem;
+    font-weight: 600;
+    color: var(--ink);
+    line-height: 1.4;
+    /* Two lines, then an ellipsis — a long title must not make one card taller
+       than the two beside it. */
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.video-card__meta,
+.video-card__facts {
+    display: flex;
+    align-items: center;
+    gap: .35rem;
+    flex-wrap: wrap;
+    margin: 0;
+    font-size: .77rem;
+    color: var(--ink-3);
+}
+
+.video-card__meta i,
+.video-card__facts i { font-size: .72rem; margin-right: .15rem; }
+.video-card__meta em { font-style: italic; }
+
+.video-card__warn {
+    margin: .55rem 0 0;
+    font-size: .74rem;
+    line-height: 1.45;
+    color: #A15C12;
+}
+
+.video-card__foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .5rem;
+    padding: .6rem .9rem .7rem;
+    border-top: 1px solid var(--line-soft);
+    margin-top: .8rem;
+}
+
+/* ---- The kebab menu -----------------------------------------------------
+   <details> rather than a scripted dropdown: Escape, clicking away and
+   keyboard focus are the browser's job, and it still opens with the script
+   blocked. */
+.kebab { position: relative; flex: none; }
+
+.kebab summary {
+    list-style: none;
+    width: 30px;
+    height: 30px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    color: var(--ink-2);
+    cursor: pointer;
+    background: var(--surface);
+}
+
+.kebab summary::-webkit-details-marker { display: none; }
+.kebab summary:hover { background: var(--canvas); border-color: var(--ink-3); }
+
+.kebab summary:focus-visible {
+    outline: 2px solid var(--green-dark);
+    outline-offset: 2px;
+}
+
+/* Opens upward: these cards sit at the bottom of a grid as often as the top,
+   and a menu that drops below the last row is a menu off the page. */
+.kebab__menu {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + .35rem);
+    z-index: 30;
+    min-width: 172px;
+    padding: .3rem;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-lg);
+}
+
+.kebab__item {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    width: 100%;
+    padding: .42rem .55rem;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: none;
+    font-size: .8rem;
+    font-family: inherit;
+    color: var(--ink-2);
+    text-align: left;
+    cursor: pointer;
+}
+
+.kebab__item i { width: 14px; font-size: .78rem; color: var(--ink-3); }
+.kebab__item:hover { background: var(--canvas); color: var(--ink); }
+
+.kebab__item--danger,
+.kebab__item--danger i { color: var(--red); }
+.kebab__item--danger:hover { background: #FDECEC; color: var(--red); }
+
+.kebab form { margin: 0; }
+
+
+/* =============================================================================
+   THE SHEET — a form in a dialog
+   =============================================================================
+   Native <dialog>, the same element the confirmation in admin.js uses, so
+   focus trapping, Escape and the backdrop are the browser's rather than this
+   stylesheet's problem.
+   ========================================================================== */
+
+.sheet {
+    width: min(680px, calc(100vw - 2rem));
+    max-height: calc(100vh - 3rem);
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg);
+    background: var(--surface);
+    color: var(--ink);
+    overflow: hidden;
+}
+
+.sheet::backdrop { background: rgba(12, 18, 15, .5); }
+
+.sheet__form {
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 3rem);
+}
+
+.sheet__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: .95rem 1.15rem;
+    border-bottom: 1px solid var(--line-soft);
+    background: #FAFCFA;
+}
+
+.sheet__head h2 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+}
+
+.sheet__head h2 i { color: var(--green); font-size: .85rem; }
+
+.sheet__close {
+    width: 32px;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--ink-3);
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.sheet__close:hover { background: var(--line-soft); color: var(--ink); }
+
+/* The body scrolls, the head and foot do not — so Save is always reachable
+   without scrolling to the end of the form. */
+.sheet__body {
+    padding: 1.15rem;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.sheet__foot {
+    display: flex;
+    justify-content: flex-end;
+    gap: .5rem;
+    padding: .85rem 1.15rem;
+    border-top: 1px solid var(--line-soft);
+    background: #FAFCFA;
+}
+
+@media (max-width: 575.98px) {
+    .video-grid { grid-template-columns: 1fr; }
+    .page-actions .btn { width: 100%; }
+
+    .sheet { width: 100vw; max-width: 100vw; max-height: 100vh; border-radius: 0; }
+    .sheet__form { max-height: 100vh; }
+    .sheet__foot { flex-direction: column-reverse; }
+    .sheet__foot .btn { width: 100%; }
+}
+
+
+/* ---- Groups inside a sheet ----------------------------------------------
+   A long form in a dialog still needs its sections named. Not panels: a panel
+   inside a dialog is a card inside a card, and the nesting reads as a
+   mistake. A rule and a small heading do the same job with no second border.
+   ------------------------------------------------------------------------ */
+
+.sheet__group + .sheet__group {
+    margin-top: 1.35rem;
+    padding-top: 1.15rem;
+    border-top: 1px solid var(--line-soft);
+}
+
+.sheet__legend h2 {
+    margin: 0 0 .85rem;
+    font-size: .78rem;
+    font-weight: 700;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    color: var(--green-dark);
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+}
+
+.sheet__legend h2 i { font-size: .8rem; color: var(--green); }
+
+.sheet__fields { display: block; }
+
+/* The composer carries three groups and a dozen fields, so it gets more width
+   than a five-field form does. */
+.sheet--wide { width: min(860px, calc(100vw - 2rem)); }
+
+@media (max-width: 575.98px) {
+    .sheet--wide { width: 100vw; max-width: 100vw; }
+}
+
+
+/* =============================================================================
+   THE BELL
+   =============================================================================
+   Beside the account block, because that is where a person looks for "things
+   about me". The sidebar keeps its own counts on the menus that own the work —
+   three requests waiting sits beside Tour Guide Requests, where somebody about
+   to open that screen will see it. Those answer "where is work waiting"; the
+   bell answers "what has happened since I last looked", across every module at
+   once and in time order.
+   ========================================================================== */
+
+.bell { position: relative; flex: none; }
+
+.bell__button {
+    position: relative;
+    width: 40px;
+    height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--line);
+    border-radius: 50%;
+    background: var(--surface);
+    color: var(--ink-2);
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background .16s var(--ease), border-color .16s var(--ease);
+}
+
+.bell__button:hover,
+.bell.is-open .bell__button {
+    background: var(--canvas);
+    border-color: var(--ink-3);
+    color: var(--ink);
+}
+
+.bell__button:focus-visible {
+    outline: 2px solid var(--green-dark);
+    outline-offset: 2px;
+}
+
+/* Red, and only red. This is the one number on the screen that means somebody
+   is waiting, and it must not be mistaken for the neutral counts in the
+   sidebar. */
+.bell__badge {
+    position: absolute;
+    top: -3px;
+    right: -3px;
+    min-width: 19px;
+    height: 19px;
+    padding: 0 5px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: var(--red);
+    color: #fff;
+    font-size: .68rem;
+    font-weight: 700;
+    line-height: 1;
+    border: 2px solid var(--surface);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ---- the panel ----------------------------------------------------------- */
+.bell__panel {
+    position: absolute;
+    top: calc(100% + .6rem);
+    right: 0;
+    z-index: 60;
+    width: 380px;
+    max-width: calc(100vw - 1.5rem);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+}
+
+.bell__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: .8rem 1rem;
+    border-bottom: 1px solid var(--line-soft);
+    background: #FAFCFA;
+}
+
+.bell__head h2 { margin: 0; font-size: .92rem; font-weight: 600; }
+
+.bell__all {
+    border: 0;
+    background: none;
+    padding: 0;
+    font-size: .78rem;
+    font-family: inherit;
+    color: var(--green-dark);
+    cursor: pointer;
+}
+
+.bell__all:hover:not(:disabled) { text-decoration: underline; }
+.bell__all:disabled { color: var(--ink-3); cursor: default; }
+
+/* FIVE ROWS, AND NO SCROLLBAR WORTH THE NAME.
+   A dropdown that scrolls is a page pretending to be a menu. The cap is here
+   as a safety net for a very long title, not as a way to fit more in. */
+.bell__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 380px;
+    overflow-y: auto;
+}
+
+.bell__item {
+    position: relative;
+    display: flex;
+    align-items: stretch;
+    border-bottom: 1px solid var(--line-soft);
+}
+
+.bell__item:last-child { border-bottom: 0; }
+.bell__item:hover { background: var(--canvas); }
+
+/* Unread carries a tinted ground AND a bar, not colour alone — the difference
+   has to survive a monochrome screen and a reader who cannot see the tint. */
+.bell__item.is-unread { background: #F3F9F4; }
+.bell__item.is-unread::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: var(--green);
+}
+
+.bell__link {
+    display: flex;
+    gap: .7rem;
+    align-items: flex-start;
+    padding: .75rem .6rem .75rem .9rem;
+    flex: 1;
+    min-width: 0;
+    text-decoration: none;
+    color: inherit;
+}
+
+.bell__icon {
+    flex: none;
+    width: 32px;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-size: .82rem;
+}
+
+.bell__icon--blue  { background: var(--blue-pale);  color: var(--blue); }
+.bell__icon--green { background: var(--green-pale); color: var(--green-dark); }
+.bell__icon--amber { background: #FDF0E1;           color: var(--amber); }
+.bell__icon--red   { background: #FDECEC;           color: var(--red); }
+
+.bell__text { min-width: 0; display: flex; flex-direction: column; gap: .1rem; }
+
+.bell__text strong {
+    font-size: .85rem;
+    font-weight: 600;
+    color: var(--ink);
+    line-height: 1.35;
+}
+
+/* Two lines then an ellipsis: a long message must not make one row taller than
+   the four around it. */
+.bell__body {
+    font-size: .78rem;
+    color: var(--ink-2);
+    line-height: 1.45;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.bell__when { font-size: .72rem; color: var(--ink-3); }
+
+/* The dot is the control. Hollow means unread and pressing it marks read;
+   filled means read and pressing it puts it back. */
+.bell__toggle {
+    flex: none;
+    width: 34px;
+    border: 0;
+    background: none;
+    cursor: pointer;
+    position: relative;
+}
+
+.bell__toggle::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 9px;
+    height: 9px;
+    margin: -4.5px 0 0 -4.5px;
+    border-radius: 50%;
+    border: 2px solid var(--ink-3);
+    background: transparent;
+    transition: background .16s var(--ease), border-color .16s var(--ease);
+}
+
+.bell__item.is-unread .bell__toggle::after {
+    background: var(--green);
+    border-color: var(--green);
+}
+
+.bell__toggle:hover::after { border-color: var(--green-dark); }
+
+.bell__toggle:focus-visible {
+    outline: 2px solid var(--green-dark);
+    outline-offset: -4px;
+}
+
+.bell__empty {
+    margin: 0;
+    padding: 1.6rem 1rem;
+    text-align: center;
+    font-size: .82rem;
+    color: var(--ink-3);
+}
+
+.bell__foot {
+    padding: .65rem 1rem;
+    border-top: 1px solid var(--line-soft);
+    background: #FAFCFA;
+    text-align: center;
+}
+
+.bell__foot a { font-size: .8rem; font-weight: 500; color: var(--green-dark); }
+
+@media (max-width: 575.98px) {
+    /* Anchored to the viewport rather than to the button: at 380px wide a panel
+       hanging off a button near the right edge would run off the screen. */
+    .bell__panel {
+        position: fixed;
+        top: calc(var(--topbar-h) + .4rem);
+        left: .75rem;
+        right: .75rem;
+        width: auto;
+    }
+}
+
+
+/* ---- The full notifications page ----------------------------------------
+   The same rows as the dropdown, given room to breathe: this is where somebody
+   comes to find last Tuesday's request, not to glance.
+   ------------------------------------------------------------------------ */
+.notice-list { list-style: none; margin: 0; padding: 0; }
+
+.notice {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    gap: .85rem;
+    padding: .95rem 1.15rem;
+    border-bottom: 1px solid var(--line-soft);
+}
+
+.notice:last-child { border-bottom: 0; }
+
+.notice.is-unread { background: #F3F9F4; }
+.notice.is-unread::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 3px;
+    background: var(--green);
+}
+
+.notice__text { flex: 1; min-width: 0; }
+
+.notice__text strong { display: block; font-size: .9rem; font-weight: 600; }
+.notice__text strong a { color: var(--ink); }
+.notice__text strong a:hover { color: var(--green-dark); text-decoration: underline; }
+
+.notice__text p {
+    margin: .2rem 0 .25rem;
+    font-size: .84rem;
+    line-height: 1.55;
+    color: var(--ink-2);
+}
+
+.notice__when { font-size: .75rem; color: var(--ink-3); }
+
+.notice__action { flex: none; margin: 0; }
+
+@media (max-width: 575.98px) {
+    .notice { flex-wrap: wrap; }
+    .notice__action { width: 100%; }
+    .notice__action .btn { width: 100%; }
+}
+
+/* ===========================================================================
+   Tour guide request queue — the three-column card
+   ---------------------------------------------------------------------------
+   THE CARD ANSWERS THREE QUESTIONS AT ONCE, so it is three columns:
+
+     who and what   the request as the visitor sent it
+     what now       the one thing the office should do next
+     where is it    how far along the arrangement has got
+
+   The middle column is the only one with controls in it. The left is read-only
+   and the right is read-only, so an officer's eye has exactly one place to go.
+
+   Prefixed tgq- because this page loads Bootstrap: .card, .badge and .step are
+   all taken.
+   ======================================================================== */
+
+.tgq-card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    margin-bottom: 1rem;
+    overflow: hidden;
+}
+
+.tgq-grid { display: grid; grid-template-columns: 1.15fr 1fr .85fr; }
+.tgq-col  { padding: 1.1rem 1.25rem; min-width: 0; }
+.tgq-col + .tgq-col { border-left: 1px solid var(--line-soft); }
+
+/* ---- column one: the request ---- */
+.tgq-head { display: flex; align-items: center; gap: .5rem; margin-bottom: .7rem; }
+.tgq-head__ref { margin-left: auto; font-family: ui-monospace, 'Courier New', monospace;
+                 font-size: .74rem; color: var(--ink-3); letter-spacing: .02em; }
+
+.tgq-dest { margin: 0 0 .55rem; font-size: 1.02rem; font-weight: 700; color: var(--ink); line-height: 1.25; }
+
+.tgq-meta { display: flex; flex-wrap: wrap; gap: .2rem .9rem; margin-bottom: .85rem;
+            font-size: .8rem; color: var(--ink-2); }
+.tgq-meta span { display: inline-flex; align-items: center; gap: .35rem; }
+.tgq-meta i { color: var(--ink-3); font-size: .76rem; }
+
+.tgq-contact { display: flex; flex-direction: column; gap: .3rem; font-size: .82rem; }
+.tgq-contact > span { display: inline-flex; align-items: center; gap: .5rem; min-width: 0; }
+.tgq-contact i { color: var(--ink-3); width: .9rem; text-align: center; flex-shrink: 0; }
+.tgq-contact a { word-break: break-all; }
+
+.tgq-label { margin: .95rem 0 .3rem; font-size: .68rem; font-weight: 600;
+             letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); }
+
+.tgq-message { padding: .6rem .75rem; background: var(--canvas); border-radius: var(--radius-sm, 6px);
+               font-size: .84rem; color: var(--ink); word-break: break-word; }
+
+.tgq-received { margin: .9rem 0 0; font-size: .76rem; color: var(--ink-3); line-height: 1.45; }
+.tgq-received i { margin-right: .35rem; }
+
+/* ---- column two: the action ---- */
+/* An amber prompt, not a green one. This is a nudge, not a success — and the
+   office reads green as "done" everywhere else in the system. */
+.tgq-prompt {
+    padding: .7rem .8rem; margin-bottom: .95rem;
+    background: #FFF6E5; border: 1px solid #F5D9A6; border-radius: var(--radius-sm, 6px);
+    font-size: .8rem; color: #6B4A05; line-height: 1.45;
+}
+.tgq-prompt strong { display: block; margin-bottom: .15rem; color: #5A3D04; }
+
+.tgq-or { display: flex; align-items: center; gap: .6rem; margin: .8rem 0 .55rem;
+          font-size: .7rem; letter-spacing: .08em; color: var(--ink-3); }
+.tgq-or::before, .tgq-or::after { content: ''; flex: 1; height: 1px; background: var(--line-soft); }
+
+/* A row that opens the off-roster fields. Reads as a control because it has a
+   chevron and a hover, which a bare <summary> does not. */
+.tgq-more {
+    display: flex; align-items: center; gap: .5rem; width: 100%;
+    padding: .5rem .1rem; font-size: .82rem; color: var(--green); cursor: pointer;
+    list-style: none;
+}
+.tgq-more::-webkit-details-marker { display: none; }
+.tgq-more:hover { text-decoration: underline; }
+.tgq-more .tgq-more__chev { margin-left: auto; transition: transform .18s ease; }
+details[open] > .tgq-more .tgq-more__chev { transform: rotate(90deg); }
+
+.tgq-decline { display: block; margin-top: .9rem; text-align: right;
+               font-size: .8rem; color: var(--red); background: none; border: 0; cursor: pointer; }
+.tgq-decline:hover { text-decoration: underline; }
+
+/* ---- column three: the timeline ---- */
+.tgq-timeline { list-style: none; margin: 0; padding: 0; }
+
+.tgq-step { position: relative; padding: 0 0 1.05rem 1.75rem; }
+.tgq-step:last-child { padding-bottom: 0; }
+
+/* The connector is drawn by the step above it, so the last one has no tail. */
+.tgq-step::before {
+    content: ''; position: absolute; left: .42rem; top: 1.05rem; bottom: 0;
+    width: 2px; background: var(--line);
+}
+.tgq-step:last-child::before { display: none; }
+.tgq-step--done::before { background: var(--green-light); }
+
+.tgq-step__dot {
+    position: absolute; left: 0; top: .1rem;
+    width: .95rem; height: .95rem; border-radius: 50%;
+    border: 2px solid var(--line); background: var(--surface);
+    display: flex; align-items: center; justify-content: center;
+    font-size: .5rem; color: #fff;
+}
+.tgq-step--done .tgq-step__dot { background: var(--green); border-color: var(--green); }
+.tgq-step--now  .tgq-step__dot { border-color: var(--green); box-shadow: 0 0 0 3px var(--green-pale); }
+
+/* Block, not inline. As spans they ran together — "Request received Aug 26,
+   2026 at 7:15 PM" on one wrapping line, which is two facts pretending to be
+   one sentence. */
+.tgq-step__title { display: block; font-size: .82rem; font-weight: 600; color: var(--ink-3); line-height: 1.3; }
+.tgq-step--done .tgq-step__title,
+.tgq-step--now  .tgq-step__title { color: var(--ink); }
+
+.tgq-step__when { display: block; margin-top: .1rem; font-size: .74rem; color: var(--ink-3); line-height: 1.4; }
+
+/* ---- narrow screens ---- */
+/* Stacks in reading order: what was asked, what to do, where it stands. The
+   columns never squeeze — three 200px columns on a phone is three unreadable
+   columns. */
+@media (max-width: 1100px) {
+    .tgq-grid { grid-template-columns: 1fr 1fr; }
+    .tgq-col:nth-child(3) { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--line-soft); }
+    .tgq-timeline { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .5rem 1rem; }
+    .tgq-step { padding-bottom: 0; }
+    .tgq-step::before { display: none; }
+}
+
+@media (max-width: 760px) {
+    .tgq-grid { grid-template-columns: 1fr; }
+    .tgq-col + .tgq-col { border-left: 0; border-top: 1px solid var(--line-soft); }
+}
+
+/* The arrangement stated as a fact. Same shape as the confirmed-destination box
+   on the visitor's own form — a thing already settled, with a quiet way to
+   change it, rather than a question asked twice. */
+.tgq-assigned {
+    display: flex; gap: .6rem; align-items: flex-start;
+    padding: .65rem .75rem;
+    background: var(--green-pale);
+    border: 1px solid rgba(46, 125, 50, .25);
+    border-left: 3px solid var(--green);
+    border-radius: var(--radius-sm, 6px);
+}
+.tgq-assigned > i { color: var(--green); margin-top: .12rem; }
+.tgq-assigned span { min-width: 0; }
+.tgq-assigned strong { display: block; font-size: .88rem; color: var(--green-dark); }
+.tgq-assigned a { font-size: .82rem; }
+.tgq-assigned small { display: block; margin-top: .15rem; font-size: .74rem; color: var(--ink-3); }
+
+
+/* =============================================================================
+   SETTINGS — section heads, the fixed save bar, and the hero slide list
+   =============================================================================
+   Three things this screen needed that the house vocabulary did not have.
+   ========================================================================== */
+
+/* ---- A richer section head -----------------------------------------------
+   The plain .panel__head is an icon and a title, which is enough for a list of
+   guides — the rows underneath say what the panel is for. A settings section has
+   no rows to explain it, so "Records" has to carry "how long personal data is
+   kept, and when an arrival is flagged" beside it, or the officer opens all five
+   tabs looking for the one they wanted.
+   ------------------------------------------------------------------------ */
+.set-head {
+    display: flex;
+    align-items: center;
+    gap: .8rem;
+}
+
+.set-head__icon {
+    flex: 0 0 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    border-radius: 9px;
+    background: rgba(46, 125, 50, .1);
+    color: var(--green);
+    font-size: .95rem;
+}
+
+.set-head__text { min-width: 0; flex: 1; }
+.set-head__text h2 { margin: 0; }
+.set-head__text p {
+    margin: .12rem 0 0;
+    font-size: .78rem;
+    color: var(--ink-3);
+    line-height: 1.45;
+}
+
+.set-head__toggle {
+    flex: 0 0 auto;
+    width: 30px;
+    height: 30px;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: var(--surface);
+    color: var(--ink-3);
+    font-size: .72rem;
+    cursor: pointer;
+    transition: color .15s var(--ease), border-color .15s var(--ease);
+}
+
+.set-head__toggle:hover { color: var(--green); border-color: var(--green); }
+.set-head__toggle i { transition: transform .2s var(--ease); }
+
+/* The body is display:none rather than removed from the document, so every
+   field inside a folded section is still submitted with the form. A settings
+   screen that dropped the values you could not see would be worse than one that
+   never folded at all. */
+.panel.is-collapsed .panel__body { display: none; }
+.panel.is-collapsed .set-head { border-bottom: 0; }
+.panel.is-collapsed .set-head__toggle i { transform: rotate(180deg); }
+
+/* ---- The save bar --------------------------------------------------------
+   Fixed to the content area: same edge, same height, on every tab. It replaced
+   a sticky bar at the end of the form, which put the button at the foot of a
+   five-screen form on one tab and directly under the tab strip on another —
+   because "the end of the form" is a different place once tabs have hidden most
+   of the form.
+
+   left: var(--sidebar-w) rather than a number. The variable is redefined on
+   .admin-shell when the sidebar is railed to 84px, so the bar follows the rail
+   with no rule of its own.
+   ------------------------------------------------------------------------ */
+.set-bar {
+    position: fixed;
+    left: var(--sidebar-w);
+    right: 0;
+    bottom: 0;
+    z-index: 1050;              /* over the page, under the toast dock at 1080 */
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: .8rem 1.6rem;
+    background: var(--surface);
+    border-top: 1px solid var(--line);
+    box-shadow: 0 -6px 20px -12px rgba(16, 34, 20, .3);
+}
+
+.set-bar__gap { height: 78px; }
+
+.set-bar__status {
+    display: flex;
+    align-items: flex-start;
+    gap: .55rem;
+    flex: 1;
+    min-width: 0;
+    font-size: .82rem;
+}
+
+.set-bar__status > i { color: var(--green); margin-top: .15rem; }
+.set-bar__status strong { display: block; color: var(--ink-1); font-weight: 600; }
+.set-bar__sub { display: block; font-size: .74rem; color: var(--ink-3); }
+
+/* Amber, not red. Unsaved work is a state to notice, not a fault to fear. */
+.set-bar.is-dirty .set-bar__status > i { color: var(--amber); }
+.set-bar.is-dirty .set-bar__status strong { color: var(--amber); }
+
+@media (max-width: 991.98px) {
+    .set-bar { left: 0; }
+}
+
+@media (max-width: 575.98px) {
+    .set-bar { padding: .7rem .9rem; gap: .6rem; }
+    .set-bar__sub { display: none; }        /* the headline still names the state */
+    .set-bar__gap { height: 68px; }
+}
+
+/* ---- Icon-only buttons ---------------------------------------------------
+   For a row that already carries its own label, so a word on the button would
+   only repeat it. Every one of them keeps a title and an aria-label, because
+   an icon is not a name.
+   ------------------------------------------------------------------------ */
+.icon-btn {
+    width: 30px;
+    height: 30px;
+    display: inline-grid;
+    place-items: center;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: var(--surface);
+    color: var(--ink-2);
+    font-size: .76rem;
+    cursor: pointer;
+    transition: color .15s var(--ease), border-color .15s var(--ease), background .15s var(--ease);
+}
+
+.icon-btn:hover { color: var(--green); border-color: var(--green); background: var(--canvas); }
+.icon-btn--danger:hover { color: var(--red); border-color: var(--red); }
+
+/* ---- The hero slide list -------------------------------------------------
+   A row per slide: what it is, whether it is on the homepage, and the four
+   things you can do to it. The words themselves are edited in a sheet, the way
+   every other record in this system is edited.
+   ------------------------------------------------------------------------ */
+.hero-bar {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: .9rem;
+}
+
+.hero-bar__note { flex: 1; min-width: 200px; margin: 0; font-size: .8rem; color: var(--ink-3); }
+.hero-bar__note i { color: var(--amber); margin-right: .3rem; }
+
+.hero-empty {
+    margin: 0;
+    padding: 1.6rem 1rem;
+    text-align: center;
+    font-size: .84rem;
+    color: var(--ink-3);
+    border: 1px dashed var(--line);
+    border-radius: var(--radius-sm);
+}
+
+.hero-empty i { display: block; font-size: 1.4rem; color: var(--line); margin-bottom: .45rem; }
+
+.hero-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
+
+.hero-row {
+    display: grid;
+    grid-template-columns: auto auto auto 1fr auto;
+    align-items: center;
+    gap: .75rem;
+    padding: .6rem .75rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    transition: border-color .15s var(--ease);
+}
+
+.hero-row:hover { border-color: var(--green); }
+.hero-row.is-dragging { opacity: .5; border-style: dashed; }
+
+/* A draft is dimmed rather than hidden or coloured red: it is not a warning,
+   it is simply not on the homepage. */
+.hero-row.is-draft { background: var(--canvas); }
+.hero-row.is-draft .hero-row__thumb img { filter: grayscale(1); opacity: .7; }
+
+.hero-row__grip { color: var(--ink-3); cursor: grab; padding: .2rem; font-size: .8rem; }
+.hero-row__grip:active { cursor: grabbing; }
+
+.hero-row__num {
+    width: 26px;
+    height: 26px;
+    display: grid;
+    place-items: center;
+    border-radius: 6px;
+    background: var(--canvas);
+    border: 1px solid var(--line);
+    font-size: .76rem;
+    font-weight: 600;
+    color: var(--ink-2);
+}
+
+.hero-row__thumb {
+    width: 62px;
+    height: 40px;
+    display: grid;
+    place-items: center;
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--canvas);
+    border: 1px solid var(--line);
+    color: var(--ink-3);
+}
+
+/* The empty state is marked by PHP, which already knows whether the file is
+   there, rather than by :has(img) — that selector is recent enough that an
+   office on an older browser would get a placeholder indistinguishable from a
+   loaded thumbnail, and this is the only thing telling them the slide has no
+   photograph now that the words came off the row. */
+.hero-row__thumb.is-empty { border-style: dashed; }
+.hero-row__thumb img { width: 100%; height: 100%; object-fit: cover; }
+
+.hero-row__main { min-width: 0; }
+
+.hero-row__title {
+    margin: 0;
+    font-size: .87rem;
+    font-weight: 600;
+    color: var(--ink-1);
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    flex-wrap: wrap;
+}
+
+.hero-row__sub {
+    margin: .12rem 0 0;
+    font-size: .76rem;
+    color: var(--ink-3);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.hero-row__warn { color: var(--amber); }
+
+.hero-row__actions { display: flex; gap: .35rem; }
+.hero-row__actions [data-hero-expand] i { transition: transform .2s var(--ease); }
+.hero-row.is-open .hero-row__actions [data-hero-expand] i { transform: rotate(180deg); }
+
+/* The expanded paragraph spans every column, under the row it belongs to. */
+.hero-row__more {
+    grid-column: 1 / -1;
+    margin-top: .3rem;
+    padding-top: .6rem;
+    border-top: 1px dashed var(--line);
+}
+
+.hero-row__body { margin: 0 0 .6rem; font-size: .8rem; color: var(--ink-2); line-height: 1.55; }
+.hero-row__more-actions { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+.hero-row__moves { display: flex; gap: .3rem; margin-left: auto; }
+
+.hero-hint { margin: .7rem 0 0; font-size: .75rem; color: var(--ink-3); }
+.hero-hint i { margin-right: .3rem; }
+
+.hero-sheet__thumb {
+    width: 100%;
+    height: 88px;
+    object-fit: cover;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--line);
+    margin-top: .7rem;
+}
+
+/* On a phone the grip and the number are noise — dragging a list inside a
+   scrolling page fights the scroll, which is why the arrows exist — so the row
+   folds to thumbnail, words, and the actions on a line of their own. */
+@media (max-width: 575.98px) {
+    .hero-row { grid-template-columns: auto 1fr; gap: .6rem; }
+    .hero-row__grip,
+    .hero-row__num { display: none; }
+    .hero-row__actions { grid-column: 1 / -1; justify-content: flex-end; }
+}
+
+
+/* A .panel-row whose second column holds nothing on the current tab.
+   Set by the settings tab script. It lives down here rather than beside
+   .panel-row at line 474 because it must win on source order: both selectors
+   are (0,1,0) and the earlier one would otherwise keep the two-column grid.
+   The same specificity lesson the toast dock taught, applied before it cost
+   anything this time. */
+.panel-row.is-single { grid-template-columns: minmax(0, 1fr); }
+
+
+/* THE SECTION HEAD STAYS A ROW ON A PHONE.
+ *
+ * .panel__head is switched to flex-direction: column below 576px, which is
+ * right for the head it was written for — a title with a row of action buttons
+ * that would otherwise run off the screen. .set-head is a different shape, and
+ * it inherited that rule: the icon, the title, the badge and the collapse
+ * chevron each landed on a line of their own, four rows deep, before the
+ * section had said anything.
+ *
+ * Written here rather than beside the 575.98px block at line 3311 because both
+ * selectors are (0,1,0) and only source order separates them — the same lesson
+ * the toast dock taught the hard way.
+ * ------------------------------------------------------------------------ */
+@media (max-width: 575.98px) {
+    .set-head {
+        flex-direction: row;
+        align-items: flex-start;
+        gap: .6rem;
+    }
+
+    .set-head__icon { flex: 0 0 28px; height: 28px; font-size: .85rem; }
+
+    /* The subtitle is the part that wraps, which is what it is for. */
+    .set-head__text { flex: 1 1 auto; min-width: 0; }
+    .set-head__text p { font-size: .74rem; }
+
+    .set-head .pill { flex: 0 0 auto; }
+    .set-head__toggle { flex: 0 0 28px; width: 28px; height: 28px; }
+}
+
+/* The reorder hint tells the truth at each width: the grip is hidden below
+   576px, so the sentence that mentions dragging it is hidden with it. */
+.hero-hint__tap { display: none; }
+
+@media (max-width: 575.98px) {
+    .hero-hint__drag { display: none; }
+    .hero-hint__tap { display: inline; }
+}
+
+/* A sentence sharing the filter bar with the primary action.
+   Most bars hold a search field, which brings its own width. This one holds a
+   line of prose, and without a flex basis it claimed the full row and pushed
+   the button onto a second line — a two-line bar mostly made of nothing. */
+.filter-bar__note {
+    flex: 1 1 320px;
+    min-width: 0;
+    margin: 0;
+    font-size: .8rem;
+    line-height: 1.5;
+    color: var(--ink-3);
+}
+
+.filter-bar__note i { color: var(--green); margin-right: .35rem; }
+
+/* Below 576px .filter-bar__row becomes flex-direction: column, and flex-grow
+   then grows the wrong way — the note stretched to fill the bar's height and
+   pushed Create account to the bottom of a tall box of nothing. In a column the
+   note wants its natural height and no more. */
+@media (max-width: 575.98px) {
+    .filter-bar__note { flex: 0 0 auto; }
+}
+
+/* ---- Your name in the topbar, as the way to your account ------------------
+   "My Account" left the sidebar. For an officer it is a tab of Settings, but
+   Settings is officer-only, so Tourism Staff would have been left with no route
+   to their own password. This block is the route for both.
+
+   It is a link now, so it needs what a link needs: a hit area, a hover state,
+   and a visible focus ring. .topbar__who and .topbar__avatar became spans in the
+   process — their existing rules still apply, but a span is inline by default
+   and the avatar's `display: grid` and the block rules inside __who are what
+   keep the shape. Written after those rules so the flex row wins.
+   ------------------------------------------------------------------------ */
+.topbar__me {
+    display: flex;
+    align-items: center;
+    gap: .8rem;
+    padding: .25rem .3rem .25rem .5rem;
+    margin: -.25rem -.3rem -.25rem -.5rem;   /* keeps the block optically where it was */
+    border-radius: 999px;
+    color: inherit;
+    text-decoration: none;
+    transition: background .2s var(--ease);
+}
+
+.topbar__me:hover { background: var(--canvas); color: inherit; }
+.topbar__me:hover .topbar__who strong { color: var(--green); }
+
+.topbar__me:focus-visible {
+    outline: 2px solid var(--green);
+    outline-offset: 2px;
+}
+
+/* The avatar keeps its circle: a span with display:grid from the rule above,
+   but flex would otherwise let it squash when the name is long. */
+.topbar__me .topbar__avatar { flex: 0 0 38px; }
+
+/* Below 576px .topbar__who is hidden and the avatar IS the link, so it needs
+   enough room around it to be a comfortable target on its own. */
+@media (max-width: 575.98px) {
+    .topbar__me { padding: .25rem; margin: -.25rem; gap: 0; }
 }

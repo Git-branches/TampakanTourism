@@ -45,8 +45,10 @@ if (is_post()) {
         }
 
         AdminRepository::updateProfile($id, [
-            'full_name' => (string) $v->value('full_name'),
-            'email'     => (string) $v->value('email'),
+            'full_name'        => (string) $v->value('full_name'),
+            'email'            => (string) $v->value('email'),
+            'mobile_number'    => (string) ($_POST['mobile_number'] ?? ''),
+            'alert_sms_opt_in' => !empty($_POST['alert_sms_opt_in']),
         ]);
 
         // The name is shown in the topbar from the session, so refresh it.
@@ -99,8 +101,18 @@ if (is_post()) {
 
 $neverChanged = $me['password_changed_at'] === null;
 
+require __DIR__ . '/../_partials/section-head.php';
 require __DIR__ . '/../_partials/head.php';
 ?>
+
+<?php /* The Settings tab strip, so this page sits inside the group it belongs to
+         rather than being a separate destination reached only from the sidebar.
+
+         The partial renders NOTHING for a Tourism Staff member: every other tab
+         in it is Auth::require('officer'), and this page is the one place here
+         they are allowed. A strip of tabs that would all refuse them is worse
+         than no strip. */ ?>
+<?php $settingsTab = 'me'; require __DIR__ . '/../_partials/settings-tabs.php'; ?>
 
 <?php if ($neverChanged): ?>
     <div class="alert alert-warning">
@@ -114,7 +126,7 @@ require __DIR__ . '/../_partials/head.php';
 <div class="panel-row">
     <div>
         <section class="panel">
-            <header class="panel__head"><h2><i class="fa-solid fa-key"></i> Change Password</h2></header>
+            <?php section_head('fa-key', 'Change Password', 'Your own sign-in password. It takes effect on your next sign-in.') ?>
             <div class="panel__body">
                 <form method="post" class="row g-3" novalidate autocomplete="off">
                     <?= csrf_field() ?>
@@ -161,7 +173,7 @@ require __DIR__ . '/../_partials/head.php';
         </section>
 
         <section class="panel">
-            <header class="panel__head"><h2><i class="fa-regular fa-user"></i> Profile</h2></header>
+            <?php section_head('fa-user', 'Profile', 'Your name, and where the office reaches you.') ?>
             <div class="panel__body">
                 <form method="post" class="row g-3" novalidate>
                     <?= csrf_field() ?>
@@ -187,8 +199,45 @@ require __DIR__ . '/../_partials/head.php';
                         <?php endif; ?>
                     </div>
 
+                    <div class="col-md-6">
+                        <label for="mobile_number" class="form-label">Mobile number</label>
+                        <input type="tel" id="mobile_number" name="mobile_number" maxlength="20"
+                               class="form-control" inputmode="tel"
+                               placeholder="09XX XXX XXXX"
+                               value="<?= old('mobile_number', (string) ($me['mobile_number'] ?? '')) ?>">
+                        <?php /* .field-hint, not Bootstrap's .text-muted.small — the password
+                                 panel three inches above uses .field-hint, and one screen
+                                 should not hold two ideas of what a hint under a field is. */ ?>
+                        <p class="field-hint">
+                            Where destination alerts are texted. You are not always in front of this
+                            dashboard, and a manager reporting a closure needs somebody to know.
+                        </p>
+                    </div>
+
+                    <div class="col-md-6 d-flex align-items-center">
+                        <div class="form-check mt-3">
+                            <input class="form-check-input" type="checkbox" value="1"
+                                   id="alert_sms_opt_in" name="alert_sms_opt_in"
+                                   <?= (int) ($me['alert_sms_opt_in'] ?? 1) === 1 ? 'checked' : '' ?>>
+                            <label class="form-check-label" for="alert_sms_opt_in">
+                                Text me when a destination reports something
+                                <span class="field-hint d-block">
+                                    Only reports at
+                                    <strong><?= e(\App\Repositories\AlertRepository::SEVERITIES[
+                                        (string) (setting('alert_sms_threshold', 'warning') ?? 'warning')
+                                    ] ?? 'Needs attention') ?></strong>
+                                    or above. Turn this off to keep the number on file without the texts.
+                                </span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <?php /* btn-brand, matching Change Password above. Both are the primary
+                             action of their own panel; the outline weight said this one was
+                             secondary to something, and there is nothing for it to be
+                             secondary to inside its own panel. */ ?>
                     <div class="col-12">
-                        <button type="submit" class="btn btn-outline-secondary">
+                        <button type="submit" class="btn btn-brand">
                             <i class="fa-solid fa-floppy-disk"></i> Save Profile
                         </button>
                     </div>
@@ -199,7 +248,7 @@ require __DIR__ . '/../_partials/head.php';
 
     <div class="panel-stack">
         <section class="panel">
-            <header class="panel__head"><h2><i class="fa-solid fa-id-card"></i> Account</h2></header>
+            <?php section_head('fa-id-card', 'Account', 'What this account is, and when it was last used.') ?>
             <div class="panel__body">
                 <dl class="detail-grid detail-grid--single">
                     <div><dt>Username</dt><dd class="mono"><?= e($me['username']) ?></dd></div>
@@ -217,17 +266,17 @@ require __DIR__ . '/../_partials/head.php';
         </section>
 
         <section class="panel">
-            <header class="panel__head"><h2><i class="fa-solid fa-shield-halved"></i> Security Notes</h2></header>
+            <?php section_head('fa-shield-halved', 'Security Notes', 'How TourSync protects a sign-in.') ?>
             <div class="panel__body">
-                <ul class="lb-list" style="display:grid;gap:.6rem;list-style:none;padding:0;margin:0;font-size:.84rem;color:var(--ink-2)">
-                    <li><i class="fa-solid fa-lock" style="color:var(--green);margin-right:.5rem"></i>
-                        Passwords are stored as Argon2id hashes and cannot be read by anyone, including this office.</li>
-                    <li><i class="fa-solid fa-ban" style="color:var(--green);margin-right:.5rem"></i>
-                        Five failed sign-ins lock the account for fifteen minutes.</li>
-                    <li><i class="fa-solid fa-clock" style="color:var(--green);margin-right:.5rem"></i>
-                        Sessions end after 30 minutes idle, or 8 hours regardless.</li>
-                    <li><i class="fa-solid fa-clipboard-list" style="color:var(--green);margin-right:.5rem"></i>
-                        Every sign-in and administrative change is recorded in the activity log.</li>
+                <ul class="note-list">
+                    <li><i class="fa-solid fa-lock"></i>
+                        <span>Passwords are stored as Argon2id hashes and cannot be read by anyone, including this office.</span></li>
+                    <li><i class="fa-solid fa-ban"></i>
+                        <span>Five failed sign-ins lock the account for fifteen minutes.</span></li>
+                    <li><i class="fa-solid fa-clock"></i>
+                        <span>Sessions end after 30 minutes idle, or 8 hours regardless.</span></li>
+                    <li><i class="fa-solid fa-clipboard-list"></i>
+                        <span>Every sign-in and administrative change is recorded in the activity log.</span></li>
                 </ul>
             </div>
         </section>

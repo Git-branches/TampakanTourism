@@ -15,6 +15,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../../bootstrap.php';
 
+use App\Core\Paginator;
 use App\Core\ActivityLog;
 use App\Core\Auth;
 use App\Core\Csrf;
@@ -156,12 +157,33 @@ if (is_post()) {
     redirect(base_url('/admin/settings/accounts.php'));
 }
 
-$accounts   = AdminRepository::all();
+$all        = AdminRepository::all();
+$pager      = Paginator::slice($all, $_GET['page'] ?? null);
+$accounts   = $pager['rows'];
 $unchanged  = AdminRepository::usingInstallerPassword();
 $officers   = AdminRepository::activeOfficerCount();
 
+/* Counted over the WHOLE list, not the page window. A tally that changes when
+   you turn the page is a tally nobody can act on — the roster learned this. */
+$tally = ['total' => count($all), 'officers' => 0, 'staff' => 0, 'inactive' => 0];
+
+foreach ($all as $row) {
+    if ((int) $row['is_active'] !== 1) {
+        $tally['inactive']++;
+    }
+
+    ($row['role'] === 'officer') ? $tally['officers']++ : $tally['staff']++;
+}
+
+/* The create form reopens over the list when it is rejected, rather than
+   sending anybody to a second screen to read why. */
+$sheetOpen = old_all() !== [];
+
+require __DIR__ . '/../_partials/section-head.php';
 require __DIR__ . '/../_partials/head.php';
 ?>
+
+<?php $settingsTab = 'accounts'; require __DIR__ . '/../_partials/settings-tabs.php'; ?>
 
 <?php if ($unchanged !== []): ?>
     <div class="alert alert-warning">
@@ -172,19 +194,56 @@ require __DIR__ . '/../_partials/head.php';
     </div>
 <?php endif; ?>
 
-<div class="panel panel--notice">
-    <div class="panel__body">
-        <h2><i class="fa-solid fa-user-lock"></i> No public registration</h2>
-        <p class="mb-0">
-            Accounts can only be created here, by a Tourism Officer. There is no sign-up page
-            anywhere in TourSync — the public site has no route to an account, and the login page
-            offers no way to create one.
+<?php /* THE COUNTS, NOT A PARAGRAPH ABOUT THEM.
+         A "No public registration" notice used to fill a whole panel at the top
+         of this page, saying something true that nobody needed to be told twice.
+         It is one line under the section title now, and the space it was using
+         says how many people can actually sign in. */ ?>
+<div class="stat-grid">
+    <?php foreach ([
+        ['fa-users',         'blue',  $tally['total'],    'Accounts'],
+        ['fa-user-shield',   'green', $tally['officers'], $tally['officers'] === 1 ? 'Tourism Officer' : 'Tourism Officers'],
+        /* No ternary: "Tourism Staff" is a mass noun and reads correctly at
+           nought, one and five. It had one anyway with the same string in both
+           branches — a line that looks like a bug even though it is harmless.
+           "Tourism Officer" does need one, and has it. */
+        ['fa-user',          'teal',  $tally['staff'],    'Tourism Staff'],
+        ['fa-user-slash',    'amber', $tally['inactive'], 'Deactivated'],
+    ] as [$icon, $tone, $value, $label]): ?>
+        <div class="stat-card stat-card--<?= e($tone) ?>">
+            <div class="stat-card__icon"><i class="fa-solid <?= e($icon) ?>"></i></div>
+            <div class="stat-card__body">
+                <p class="stat-card__value"><?= n((int) $value) ?></p>
+                <p class="stat-card__label"><?= e($label) ?></p>
+            </div>
+        </div>
+    <?php endforeach; ?>
+</div>
+
+<?php /* One bar, the same one the roster, arrivals and messages use — so the
+         primary action sits where it sits on every other list in this system. */ ?>
+<div class="filter-bar">
+    <div class="filter-bar__row">
+        <p class="filter-bar__note">
+            <i class="fa-solid fa-user-lock"></i>
+            There is no sign-up page anywhere in TourSync. An account exists only because
+            the installer or a Tourism Officer created it here.
         </p>
+
+        <div class="filter-bar__spacer"></div>
+
+        <div class="filter-bar__actions">
+            <button type="button" class="btn btn-brand btn-sm" data-dialog="addAccount">
+                <i class="fa-solid fa-user-plus"></i> Create account
+            </button>
+        </div>
     </div>
 </div>
 
 <section class="panel">
-    <header class="panel__head"><h2><i class="fa-solid fa-users"></i> Accounts (<?= n(count($accounts)) ?>)</h2></header>
+    <?php section_head('fa-users', 'Accounts',
+        'Everyone who can sign in, and what each of them may do.',
+        $tally['total'] === 1 ? '1 account' : $tally['total'] . ' accounts') ?>
     <div class="panel__body">
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
@@ -232,7 +291,15 @@ require __DIR__ . '/../_partials/head.php';
                                 <?php endif; ?>
 
                                 <?php if (!$isSelf): ?>
-                                    <form method="post" onsubmit="return confirm('Change this role?');">
+                                    <?php /* The question names the person and says what changes.
+                                             "Change this role?" is a question about a row; an
+                                             officer with six rows on screen needs to know which
+                                             one they are about to promote. */ ?>
+                                    <form method="post"
+                                          data-confirm="<?= $a['role'] === 'officer'
+                                              ? 'Make ' . e($a['full_name']) . ' Tourism Staff? They lose access to settings, accounts and voiding records.'
+                                              : 'Make ' . e($a['full_name']) . ' a Tourism Officer? They gain full access, including this page.' ?>"
+                                          data-confirm-tone="normal">
                                         <?= csrf_field() ?>
                                         <input type="hidden" name="id" value="<?= (int) $a['id'] ?>">
                                         <input type="hidden" name="action" value="role">
@@ -242,19 +309,39 @@ require __DIR__ . '/../_partials/head.php';
                                         </button>
                                     </form>
 
-                                    <form method="post" onsubmit="return confirm('<?= (int) $a['is_active'] === 1 ? 'Deactivate this account?' : 'Reactivate this account?' ?>');">
+                                    <?php
+                                    /* THE PHP TAGS HERE WERE HTML-ESCAPED — `&lt;?=` and `?&gt;`
+                                       — so this never ran. The officer clicked Deactivate and
+                                       the confirmation dialog showed them the source code of
+                                       the ternary instead of a question. Escaped inside an
+                                       attribute is invisible in the editor and invisible in
+                                       view-source; it only shows up in the dialog. */
+                                    $isOn = (int) $a['is_active'] === 1;
+                                    ?>
+                                    <form method="post"
+                                          data-confirm="<?= $isOn
+                                              ? 'Deactivate ' . e($a['full_name']) . '? They will not be able to sign in.'
+                                              : 'Reactivate ' . e($a['full_name']) . '?' ?>"
+                                          data-confirm-tone="<?= $isOn ? 'danger' : 'normal' ?>">
                                         <?= csrf_field() ?>
                                         <input type="hidden" name="id" value="<?= (int) $a['id'] ?>">
                                         <input type="hidden" name="action" value="active">
-                                        <input type="hidden" name="activate" value="<?= (int) $a['is_active'] === 1 ? '0' : '1' ?>">
-                                        <button class="btn btn-sm btn-outline-<?= (int) $a['is_active'] === 1 ? 'danger' : 'success' ?>">
-                                            <?= (int) $a['is_active'] === 1 ? 'Deactivate' : 'Reactivate' ?>
+                                        <input type="hidden" name="activate" value="<?= $isOn ? '0' : '1' ?>">
+                                        <button class="btn btn-sm btn-outline-<?= $isOn ? 'danger' : 'success' ?>">
+                                            <?= $isOn ? 'Deactivate' : 'Reactivate' ?>
                                         </button>
                                     </form>
                                 <?php endif; ?>
 
-                                <button class="btn btn-sm btn-outline-secondary"
-                                        onclick="resetPassword(<?= (int) $a['id'] ?>, '<?= e(addslashes($a['full_name'])) ?>')">
+                                <?php /* Data attributes, not onclick with addslashes.
+                                         addslashes escapes for a PHP string literal, not for an
+                                         HTML attribute inside a JavaScript argument — a surname
+                                         with an apostrophe was one nesting level away from
+                                         breaking the handler. The value goes through e() into an
+                                         attribute and the script reads it back as data. */ ?>
+                                <button type="button" class="btn btn-sm btn-outline-secondary"
+                                        data-reset-id="<?= (int) $a['id'] ?>"
+                                        data-reset-name="<?= e($a['full_name']) ?>">
                                     Reset Password
                                 </button>
                             </div>
@@ -271,13 +358,28 @@ require __DIR__ . '/../_partials/head.php';
     </div>
 </section>
 
-<section class="panel">
-    <header class="panel__head"><h2><i class="fa-solid fa-user-plus"></i> Create an Account</h2></header>
-    <div class="panel__body">
-        <form method="post" class="row g-3" novalidate autocomplete="off">
-            <?= csrf_field() ?>
-            <input type="hidden" name="action" value="create">
+<?php /* A SHEET, LIKE EVERY OTHER "ADD" IN THIS SYSTEM.
+         It was a permanent panel below the table: a six-field form open on the
+         screen at all times, on a page an officer visits mostly to reset one
+         password. The roster, the managers and the videos all put creation
+         behind a button, and this now matches them.
 
+         --wide, not the 680px default: six fields in three columns wrap onto
+         separate lines at 680 and the sheet becomes a scroll. */ ?>
+<dialog class="sheet sheet--wide" id="addAccount"<?= $sheetOpen ? ' data-open' : '' ?>>
+    <form method="post" novalidate autocomplete="off">
+        <?= csrf_field() ?>
+        <input type="hidden" name="action" value="create">
+
+        <header class="sheet__head">
+            <h2><i class="fa-solid fa-user-plus" aria-hidden="true"></i> Create an account</h2>
+            <button type="button" class="sheet__close" data-dialog-close aria-label="Close">
+                <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+            </button>
+        </header>
+
+        <div class="sheet__body">
+            <div class="row g-3">
             <div class="col-md-4">
                 <label for="full_name" class="form-label">Full name <span class="req">*</span></label>
                 <input type="text" id="full_name" name="full_name" required maxlength="120"
@@ -316,12 +418,17 @@ require __DIR__ . '/../_partials/head.php';
                 <?php if (has_error('password')): ?><div class="field-error"><?= e(error_for('password')) ?></div><?php endif; ?>
             </div>
 
-            <div class="col-md-4 d-flex align-items-end">
-                <button type="submit" class="btn btn-brand w-100"><i class="fa-solid fa-user-plus"></i> Create Account</button>
             </div>
-        </form>
-    </div>
-</section>
+        </div>
+
+        <footer class="sheet__foot">
+            <button type="button" class="btn btn-outline-secondary" data-dialog-close>Cancel</button>
+            <button type="submit" class="btn btn-brand">
+                <i class="fa-solid fa-user-plus"></i> Create account
+            </button>
+        </footer>
+    </form>
+</dialog>
 
 <!-- Password reset, posted from the table -->
 <form method="post" id="resetForm" class="d-none">
@@ -334,15 +441,64 @@ require __DIR__ . '/../_partials/head.php';
 <?php
 $pageScripts = <<<'HTML'
 <script>
-function resetPassword(id, name) {
-    const value = prompt('Set a new password for ' + name + '.\n\nAt least 10 characters, with a letter and a number.\nGive it to them privately and ask them to change it.');
-    if (value === null || value.trim() === '') return;
+/* Was a bare prompt(). Two things it could not do: mask what was being typed,
+   and refuse a password the server was going to reject anyway. Both matter on
+   an office machine where somebody may be standing behind you.
 
-    document.getElementById('resetId').value = id;
-    document.getElementById('resetPassword').value = value;
-    document.getElementById('resetForm').submit();
+   Reached by delegation from the buttons' data-reset-id / data-reset-name rather
+   than by an onclick that had to pass a name through addslashes — see the note
+   in the table. Delegation also means a row added to the DOM later still works. */
+document.addEventListener('click', function (event) {
+    var button = event.target.closest('[data-reset-id]');
+
+    if (!button) { return; }
+
+    resetPassword(button.getAttribute('data-reset-id'),
+                  button.getAttribute('data-reset-name'));
+});
+
+function resetPassword(id, name) {
+    var send = function (value) {
+        document.getElementById('resetId').value = id;
+        document.getElementById('resetPassword').value = value;
+        document.getElementById('resetForm').submit();
+    };
+
+    if (!window.TourSync) {
+        var typed = window.prompt('Set a new password for ' + name + '.');
+        if (typed !== null && typed.trim() !== '') { send(typed); }
+        return;
+    }
+
+    /* The name comes from the accounts table, so it is escaped before it goes
+       anywhere near innerHTML — an apostrophe in a surname should not end a tag. */
+    var safe = String(name).replace(/[&<>"']/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+
+    window.TourSync.askFor({
+        icon:        'question',
+        title:       'Reset password',
+        text:        'A new password for <strong>' + safe + '</strong>.<br>'
+                   + '<span class="text-muted small">'
+                   + 'At least 10 characters, with a letter and a number. Give it to them '
+                   + 'privately and ask them to change it.</span>',
+        input:       'password',
+        placeholder: 'New password',
+        confirmText: 'Reset password',
+        attributes:  { autocomplete: 'new-password', autocapitalize: 'off', spellcheck: 'false' },
+        validate: function (value) {
+            var v = (value || '').trim();
+            if (v.length < 10)      { return 'That is under 10 characters.'; }
+            if (!/[A-Za-z]/.test(v)) { return 'It needs at least one letter.'; }
+            if (!/[0-9]/.test(v))    { return 'It needs at least one number.'; }
+            return null;
+        },
+        onConfirm: function (value) { send(value.trim()); }
+    });
 }
 </script>
 HTML;
 
+require __DIR__ . '/../../app/views/partials/pager.php';
 require __DIR__ . '/../_partials/foot.php';
