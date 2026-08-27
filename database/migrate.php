@@ -1005,4 +1005,1077 @@ $stmt->execute(['sms_inbound_secret', '']);
 
 echo "  ok    sms_inbound_secret seeded (blank — the webhook refuses everything until it is set)\n";
 
+// =============================================================================
+//  2026-08 — Alert notifications follow the ACCOUNT, not a typed list
+// -----------------------------------------------------------------------------
+//  A destination manager reports something through the system. The system texts
+//  whoever is responsible, because the officer is not sitting in front of the
+//  dashboard — they are in a meeting, or out at a site. Then the office replies
+//  through the system, and the manager gets that reply as a text too.
+//
+//  The numbers used to live in one settings row, typed by hand. That row is a
+//  standing hazard: a staff member leaves, their account is deactivated, and
+//  their phone keeps receiving municipal alerts because nobody remembered a
+//  setting on another screen. Tied to the account, deactivating the account
+//  stops the texts, and a new hire who fills in their number starts receiving
+//  them without anyone being asked to remember.
+//
+//  opt_in is separate from having a number: an officer may want the number on
+//  file for the record and still not want a text at eleven at night.
+// =============================================================================
+$addColumn($pdo, 'admins', 'mobile_number',
+    'mobile_number VARCHAR(20) NULL AFTER email');
+
+$addColumn($pdo, 'admins', 'alert_sms_opt_in',
+    'alert_sms_opt_in TINYINT(1) NOT NULL DEFAULT 1 AFTER mobile_number');
+
+/* Managers already carry mobile_number and sms_opt_in for announcement blasts.
+   This is the separate question of whether they want the OFFICE'S REPLY to
+   their own report as a text — a different thing from municipal announcements,
+   and someone may reasonably want one and not the other. */
+$addColumn($pdo, 'destination_managers', 'reply_sms_opt_in',
+    'reply_sms_opt_in TINYINT(1) NOT NULL DEFAULT 1 AFTER sms_opt_in');
+
+/* How serious a report has to be before it becomes a text. 'warning' by
+   default: a manager writing "closed for maintenance" is exactly the message
+   this flow exists to carry, and it is not an emergency. Set to 'urgent' if the
+   balance is tight; 'info' texts everything, which is how a recipient learns to
+   ignore the messages. */
+$stmt = $pdo->prepare(
+    'INSERT INTO settings (setting_key, setting_value) VALUES (?, ?)
+     ON DUPLICATE KEY UPDATE setting_key = setting_key'
+);
+$stmt->execute(['alert_sms_threshold', 'warning']);
+
+/* The office's answer to the manager, kept apart from resolution_note.
+   They are different sentences to different readers: "Barangay rescue is on the
+   way" is what the manager needs to hear now; "Trail cleared, reopened 2pm" is
+   what the record needs afterwards. Collapsing them into one field means one of
+   the two goes unwritten. */
+$addColumn($pdo, 'destination_alerts', 'office_reply',
+    'office_reply VARCHAR(600) NULL AFTER resolution_note');
+
+$addColumn($pdo, 'destination_alerts', 'replied_by',
+    'replied_by INT UNSIGNED NULL AFTER office_reply');
+
+$addColumn($pdo, 'destination_alerts', 'replied_at',
+    'replied_at DATETIME NULL AFTER replied_by');
+
+echo "  ok    alert notification settings seeded\n";
+
+// =============================================================================
+//  2026-08 — Tour guide requests.
+// -----------------------------------------------------------------------------
+//  A tourist asks for a guide; the Municipal Tourism Office finds one.
+//
+//  WHY THIS IS NOT A BOOKING SYSTEM
+//
+//  The office does not keep a roster of accredited guides, does not hold their
+//  calendars, and assigns whoever is free by phoning around. A schema built for
+//  availability windows and confirmations would describe a process that does not
+//  exist, and every one of those columns would sit empty. What the office
+//  actually needs is the request written down, a way to say yes, and the guide's
+//  name and number recorded once it is arranged — which is what this is.
+//
+//  WHY THE VISITOR'S NUMBER IS REQUIRED AND THE EMAIL IS NOT
+//
+//  The reply goes out by SMS. A request the office cannot answer is a request
+//  that wastes everyone's afternoon, and in Tampakan a mobile number is the
+//  contact a visitor reliably has. Email is kept as an optional second channel
+//  for the occasional foreign visitor on roaming data.
+//
+//  RETENTION
+//
+//  visitor_name and contact_number are personal data under RA 10173, held for
+//  as long as the request is live and a short while after so the office can
+//  answer a follow-up call. anonymised_at mirrors tourist_arrivals so the same
+//  retention job can clear these without deleting the count.
+// =============================================================================
+
+if ($tableExists($pdo, 'tour_guide_requests')) {
+    echo "  skip  tour_guide_requests — already present\n";
+} else {
+    $pdo->exec("
+        CREATE TABLE tour_guide_requests (
+            id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+
+            -- Spoken aloud on the phone: 'about request TG-2A7F'. An id is
+            -- read back wrongly; four unambiguous characters are not.
+            reference_code VARCHAR(12) NOT NULL,
+
+            -- NULL when someone asks from the website without naming a spot.
+            -- The office still wants the request.
+            destination_id INT UNSIGNED NULL,
+
+            -- 'qr' means they were standing at the destination when they asked,
+            -- which changes how soon the office needs to answer.
+            source ENUM('qr','website') NOT NULL DEFAULT 'website',
+
+            visitor_name   VARCHAR(120) NOT NULL,
+            contact_number VARCHAR(20)  NOT NULL,
+            contact_email  VARCHAR(190) NULL,
+
+            party_size     SMALLINT UNSIGNED NOT NULL DEFAULT 1,
+            preferred_date DATE NULL,
+
+            -- Free text, not an enum. 'morning', 'after lunch' and '7am sharp'
+            -- are all things people write, and none of them survive a dropdown.
+            preferred_time VARCHAR(40)  NULL,
+            notes          VARCHAR(600) NULL,
+
+            -- 'assigned' is the state the office cares about: a guide has a
+            -- name and a number and the visitor has been told. 'declined' needs
+            -- a reason, enforced in the repository rather than here.
+            status ENUM('new','acknowledged','assigned','completed','declined','cancelled')
+                   NOT NULL DEFAULT 'new',
+
+            -- Free text on purpose. See the note above about the roster.
+            guide_name    VARCHAR(120) NULL,
+            guide_contact VARCHAR(20)  NULL,
+
+            office_note VARCHAR(600) NULL,
+
+            handled_by INT UNSIGNED NULL,
+            handled_at DATETIME NULL,
+
+            -- Whether the office's phone actually rang, and whether the visitor
+            -- was actually told. A request answered in a browser that the
+            -- visitor never learns about has not been answered.
+            office_notified_at  DATETIME NULL,
+            visitor_notified_at DATETIME NULL,
+
+            -- Abuse control, same device hash the review form uses.
+            device_hash CHAR(64) NULL,
+
+            anonymised_at DATETIME NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+            UNIQUE KEY uq_guide_ref (reference_code),
+            KEY idx_guide_status (status, created_at),
+            KEY idx_guide_dest   (destination_id, created_at),
+
+            CONSTRAINT fk_guide_dest FOREIGN KEY (destination_id)
+                REFERENCES destinations (id) ON DELETE SET NULL,
+            CONSTRAINT fk_guide_admin FOREIGN KEY (handled_by)
+                REFERENCES admins (id) ON DELETE SET NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    ");
+    echo "  ok    tour_guide_requests created\n";
+}
+
+/* Whether the office wants a text for every guide request.
+   On by default — the whole point of the feature is that the office learns
+   about it before the visitor gives up and leaves. */
+$stmt = $pdo->prepare(
+    'INSERT INTO settings (setting_key, setting_value) VALUES (?, ?)
+     ON DUPLICATE KEY UPDATE setting_key = setting_key'
+);
+$stmt->execute(['guide_sms_enabled', '1']);
+
+echo "  ok    tour guide request settings seeded\n";
+
+// =============================================================================
+//  2026-08 — Getting there.
+// -----------------------------------------------------------------------------
+//  WHY A TABLE AND NOT A COLUMN
+//
+//  "Directions" is not one paragraph. A visitor coming from General Santos
+//  needs a different first sentence from one already standing at the municipal
+//  gym, and the office knows both routes. One text column forces those into a
+//  single wall of prose that is wrong for everybody.
+//
+//  WHY LANDMARKS AND NOT COORDINATES
+//
+//  Nobody in Tampakan gives directions in decimal degrees. They say "past the
+//  National High School, left at the covered court, follow the concrete road
+//  until it turns to gravel". That is the direction that actually works, and it
+//  keeps working when the signal does not — which is the whole point, because
+//  the last kilometre of most of these routes has no signal at all.
+// =============================================================================
+
+if ($tableExists($pdo, 'destination_routes')) {
+    echo "  skip  destination_routes — already present\n";
+} else {
+    $pdo->exec("
+        CREATE TABLE destination_routes (
+            id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            destination_id INT UNSIGNED NOT NULL,
+
+            -- Where the directions start FROM. A place a stranger can find and
+            -- a tricycle driver recognises by name.
+            from_landmark VARCHAR(160) NOT NULL,
+
+            -- The directions themselves, written the way they are spoken.
+            directions TEXT NOT NULL,
+
+            -- Both free text. '20-30 minutes' and 'about 45 mins by habal-habal'
+            -- are the honest answers; a DECIMAL column would force a precision
+            -- the office does not have.
+            travel_time VARCHAR(60) NULL,
+            distance    VARCHAR(60) NULL,
+
+            -- 'Tricycle, habal-habal, or private vehicle (4x4 in wet season)'.
+            transport VARCHAR(160) NULL,
+
+            -- What it costs to get there by public transport, when known.
+            fare_note VARCHAR(160) NULL,
+
+            sort_order SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+            KEY idx_route_dest (destination_id, sort_order),
+
+            CONSTRAINT fk_route_dest FOREIGN KEY (destination_id)
+                REFERENCES destinations (id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    ");
+    echo "  ok    destination_routes created\n";
+}
+
+/* A map the visitor can keep. Uploaded by the office rather than generated,
+   because the useful map here is often a hand-drawn sketch of a trail junction
+   that no tile server has ever seen. */
+$addColumn($pdo, 'destinations', 'offline_map_image',
+    'offline_map_image VARCHAR(255) NULL AFTER longitude');
+
+// =============================================================================
+//  2026-08 — Managers proposing changes to their own destination.
+// -----------------------------------------------------------------------------
+//  A manager may not edit the destination record directly. The website is the
+//  municipality's official statement about the place, and a live edit box on it
+//  is an unreviewed change to a government publication.
+//
+//  So a manager proposes, and the office publishes. The proposal is stored as
+//  the SET OF FIELDS THEY WANT CHANGED, not as a finished row: storing a whole
+//  destination row would silently revert anything the office changed in the
+//  meantime the moment the proposal was approved.
+// =============================================================================
+
+if ($tableExists($pdo, 'destination_change_requests')) {
+    echo "  skip  destination_change_requests — already present\n";
+} else {
+    $pdo->exec("
+        CREATE TABLE destination_change_requests (
+            id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            destination_id INT UNSIGNED NOT NULL,
+            requested_by   INT UNSIGNED NULL,
+
+            -- JSON: {\"operating_hours\": \"6am-5pm\", \"entrance_fee\": \"P30\"}.
+            -- Only the fields being changed appear. Validated against an
+            -- allow-list in the repository — a manager must not be able to
+            -- propose a change to a column the office never exposed.
+            proposed JSON NOT NULL,
+
+            -- Why. The office is being asked to change a public statement and
+            -- deserves a sentence explaining it.
+            reason VARCHAR(600) NULL,
+
+            status ENUM('pending','approved','rejected','withdrawn')
+                   NOT NULL DEFAULT 'pending',
+
+            reviewed_by INT UNSIGNED NULL,
+            reviewed_at DATETIME NULL,
+            review_note VARCHAR(600) NULL,
+
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+            KEY idx_dcr_status (status, created_at),
+            KEY idx_dcr_dest   (destination_id, created_at),
+
+            CONSTRAINT fk_dcr_dest FOREIGN KEY (destination_id)
+                REFERENCES destinations (id) ON DELETE CASCADE,
+            CONSTRAINT fk_dcr_mgr FOREIGN KEY (requested_by)
+                REFERENCES destination_managers (id) ON DELETE SET NULL,
+            CONSTRAINT fk_dcr_admin FOREIGN KEY (reviewed_by)
+                REFERENCES admins (id) ON DELETE SET NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    ");
+    echo "  ok    destination_change_requests created\n";
+}
+
+// =============================================================================
+//  2026-08 — The homepage contact form.
+// -----------------------------------------------------------------------------
+//  The form has been on the site since the first commit and has never sent
+//  anything anywhere: it validated in the browser, showed a success message,
+//  and discarded the message. Every enquiry made through it is gone.
+//
+//  Stored rather than emailed because there is no mail sender configured on
+//  this host, and a message in a table the office can open is worth more than a
+//  message handed to a mail() call that silently fails on cPanel.
+// =============================================================================
+
+if ($tableExists($pdo, 'contact_messages')) {
+    echo "  skip  contact_messages — already present\n";
+} else {
+    $pdo->exec("
+        CREATE TABLE contact_messages (
+            id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+
+            name    VARCHAR(120) NOT NULL,
+            email   VARCHAR(190) NOT NULL,
+            phone   VARCHAR(40)  NULL,
+            subject VARCHAR(120) NOT NULL,
+            message VARCHAR(2000) NOT NULL,
+
+            status ENUM('new','read','answered','spam') NOT NULL DEFAULT 'new',
+
+            handled_by INT UNSIGNED NULL,
+            handled_at DATETIME NULL,
+            office_note VARCHAR(600) NULL,
+
+            device_hash CHAR(64) NULL,
+            anonymised_at DATETIME NULL,
+
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+            KEY idx_contact_status (status, created_at),
+
+            CONSTRAINT fk_contact_admin FOREIGN KEY (handled_by)
+                REFERENCES admins (id) ON DELETE SET NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    ");
+    echo "  ok    contact_messages created\n";
+}
+
+// =============================================================================
+//  2026-08 — 'road' as an alert category in its own right.
+// -----------------------------------------------------------------------------
+//  A manager reporting a washed-out approach road could already file it as
+//  'hazard'. But the client asked for road conditions by name, and a category
+//  list is a vocabulary: if the word the manager is thinking of is not in the
+//  list, they pick 'other' and the classification stops meaning anything.
+//
+//  ADDED, never reordered. MySQL stores ENUM values by ordinal position, so
+//  inserting 'road' in the middle would silently relabel every existing row.
+// =============================================================================
+
+$categoryColumn = $pdo->query(
+    "SELECT COLUMN_TYPE FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'destination_alerts'
+        AND COLUMN_NAME = 'category'"
+)->fetchColumn();
+
+if (is_string($categoryColumn) && str_contains($categoryColumn, "'road'")) {
+    echo "  skip  destination_alerts.category — 'road' already present\n";
+} else {
+    $pdo->exec(
+        "ALTER TABLE destination_alerts
+         MODIFY category ENUM('closure','hazard','accident','weather','utility','crowding','other','road')
+                NOT NULL DEFAULT 'other'"
+    );
+    echo "  ok    destination_alerts.category — 'road' added\n";
+}
+
+// =============================================================================
+//  2026-08 — Culture and heritage that belongs to the municipality.
+// -----------------------------------------------------------------------------
+//  destinations.cultural_heritage describes ONE place. The client asked for a
+//  section about Tampakan itself that appears on every QR code — the same words
+//  at Bulol Falls as at Kolon Ridge, because it is the same municipality.
+//
+//  A setting rather than a table: there is exactly one of these, it is edited by
+//  the officer, and a table with a single row is a table somebody eventually
+//  puts a second row in.
+// =============================================================================
+
+$stmt = $pdo->prepare(
+    'INSERT INTO settings (setting_key, setting_value) VALUES (?, ?)
+     ON DUPLICATE KEY UPDATE setting_key = setting_key'
+);
+
+$stmt->execute(['municipal_heritage', '']);
+$stmt->execute(['municipal_heritage_title', 'Local Culture & Heritage of Tampakan']);
+
+echo "  ok    municipal heritage settings seeded\n";
+
+// =============================================================================
+//  2026-08 — Promotional videos.
+// -----------------------------------------------------------------------------
+//  WHAT THIS REPLACES
+//
+//  The homepage looked for a hero clip by globbing assets/video/*.mp4. Nothing
+//  in the admin panel could put a file there, so changing the video meant FTP
+//  access — and the office had already dropped Tampakan.mp4 into uploads/Video/
+//  by hand, where no page ever looked at it. Their video has been on the server
+//  and off the website since August.
+//
+//  TWO SOURCES, ONE TABLE
+//
+//  An uploaded file, or a link to YouTube or Facebook. Both are needed and for
+//  a plain reason: PHP here accepts 40MB per upload, which is around a minute
+//  of 1080p. Anything longer has to live somewhere else, and telling a tourism
+//  office they may not use YouTube is telling them not to use the feature.
+//
+//  Kept in one table rather than two because everything else about them is the
+//  same — title, caption, which destination, published or not, what order.
+// =============================================================================
+
+if ($tableExists($pdo, 'promo_videos')) {
+    echo "  skip  promo_videos — already present\n";
+} else {
+    $pdo->exec("
+        CREATE TABLE promo_videos (
+            id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+
+            title   VARCHAR(160) NOT NULL,
+            caption VARCHAR(600) NULL,
+
+            -- Which place this is about. NULL for a municipal campaign that is
+            -- not about one destination — a festival, a season, the town itself.
+            destination_id INT UNSIGNED NULL,
+
+            source ENUM('upload','external') NOT NULL DEFAULT 'upload',
+
+            -- Set when source = 'upload'. Relative to the project root, the same
+            -- shape as destination_photos.file_path.
+            file_path VARCHAR(255) NULL,
+            mime_type VARCHAR(60)  NULL,
+            file_size INT UNSIGNED NULL,
+
+            -- Set when source = 'external'. The page URL as the office pasted
+            -- it; the embed URL is derived at render time so a change in what
+            -- YouTube accepts does not require rewriting stored data.
+            external_url VARCHAR(500) NULL,
+
+            -- The still frame shown before playback. Optional for an upload
+            -- (the browser shows its own first frame) and unused for external,
+            -- which brings its own thumbnail.
+            poster_path VARCHAR(255) NULL,
+
+            -- At most one video is the homepage hero. Enforced in the
+            -- repository rather than by a unique index, because the index would
+            -- have to be on a nullable expression and MySQL would let two rows
+            -- hold 0 but refuse a second 1 in a way that is hard to read later.
+            is_hero TINYINT(1) NOT NULL DEFAULT 0,
+
+            status ENUM('draft','published') NOT NULL DEFAULT 'draft',
+
+            sort_order SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+
+            created_by INT UNSIGNED NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+            KEY idx_video_public (status, sort_order, id),
+            KEY idx_video_dest   (destination_id, status),
+
+            CONSTRAINT fk_video_dest FOREIGN KEY (destination_id)
+                REFERENCES destinations (id) ON DELETE SET NULL,
+            CONSTRAINT fk_video_admin FOREIGN KEY (created_by)
+                REFERENCES admins (id) ON DELETE SET NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    ");
+    echo "  ok    promo_videos created\n";
+}
+
+// =============================================================================
+//  2026-08 — The tour guide booking record.
+// -----------------------------------------------------------------------------
+//  The client asked for a digital receipt the tourist can hold, and for the
+//  arrangement to finish in person at the Municipal Tourism Office rather than
+//  being treated as a confirmed booking the moment the form is sent.
+//
+//  Two columns carry that. issued_at marks when the receipt became viewable —
+//  which is at submission, because a tourist who has just filled in a form is
+//  owed something to show for it. met_at is stamped by the office when the
+//  tourist actually turns up, which is the only moment anybody can honestly say
+//  the guide and the visitor have found each other.
+// =============================================================================
+
+$addColumn($pdo, 'tour_guide_requests', 'issued_at',
+    'issued_at DATETIME NULL AFTER reference_code');
+
+$addColumn($pdo, 'tour_guide_requests', 'met_at',
+    'met_at DATETIME NULL AFTER visitor_notified_at');
+
+/* Existing rows predate the receipt, so they are backfilled from their own
+   creation time rather than left NULL — otherwise a request made yesterday
+   would show no receipt at all. */
+$pdo->exec('UPDATE tour_guide_requests SET issued_at = created_at WHERE issued_at IS NULL');
+
+echo "  ok    tour guide booking receipt columns\n";
+
+// =============================================================================
+//  2026-08 — Videos get a kind, and one of them leads.
+// -----------------------------------------------------------------------------
+//  A destination's videos were a flat list under a heading that said "Video".
+//  That is fine for one clip and wrong for five: the office's own promotional
+//  film, last year's, the fiesta, and something a visitor sent in are four
+//  different things to a reader, and stacking them unlabelled makes the newest
+//  upload look like the official one.
+//
+//  WHY A FEATURED FLAG RATHER THAN "the first by sort_order"
+//
+//  Sort order answers "in what sequence", not "which one is the office's
+//  statement about this place". They come apart the moment somebody reorders
+//  the list — and the featured clip is the one that gets the large frame and the
+//  destination's name in the heading, so it has to be chosen deliberately.
+//
+//  At most one per destination, enforced in the repository. A unique index would
+//  have to cover (destination_id, is_featured) and would then refuse a second
+//  row holding 0, which is the common case.
+// =============================================================================
+
+$addColumn($pdo, 'promo_videos', 'category',
+    "category ENUM('promo','event','archive','visitor') NOT NULL DEFAULT 'promo' AFTER destination_id");
+
+$addColumn($pdo, 'promo_videos', 'is_featured',
+    'is_featured TINYINT(1) NOT NULL DEFAULT 0 AFTER is_hero');
+
+/* Anything already published against a destination becomes that destination's
+   featured clip, unless it already has one. Without this every existing video
+   drops into the secondary list and the office's only film stops being the one
+   with its name on the heading — a silent demotion nobody asked for.
+
+   NOT NULL-safe: a video with no destination is skipped, because "featured on
+   the destination page" means nothing without a destination. */
+$existing = $pdo->query(
+    "SELECT destination_id, MIN(id) AS first_id
+       FROM promo_videos
+      WHERE destination_id IS NOT NULL AND status = 'published'
+      GROUP BY destination_id"
+)->fetchAll(PDO::FETCH_ASSOC);
+
+$promote = $pdo->prepare(
+    'UPDATE promo_videos SET is_featured = 1
+      WHERE id = ?
+        AND NOT EXISTS (
+            SELECT 1 FROM (SELECT * FROM promo_videos) AS held
+             WHERE held.destination_id = ? AND held.is_featured = 1
+        )'
+);
+
+$promoted = 0;
+
+foreach ($existing as $row) {
+    $promote->execute([(int) $row['first_id'], (int) $row['destination_id']]);
+    $promoted += $promote->rowCount();
+}
+
+echo "  ok    promo_videos.category and is_featured ({$promoted} existing video(s) promoted)\n";
+
+
+// =============================================================================
+//  2026-08 — The office needs to see the calendar, not just the queue.
+// -----------------------------------------------------------------------------
+//  A guide request carries preferred_date, and until now nothing looked at it.
+//  A request accepted three weeks ahead was assigned and then forgotten, and
+//  the first anyone knew of the visit was the visitor standing at the counter.
+//
+//  An assigned request whose date has passed also sat open for ever, because
+//  the only way to close one was to remember it existed.
+//
+//  'no_show' is added because "completed" for a visit that never happened is a
+//  false record — and this office reports its numbers upward. A guide whose
+//  afternoon was held open deserves the distinction too.
+// =============================================================================
+
+$guideStatus = $pdo->query(
+    "SELECT COLUMN_TYPE FROM information_schema.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tour_guide_requests'
+        AND COLUMN_NAME = 'status'"
+)->fetchColumn();
+
+if (is_string($guideStatus) && str_contains($guideStatus, "'no_show'")) {
+    echo "  skip  tour_guide_requests.status — 'no_show' already present\n";
+} else {
+    $pdo->exec(
+        "ALTER TABLE tour_guide_requests
+         MODIFY status ENUM('new','acknowledged','assigned','completed',
+                            'declined','cancelled','no_show')
+                NOT NULL DEFAULT 'new'"
+    );
+    echo "  ok    tour_guide_requests.status — 'no_show' added\n";
+}
+
+/* The calendar view reads preferred_date with a status filter on every load. */
+$addIndex($pdo, 'tour_guide_requests', 'idx_guide_date_status',
+    'KEY idx_guide_date_status (preferred_date, status)');
+
+// =============================================================================
+//  2026-08 - Where the visitor actually meets their guide.
+// -----------------------------------------------------------------------------
+//  The receipt told every visitor to come to the Municipal Tourism Office and
+//  meet their guide there. The form promised, three steps earlier, to text them
+//  "where to meet" - and the time picker accepts 5:00 AM, which no municipal
+//  office is open for. Three answers to one question.
+//
+//  The office says it varies: sometimes the hall, sometimes the trailhead, and
+//  a sunrise trek is met at the site. So it is recorded per request rather than
+//  assumed by a sentence on a page.
+//
+//  160 characters, and the SMS keeps it shorter still - an assigned message is
+//  already two segments and a third one costs the office real money.
+// =============================================================================
+
+$addColumn($pdo, 'tour_guide_requests', 'meeting_point',
+    'meeting_point VARCHAR(160) NULL AFTER guide_contact');
+
+// =============================================================================
+//  2026-08 - The bell in the topbar.
+// -----------------------------------------------------------------------------
+//  NOT the existing `notifications` table. That one records whether an
+//  announcement's SMS reached a destination manager - announcement_id,
+//  provider_ref, attempts - and repurposing it would take announcement delivery
+//  tracking down with it. Two different things that happen to share a word.
+//
+//  WHY TWO TABLES AND NOT ONE
+//
+//  Six officers share this system. "Read" is not a property of the event; it is
+//  a property of one person's relationship to it. One row per event, and a
+//  small row per person who has read it - so a new officer joining does not
+//  inherit somebody else's read state, and marking one read never hides it from
+//  the rest of the office.
+// =============================================================================
+
+$pdo->exec(
+    "CREATE TABLE IF NOT EXISTS admin_notifications (
+        id            INT UNSIGNED NOT NULL AUTO_INCREMENT,
+        type          VARCHAR(40)  NOT NULL,
+        title         VARCHAR(160) NOT NULL,
+        body          VARCHAR(400) NULL,
+        link          VARCHAR(255) NULL,
+        entity_type   VARCHAR(40)  NULL,
+        entity_id     INT UNSIGNED NULL,
+        created_at    TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY idx_notif_created (created_at),
+        KEY idx_notif_entity (entity_type, entity_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+);
+
+echo "  ok    admin_notifications\n";
+
+$pdo->exec(
+    "CREATE TABLE IF NOT EXISTS admin_notification_reads (
+        notification_id INT UNSIGNED NOT NULL,
+        admin_id        INT UNSIGNED NOT NULL,
+        read_at         DATETIME     NOT NULL,
+        PRIMARY KEY (notification_id, admin_id),
+        KEY idx_read_admin (admin_id),
+        CONSTRAINT fk_notif_read_notification
+            FOREIGN KEY (notification_id) REFERENCES admin_notifications (id) ON DELETE CASCADE,
+        CONSTRAINT fk_notif_read_admin
+            FOREIGN KEY (admin_id) REFERENCES admins (id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+);
+
+echo "  ok    admin_notification_reads\n";
+
+// =============================================================================
+//  2026-08 — One request, several destinations.
+// -----------------------------------------------------------------------------
+//  A visitor asking for a guide rarely wants one waterfall. They want Jadas in
+//  the morning and Kolon Ridge after lunch, and until now the form made them
+//  choose one and send a second request for the other — which reaches the office
+//  as two unrelated arrangements for the same four people on the same day.
+//
+//  WHY A TABLE AND NOT A COMMA-SEPARATED COLUMN
+//
+//  'Jadas Falls, Kolon Ridge' cannot be joined, cannot be counted, and cannot be
+//  filtered. The office's inbox already filters by destination and the reports
+//  already count visits per site; a text column would silently drop every
+//  multi-destination request out of both.
+//
+//  WHY tour_guide_requests.destination_id STAYS
+//
+//  It is not a second copy of the truth — it is the PRIMARY destination, the one
+//  the SMS names first and the one the inbox filter matches on. Every existing
+//  query in TourGuideRepository reads it, and rewriting all of them to join
+//  would be a large change to working code for no gain the office would notice.
+//  New code reads the table below; the column keeps the first destination.
+// =============================================================================
+
+if ($tableExists($pdo, 'tour_request_destinations')) {
+    echo "  skip  tour_request_destinations — already present\n";
+} else {
+    $pdo->exec("
+        CREATE TABLE tour_request_destinations (
+            id         INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            request_id INT UNSIGNED NOT NULL,
+
+            -- SET NULL rather than CASCADE: a destination the office archives
+            -- must not silently delete itself out of an arrangement somebody is
+            -- holding a receipt for. The row survives, naming nothing, and the
+            -- receipt still shows what was asked for.
+            destination_id INT UNSIGNED NULL,
+
+            -- The order the visitor chose them in, which is the order they
+            -- intend to visit. 'Destination 1' on the form is sort_order 0.
+            sort_order SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+            -- The same place twice in one request is not a longer visit, it is
+            -- a mistake. The form prevents it and so does the database, because
+            -- the form is JavaScript and the endpoint is not.
+            UNIQUE KEY uniq_trd_pair (request_id, destination_id),
+            KEY idx_trd_request (request_id, sort_order),
+            KEY idx_trd_dest    (destination_id),
+
+            CONSTRAINT fk_trd_request FOREIGN KEY (request_id)
+                REFERENCES tour_guide_requests (id) ON DELETE CASCADE,
+            CONSTRAINT fk_trd_dest FOREIGN KEY (destination_id)
+                REFERENCES destinations (id) ON DELETE SET NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    ");
+    echo "  ok    tour_request_destinations created\n";
+
+    /* Every request already taken becomes a one-destination request. Without
+       this backfill the receipt for an arrangement made yesterday would list no
+       destinations at all — the new code reads the table, and the table would
+       be empty for every row that predates it. */
+    $moved = $pdo->exec(
+        'INSERT INTO tour_request_destinations (request_id, destination_id, sort_order)
+         SELECT id, destination_id, 0 FROM tour_guide_requests
+          WHERE destination_id IS NOT NULL'
+    );
+
+    echo "  ok    tour_request_destinations backfilled ({$moved} existing request(s))\n";
+}
+
+/* THE DIFFERENCE BETWEEN 'ADVISE ME' AND SILENCE.
+ *
+ * destination_id has always been NULL for a request that named no place, and
+ * that NULL carried two different meanings: a visitor who deliberately picked
+ * "I am not sure yet — please advise", and one who simply skipped the field.
+ * The office answers those differently — the first is asking for a
+ * recommendation and the second is not — so the deliberate choice is recorded
+ * as a fact rather than inferred from an absence. */
+$addColumn($pdo, 'tour_guide_requests', 'needs_advice',
+    'needs_advice TINYINT(1) NOT NULL DEFAULT 0 AFTER destination_id');
+
+// =============================================================================
+//  2026-08 — The guides themselves.
+// -----------------------------------------------------------------------------
+//  WHAT CHANGED SINCE tour_guide_requests WAS BUILT
+//
+//  That table's own comment says the office keeps no roster and assigns whoever
+//  is free by phoning around, which is why guide_name and guide_contact are free
+//  text. The office has since asked for accredited guides with credentials,
+//  certificates and a printed ID — so the roster now exists, and this is it.
+//
+//  guide_name and guide_contact are NOT removed. They stay as the SNAPSHOT of
+//  who was assigned: a guide who later leaves, is revoked, or changes their
+//  number must not rewrite what a visitor was told last March. guide_id points
+//  at the roster row; the two text columns record what the SMS actually said.
+//
+//  EXPIRY IS DERIVED, NOT STORED
+//
+//  status holds what a person decided — active, suspended, revoked. Whether the
+//  ID has run out is a question about today's date and valid_until, and a stored
+//  'expired' would be a lie on the morning after it lapsed until some job got
+//  round to running. The repository computes it; nothing schedules anything.
+// =============================================================================
+
+if ($tableExists($pdo, 'tour_guides')) {
+    echo "  skip  tour_guides — already present\n";
+} else {
+    $pdo->exec("
+        CREATE TABLE tour_guides (
+            id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+
+            -- Printed on the ID and read down a phone: TGID-2026-0001.
+            --
+            -- 'TGID' and not 'TG': requests already use TG- with five random
+            -- characters, and an officer holding both a receipt and a card
+            -- should not have to work out which kind of code they are reading.
+            -- The two prefixes are the only thing that tells them apart.
+            --
+            -- Sequential within the year, and deliberately so — this is an
+            -- accreditation number a municipality issues, not a secret. What
+            -- must not be guessable is verify_token below, which is why that is
+            -- a separate column rather than this one doing both jobs.
+            guide_code VARCHAR(20) NOT NULL,
+
+            -- What the QR code on the ID actually points at. Random, so knowing
+            -- one guide's URL tells you nothing about the next guide's, and
+            -- rotatable if a card is lost without renumbering the accreditation.
+            verify_token CHAR(32) NOT NULL,
+
+            full_name     VARCHAR(160) NOT NULL,
+            address       VARCHAR(255) NULL,
+            mobile_number VARCHAR(20)  NULL,
+            email         VARCHAR(190) NULL,
+
+            -- Public: it is on the ID and on the verification page, which is the
+            -- whole point of the verification page. Under uploads/ with the
+            -- other public images, re-encoded through GD by Uploader.
+            photo_path VARCHAR(255) NULL,
+
+            -- What a person decided. 'expired' is deliberately absent — see the
+            -- note above.
+            status ENUM('active','suspended','revoked') NOT NULL DEFAULT 'active',
+
+            -- The date on the card. NULL means no ID has been issued yet, which
+            -- is a guide on the roster who cannot yet be assigned.
+            valid_until  DATE NULL,
+            id_issued_at DATETIME NULL,
+
+            -- Why a guide was suspended or revoked. Shown to the office, never
+            -- on the public verification page — that page says VALID or it does
+            -- not, and a stranger scanning a card is not owed somebody's
+            -- disciplinary history.
+            status_note VARCHAR(600) NULL,
+
+            notes VARCHAR(600) NULL,
+
+            created_by INT UNSIGNED NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+            UNIQUE KEY uniq_tg_code  (guide_code),
+            UNIQUE KEY uniq_tg_token (verify_token),
+            KEY idx_tg_status (status, full_name),
+
+            CONSTRAINT fk_tg_admin FOREIGN KEY (created_by)
+                REFERENCES admins (id) ON DELETE SET NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    ");
+    echo "  ok    tour_guides created\n";
+}
+
+/* One line each: 'Tour Guide Accreditation', 'First Aid Training'. These are
+   the bullet points on the back of the ID and on the verification page, and
+   they are a list because a guide has several and the office adds more. */
+if ($tableExists($pdo, 'tour_guide_credentials')) {
+    echo "  skip  tour_guide_credentials — already present\n";
+} else {
+    $pdo->exec("
+        CREATE TABLE tour_guide_credentials (
+            id       INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            guide_id INT UNSIGNED NOT NULL,
+
+            label  VARCHAR(160) NOT NULL,
+            issuer VARCHAR(160) NULL,
+
+            sort_order SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+            KEY idx_tgc_guide (guide_id, sort_order),
+
+            CONSTRAINT fk_tgc_guide FOREIGN KEY (guide_id)
+                REFERENCES tour_guides (id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    ");
+    echo "  ok    tour_guide_credentials created\n";
+}
+
+/* The scanned certificate itself. Same storage discipline as the logbook pages
+   and the inspection photos: a random server-side name, the original kept for
+   display only, the file under storage/ behind the deny-all rule, and served
+   through an endpoint that checks who is asking. A training certificate carries
+   a private individual's full name and often their birth date. */
+if ($tableExists($pdo, 'tour_guide_certificates')) {
+    echo "  skip  tour_guide_certificates — already present\n";
+} else {
+    $pdo->exec("
+        CREATE TABLE tour_guide_certificates (
+            id       BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            guide_id INT UNSIGNED NOT NULL,
+
+            title  VARCHAR(160) NOT NULL,
+            issuer VARCHAR(160) NULL,
+
+            issued_on  DATE NULL,
+            -- NULL means it does not expire. A first aid certificate does; a
+            -- diploma does not, and a required date would have somebody invent
+            -- one.
+            expires_on DATE NULL,
+
+            stored_name   VARCHAR(80)  NOT NULL,
+            original_name VARCHAR(200) NOT NULL,
+            mime_type     ENUM('image/jpeg','image/png','application/pdf') NOT NULL,
+            byte_size     INT UNSIGNED NOT NULL,
+
+            uploaded_by INT UNSIGNED NULL,
+            created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+            UNIQUE KEY uniq_tgcert_stored (stored_name),
+            KEY idx_tgcert_guide (guide_id, issued_on),
+
+            CONSTRAINT fk_tgcert_guide FOREIGN KEY (guide_id)
+                REFERENCES tour_guides (id) ON DELETE CASCADE,
+            CONSTRAINT fk_tgcert_admin FOREIGN KEY (uploaded_by)
+                REFERENCES admins (id) ON DELETE SET NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    ");
+    echo "  ok    tour_guide_certificates created\n";
+}
+
+/* Which roster guide was assigned. SET NULL rather than CASCADE for the same
+   reason the text columns stay: deleting a guide from the roster must not
+   delete the record of the arrangements they were part of. */
+$addColumn($pdo, 'tour_guide_requests', 'guide_id',
+    'guide_id INT UNSIGNED NULL AFTER status');
+
+$addIndex($pdo, 'tour_guide_requests', 'idx_guide_assigned',
+    'KEY idx_guide_assigned (guide_id, preferred_date)');
+
+$addForeignKey($pdo, 'tour_guide_requests', 'fk_request_guide',
+    'fk_request_guide FOREIGN KEY (guide_id) REFERENCES tour_guides (id) ON DELETE SET NULL');
+
+// =============================================================================
+//  2026-08 — The office's Facebook page.
+// -----------------------------------------------------------------------------
+//  Printed on the back of the tour guide ID, and the office asked for it by
+//  name. Stored as the page NAME rather than a URL: a visitor reads it off a
+//  laminated card and types it into the Facebook search box, and an https://
+//  address is longer, harder to read at 2 mm, and no easier to act on.
+//
+//  Seeded with the page the office gave, and editable in Settings — where a
+//  field now exists for it, because a setting nobody can edit is worse than a
+//  constant in the template.
+// =============================================================================
+$stmt = $pdo->prepare(
+    'INSERT INTO settings (setting_key, setting_value) VALUES (?, ?)
+     ON DUPLICATE KEY UPDATE setting_key = setting_key'
+);
+$stmt->execute(['office_facebook', 'Tampakan Municipal Tourism Office, South Cotabato']);
+
+echo "  ok    office_facebook seeded\n";
+
+// =============================================================================
+//  2026-08 — The homepage hero, editable by the office.
+// -----------------------------------------------------------------------------
+//  The three hero slides were hard-coded in index.php and their photographs came
+//  from images.unsplash.com — stock pictures of somewhere else, fetched from a
+//  third party on every homepage load. The municipality's own front page showed a
+//  mountain that is not theirs, and went blank whenever that CDN was slow.
+//
+//  img()'s own docblock said this was temporary: "Replaced naturally as real
+//  photographs are added through the admin area." This is that replacement.
+//
+//  TWELVE ROWS RATHER THAN ONE JSON COLUMN. The settings screen renders a flat
+//  key/value form; a JSON blob in a textarea is not something an officer edits,
+//  it is something they break. Four plain fields per slide is what they can use.
+//
+//  Seeded with EXACTLY what index.php shows today, so running this changes
+//  nothing on screen until somebody deliberately edits a field. A migration that
+//  silently redesigns the front page is a migration nobody trusts.
+// =============================================================================
+$heroSeed = [
+    ["Welcome to South Cotabato's Highland Heart",
+     'Discover the Beauty of Tampakan',
+     "Where cool mountain air, rolling highlands, and the living traditions of the B'laan people meet a warm municipal welcome."],
+    ['Trails, Ridges & Rivers',
+     'Adventure Above the Clouds',
+     'Trek forest ridges, chase hidden waterfalls, and wake to a sea of clouds rolling over the mountain range.'],
+    ['Culture & Heritage',
+     'Stories Woven Into the Land',
+     'Experience indigenous craftsmanship, heirloom weaving, and festivals that carry generations of Tampakan heritage.'],
+];
+
+$stmt = $pdo->prepare(
+    'INSERT INTO settings (setting_key, setting_value) VALUES (?, ?)
+     ON DUPLICATE KEY UPDATE setting_key = setting_key'
+);
+
+foreach ($heroSeed as $i => [$eyebrow, $title, $text]) {
+    $n = $i + 1;
+
+    /* The image stays blank on purpose. Blank means "fall back to the stock
+       photo", so the page keeps working until the office uploads their own. */
+    $stmt->execute(["hero_{$n}_image",   '']);
+    $stmt->execute(["hero_{$n}_eyebrow", $eyebrow]);
+    $stmt->execute(["hero_{$n}_title",   $title]);
+    $stmt->execute(["hero_{$n}_text",    $text]);
+}
+
+echo "  ok    homepage hero settings seeded (12 rows, images blank until uploaded)\n";
+
+// =============================================================================
+//  HERO SLIDES — the front page becomes a list the office owns
+// -----------------------------------------------------------------------------
+//  The twelve settings rows above gave the office the WORDS on three slides. It
+//  could not give them a fourth, could not retire one for the rainy season
+//  without deleting the text, and could not put them in a different order.
+//  Three was not a decision anybody made; it was how many were hard-coded in
+//  index.php the day this was lifted out of it.
+//
+//  A row per slide instead: add, remove, reorder, and hold one back as a draft
+//  while its photograph is still being taken.
+//
+//  MIGRATED, NOT RESET. The seed below reads whatever is in the hero_* settings
+//  — including anything the office has already typed into that screen — and
+//  carries it across verbatim, in the same order, with the same images. An
+//  office that has edited its front page finds it unchanged.
+//
+//  The settings rows are deliberately LEFT IN PLACE. They are two hundred bytes,
+//  nothing reads them once this table exists, and they are the only copy of the
+//  old content if this migration turns out to have got something wrong. Dropping
+//  them is a separate decision for a day when nobody needs them.
+// =============================================================================
+if ($tableExists($pdo, 'hero_slides')) {
+    echo "  skip  hero_slides — already present\n";
+} else {
+    $pdo->exec("
+        CREATE TABLE hero_slides (
+            id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+
+            -- Blank is meaningful: it means 'no photograph yet', and the public
+            -- page falls back to a stock image rather than showing a gap. Same
+            -- convention the settings rows used, kept so the fallback code did
+            -- not have to change.
+            image_path VARCHAR(255) NOT NULL DEFAULT '',
+
+            eyebrow VARCHAR(120) NOT NULL DEFAULT '',
+            title   VARCHAR(160) NOT NULL DEFAULT '',
+            body    VARCHAR(400) NOT NULL DEFAULT '',
+
+            -- draft keeps a slide out of the rotation without destroying the
+            -- words. The alternative the office had was to delete it and type
+            -- it again in March.
+            status ENUM('published','draft') NOT NULL DEFAULT 'published',
+
+            sort_order SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+            KEY idx_hero_order (status, sort_order)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    ");
+
+    $read = $pdo->prepare('SELECT setting_value FROM settings WHERE setting_key = ?');
+
+    $get = static function (string $key) use ($read): string {
+        $read->execute([$key]);
+
+        return trim((string) ($read->fetchColumn() ?: ''));
+    };
+
+    $add = $pdo->prepare(
+        'INSERT INTO hero_slides (image_path, eyebrow, title, body, status, sort_order)
+         VALUES (?, ?, ?, ?, ?, ?)'
+    );
+
+    $carried = 0;
+
+    foreach ([1, 2, 3] as $n) {
+        $title   = $get("hero_{$n}_title");
+        $eyebrow = $get("hero_{$n}_eyebrow");
+        $body    = $get("hero_{$n}_text");
+
+        /* A slide with nothing in it at all is not carried across. That is a
+           settings row that was seeded and never filled, and copying it here
+           would give the office an empty slide to wonder about. */
+        if ($title === '' && $eyebrow === '' && $body === '') {
+            continue;
+        }
+
+        $add->execute([$get("hero_{$n}_image"), $eyebrow, $title, $body, 'published', $carried]);
+        $carried++;
+    }
+
+    printf("  ok    hero_slides created (%d slide%s carried over from settings)\n",
+        $carried, $carried === 1 ? '' : 's');
+}
+
 echo str_repeat('=', 60) . "\n  Migrations complete.\n\n";

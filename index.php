@@ -1,7 +1,7 @@
 <?php
 /**
  * =============================================================================
- *  TAMPAKAN TOURISM PORTAL â€” Public Landing Page
+ *  TAMPAKAN TOURISM PORTAL  Public Landing Page
  *  Municipality of Tampakan, South Cotabato, Philippines
  * -----------------------------------------------------------------------------
  *  This is the PUBLIC-FACING tourism website only. No admin dashboard and no
@@ -26,6 +26,25 @@ use App\Repositories\AnnouncementRepository;
 use App\Repositories\CategoryRepository;
 use App\Repositories\DestinationRepository;
 use App\Repositories\FeedbackRepository;
+use App\Repositories\HeroSlideRepository as HeroSlides;
+
+/* Contact form state, carried across the redirect from api/contact/submit.php.
+ *
+ * The form used to be handled entirely in the browser and threw every message
+ * away. It now posts to a real endpoint, which means it can also come BACK with
+ * errors — and a visitor who has to retype a five-line message because their
+ * email had a typo in it will not retype it. */
+$contactFlashes = App\Core\Session::takeFlash();
+
+$contactOld = App\Core\Session::get('_contact_old', []);
+App\Core\Session::forget('_contact_old');
+$contactOld = is_array($contactOld) ? $contactOld : [];
+
+$contactErrors = App\Core\Session::get('_contact_errors', []);
+App\Core\Session::forget('_contact_errors');
+$contactErrors = is_array($contactErrors) ? $contactErrors : [];
+
+$cfOld = static fn(string $key): string => (string) ($contactOld[$key] ?? '');
 
 /* -----------------------------------------------------------------------------
  | Site-wide configuration
@@ -66,29 +85,18 @@ $site = [
  * -------------------------------------------------------------------------- */
 $heroVideo = [];
 
-/* Any .webm or .mp4 in the folder is used — the file does not have to be
-   named a particular thing. WebM is listed first so browsers that support it
-   take the smaller file.
+/* NO VIDEO BEHIND THE HOMEPAGE, deliberately.
  *
- * Case matters here: Windows treats Tampakan.mp4 and tampakan.mp4 as the same
- * file, Linux does not, and the production host is Linux. Reading the real
- * directory entry rather than guessing a filename means the same code works
- * in both places. */
-foreach (['webm' => 'video/webm', 'mp4' => 'video/mp4'] as $ext => $mime) {
-    $matches = glob(__DIR__ . '/assets/video/*.' . $ext) ?: [];
-
-    /* A file literally called hero.* wins if one exists, so the office can
-       override which clip plays without deleting the others. */
-    usort($matches, static fn($a, $b) =>
-        (int) (stripos(basename($b), 'hero') === 0) <=> (int) (stripos(basename($a), 'hero') === 0));
-
-    if ($matches !== []) {
-        $heroVideo[] = [
-            'src'  => base_url('assets/video/' . rawurlencode(basename($matches[0]))),
-            'type' => $mime,
-        ];
-    }
-}
+ * This read a hero clip from promo_videos until the office decided a video
+ * belongs on the page of the place it is about and nowhere else. A muted film
+ * of Jadas Falls playing behind the homepage is exactly the "video appearing
+ * somewhere other than its destination" that rule exists to prevent.
+ *
+ * The array is kept rather than the branches below it being torn out: the hero
+ * markup already handles an empty one by falling back to the photograph slider,
+ * which is now the only thing it does. If a municipal-level background is ever
+ * wanted again, this is the one place that has to change.
+ */
 
 /* Poster: a real destination photo if one has been uploaded, so the still
    frame shown before playback is of Tampakan rather than stock imagery.
@@ -109,29 +117,68 @@ foreach (Database::all(
     }
 }
 
-/* -----------------------------------------------------------------------------
+/* ------------------------ 2-----------------------------------------------------
  | Hero slider
  * -------------------------------------------------------------------------- */
-$heroSlides = [
-    [
-        'image'   => img('1501785888041-af3ef285b470', 1920, 1080),
-        'eyebrow' => 'Welcome to South Cotabato&rsquo;s Highland Heart',
-        'title'   => 'Discover the Beauty of Tampakan',
-        'text'    => 'Where cool mountain air, rolling highlands, and the living traditions of the B&rsquo;laan people meet a warm municipal welcome.',
-    ],
-    [
-        'image'   => img('1441974231531-c6227db76b6e', 1920, 1080),
-        'eyebrow' => 'Trails, Ridges &amp; Rivers',
-        'title'   => 'Adventure Above the Clouds',
-        'text'    => 'Trek forest ridges, chase hidden waterfalls, and wake to a sea of clouds rolling over the mountain range.',
-    ],
-    [
-        'image'   => img('1533105079780-92b9be482077', 1920, 1080),
-        'eyebrow' => 'Culture &amp; Heritage',
-        'title'   => 'Stories Woven Into the Land',
-        'text'    => 'Experience indigenous craftsmanship, heirloom weaving, and festivals that carry generations of Tampakan heritage.',
-    ],
+/* THE HERO COMES FROM THE hero_slides TABLE, WHICH THE OFFICE OWNS.
+ *
+ * It was three hard-coded entries here, illustrated with stock photographs
+ * fetched from images.unsplash.com on every page load — a mountain that is not
+ * Tampakan, on Tampakan's own front page, and blank whenever that CDN was slow.
+ * The office can now add, reorder, draft and photograph its own slides in
+ * Settings › Public site.
+ *
+ * published() returns only the live slides that have some words on them: a
+ * published slide with an empty caption is reachable (upload the picture, save,
+ * go to lunch) and a blank pane sliding across the front page reads as a broken
+ * site rather than an unfinished one.
+ *
+ * The stock IDs survive as the LAST fallback, used by position, so a slide whose
+ * photograph has not been uploaded yet still shows something rather than a grey
+ * rectangle. Modulo, so a fourth slide wraps instead of reading past the end. */
+$heroFallbacks = [
+    '1501785888041-af3ef285b470',
+    '1441974231531-c6227db76b6e',
+    '1533105079780-92b9be482077',
 ];
+
+$heroSlides = [];
+
+foreach (HeroSlides::published() as $i => $heroRow) {
+    $heroImage = trim((string) $heroRow['image_path']);
+
+    /* uploaded_url() returns null for a row whose file has gone missing from
+       disk, so a deleted photograph falls back rather than printing a broken
+       image on the front page. */
+    $heroSrc = $heroImage !== '' ? uploaded_url($heroImage) : null;
+
+    $heroSlides[] = [
+        'image'   => $heroSrc ?? img($heroFallbacks[$i % count($heroFallbacks)], 1920, 1080),
+        'eyebrow' => (string) $heroRow['eyebrow'],
+        /* The title may carry one <span> for the emphasised word, so it is not
+           escaped here. It is officer-entered and officer-only — the same trust
+           the announcement body and the heritage text already have. */
+        'title'   => (string) $heroRow['title'],
+        'text'    => (string) $heroRow['body'],
+    ];
+}
+
+/* AN EMPTY ROTATION IS STILL A HOMEPAGE.
+ *
+ * Every slide deleted, or every one moved to draft, must not leave the front
+ * page with a carousel of nothing — the markup below indexes $heroSlides[0] for
+ * the reduced-motion poster and for og:image. One stock slide carrying the words
+ * this site shipped with, so the page stays whole while the office decides what
+ * to put there. */
+if ($heroSlides === []) {
+    $heroSlides[] = [
+        'image'   => img($heroFallbacks[0], 1920, 1080),
+        'eyebrow' => 'Welcome to South Cotabato&rsquo;s Highland Heart',
+        'title'   => 'Discover the Beauty of <span class="hero__title-em">Tampakan</span>',
+        'text'    => 'Where cool mountain air, rolling highlands, and the living traditions '
+                   . 'of the B&rsquo;laan people meet a warm municipal welcome.',
+    ];
+}
 
 /* A poster is not decoration here: a visitor who has asked for reduced motion
    never sees the video play, so the poster IS their hero. If no destination
@@ -520,7 +567,7 @@ $currentYear = date('Y');
     <!-- ===================== Fonts ===================== -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Dancing+Script:wght@600;700&display=swap" rel="stylesheet">
 
     <!-- ===================== Third-party stylesheets ===================== -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -1314,39 +1361,70 @@ require __DIR__ . '/app/views/partials/public-nav.php';
                     <h3 class="contact-form-card__title">Send Us a Message</h3>
                     <p class="contact-form-card__sub">We usually respond within one working day.</p>
 
-                    <form id="contactForm" class="row g-3" novalidate>
+                    <?php /* A REAL POST to a real endpoint. This form spent the
+                             project's whole life discarding what people wrote
+                             into it. */ ?>
+                    <form id="contactForm" class="row g-3" novalidate
+                          method="post" action="<?= e(base_url('/api/contact/submit.php')) ?>">
+                        <?= csrf_field() ?>
+
+                        <?php /* Honeypot and dwell time, the same pair guarding
+                                 every other public form here. */ ?>
+                        <div class="visually-hidden" aria-hidden="true">
+                            <label for="cfWebsite">Leave this blank</label>
+                            <input type="text" id="cfWebsite" name="website" tabindex="-1" autocomplete="off">
+                        </div>
+                        <input type="hidden" name="rendered_at" value="<?= time() ?>">
+
                         <div class="col-md-6">
                             <label for="cfName" class="form-label">Full Name <span>*</span></label>
-                            <input type="text" class="form-control" id="cfName" name="name" required placeholder="Juan Dela Cruz">
-                            <div class="invalid-feedback">Please enter your name.</div>
+                            <input type="text" class="form-control <?= isset($contactErrors['name']) ? 'is-invalid' : '' ?>"
+                                   id="cfName" name="name" required maxlength="120" autocomplete="name"
+                                   placeholder="Juan Dela Cruz" value="<?= e($cfOld('name')) ?>">
+                            <div class="invalid-feedback">
+                                <?= isset($contactErrors['name']) ? e((string) $contactErrors['name']) : 'Please enter your name.' ?>
+                            </div>
                         </div>
                         <div class="col-md-6">
                             <label for="cfEmail" class="form-label">Email Address <span>*</span></label>
-                            <input type="email" class="form-control" id="cfEmail" name="email" required placeholder="you@example.com">
-                            <div class="invalid-feedback">Please enter a valid email address.</div>
+                            <input type="email" class="form-control <?= isset($contactErrors['email']) ? 'is-invalid' : '' ?>"
+                                   id="cfEmail" name="email" required maxlength="190" autocomplete="email"
+                                   placeholder="you@example.com" value="<?= e($cfOld('email')) ?>">
+                            <div class="invalid-feedback">
+                                <?= isset($contactErrors['email']) ? e((string) $contactErrors['email']) : 'Please enter a valid email address.' ?>
+                            </div>
                         </div>
                         <div class="col-md-6">
                             <label for="cfPhone" class="form-label">Phone Number</label>
-                            <input type="tel" class="form-control" id="cfPhone" name="phone" placeholder="+63 9XX XXX XXXX">
+                            <input type="tel" class="form-control" id="cfPhone" name="phone" maxlength="40"
+                                   autocomplete="tel" placeholder="+63 9XX XXX XXXX" value="<?= e($cfOld('phone')) ?>">
                         </div>
                         <div class="col-md-6">
                             <label for="cfSubject" class="form-label">Subject <span>*</span></label>
-                            <select class="form-select" id="cfSubject" name="subject" required>
+                            <select class="form-select <?= isset($contactErrors['subject']) ? 'is-invalid' : '' ?>"
+                                    id="cfSubject" name="subject" required>
                                 <option value="">Choose a topic&hellip;</option>
-                                <option>Trip Planning &amp; Itineraries</option>
-                                <option>Tour Guide Booking</option>
-                                <option>Accommodation Assistance</option>
-                                <option>Events &amp; Festivals</option>
-                                <option>Media &amp; Partnerships</option>
-                                <option>Feedback</option>
+                                <?php foreach ([
+                                    'Trip Planning & Itineraries',
+                                    'Tour Guide Booking',
+                                    'Accommodation Assistance',
+                                    'Events & Festivals',
+                                    'Media & Partnerships',
+                                    'Feedback',
+                                ] as $topic): ?>
+                                    <option <?= $cfOld('subject') === $topic ? 'selected' : '' ?>><?= e($topic) ?></option>
+                                <?php endforeach; ?>
                             </select>
                             <div class="invalid-feedback">Please select a subject.</div>
                         </div>
                         <div class="col-12">
                             <label for="cfMessage" class="form-label">Message <span>*</span></label>
-                            <textarea class="form-control" id="cfMessage" name="message" rows="5" required
-                                      placeholder="Tell us how we can help with your visit&hellip;"></textarea>
-                            <div class="invalid-feedback">Please write a short message.</div>
+                            <textarea class="form-control <?= isset($contactErrors['message']) ? 'is-invalid' : '' ?>"
+                                      id="cfMessage" name="message" rows="5" required minlength="10" maxlength="2000"
+                                      placeholder="Tell us how we can help with your visit&hellip;"><?= e($cfOld('message')) ?></textarea>
+                            <div class="invalid-feedback">
+                                <?= isset($contactErrors['message']) ? e((string) $contactErrors['message']) : 'Please write a short message.' ?>
+                            </div>
                         </div>
                         <div class="col-12">
                             <div class="form-check">
@@ -1364,8 +1442,19 @@ require __DIR__ . '/app/views/partials/public-nav.php';
                             </button>
                         </div>
                         <div class="col-12">
-                            <!-- Populated by script.js after client-side validation -->
-                            <div id="formAlert" class="form-alert" role="status" aria-live="polite"></div>
+                            <?php /* Two sources fill this. The server's answer,
+                                     rendered below after a redirect, is the one
+                                     that means the message was actually stored.
+                                     script.js only ever writes the client-side
+                                     "you missed a field" case into it. */ ?>
+                            <div id="formAlert"
+                                 class="form-alert <?= $contactFlashes !== [] ? 'form-alert--' . e($contactFlashes[0]['type'] === 'success' ? 'success' : 'error') . ' is-visible' : '' ?>"
+                                 role="status" aria-live="polite">
+                                <?php if ($contactFlashes !== []): ?>
+                                    <i class="fa-solid <?= $contactFlashes[0]['type'] === 'success' ? 'fa-circle-check' : 'fa-circle-exclamation' ?>"></i>
+                                    <span><?= e((string) $contactFlashes[0]['message']) ?></span>
+                                <?php endif; ?>
+                            </div>
                         </div>
                     </form>
                 </div>
@@ -1463,16 +1552,7 @@ require __DIR__ . '/app/views/partials/public-nav.php';
 <!-- =========================================================================
      LIGHTBOX Ã¢â‚¬â€ driven by script.js
      ====================================================================== -->
-<div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Image viewer" hidden>
-    <button class="lightbox__close" data-lb-close aria-label="Close viewer"><i class="fa-solid fa-xmark"></i></button>
-    <button class="lightbox__nav lightbox__nav--prev" data-lb-prev aria-label="Previous image"><i class="fa-solid fa-chevron-left"></i></button>
-    <button class="lightbox__nav lightbox__nav--next" data-lb-next aria-label="Next image"><i class="fa-solid fa-chevron-right"></i></button>
-    <figure class="lightbox__stage">
-        <img src="" alt="" id="lightboxImg">
-        <figcaption id="lightboxCaption"></figcaption>
-    </figure>
-    <span class="lightbox__counter" id="lightboxCounter"></span>
-</div>
+<?php require __DIR__ . '/app/views/partials/lightbox.php'; ?>
 
 <!-- =========================================================================
      LEGAL MODALS
@@ -1549,18 +1629,12 @@ require __DIR__ . '/app/views/partials/public-nav.php';
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://unpkg.com/aos@2.3.4/dist/aos.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="<?= e(asset('js/vendor/sweetalert2.all.min.js')) ?>"></script>
+<script src="<?= e(asset('js/notify.js')) ?>"></script>
 <script src="<?= e(asset('js/script.js')) ?>"></script>
 
-<script>
-    /* The endpoints, handed over rather than hardcoded, so the widget works
-       unchanged whether the site is served from the domain root or a
-       subdirectory. Token endpoint is shared with the offline logbook queue. */
-    window.TourSyncChat = {
-        askUrl:   <?= json_encode(base_url('/api/chat/ask.php')) ?>,
-        tokenUrl: <?= json_encode(base_url('/api/arrivals/token.php')) ?>
-    };
-</script>
-<script src="<?= e(asset('js/chat.js')) ?>"></script>
+<?php /* The assistant's endpoints and script now travel with the widget itself
+         — see app/views/partials/chat-widget.php, included above. */ ?>
 
 <!-- =============================================================================
      Destination catalogue filter — in place, without reloading the page.
