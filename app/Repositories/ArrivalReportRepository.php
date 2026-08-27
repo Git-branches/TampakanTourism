@@ -86,7 +86,7 @@ final class ArrivalReportRepository
     }
 
     /** The officer's queue. Drafts are excluded — they have not been handed over. */
-    public static function queue(array $filters = []): array
+    public static function queue(array $filters = [], int $limit = 200): array
     {
         $clauses = ["r.status <> 'draft'"];
         $params  = [];
@@ -115,7 +115,7 @@ final class ArrivalReportRepository
                LEFT JOIN destination_managers m ON m.id = r.submitted_by
               WHERE ' . implode(' AND ', $clauses) . '
               ORDER BY FIELD(r.status, \'submitted\', \'reviewing\', \'rejected\', \'approved\'), r.submitted_at ASC
-              LIMIT 200',
+              LIMIT ' . max(1, min(500, $limit)),
             $params
         );
     }

@@ -105,20 +105,46 @@ $tone = match ($effective) {
 require __DIR__ . '/../_partials/head.php';
 ?>
 
-<div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
-    <div>
-        <a class="text-muted small" href="<?= e(base_url('/admin/tour-guides/index.php')) ?>">
-            <i class="fa-solid fa-arrow-left"></i> Roster
-        </a>
-    </div>
+<?php
+/* WHY THIS PAGE WAS REBUILT.
+ *
+ * It had six panels of identical weight, so "Remove from roster" carried the
+ * same visual authority as the guide's own name, and about a hundred and twenty
+ * words of prose explaining what each panel was for. A record page that has to
+ * lecture is a record page whose layout is not doing its job.
+ *
+ * Now: identity at the top, the read-only record and its qualifications down the
+ * main column, everything ACTIONABLE gathered in one narrower column beside it,
+ * and the single destructive thing on its own at the very bottom.
+ */
+$blockers = [];
+
+if ($guide['valid_until'] === null || $guide['valid_until'] === '') {
+    $blockers[] = ['No "valid until" date, so there is no card yet.',
+                   'Set a date', base_url('/admin/tour-guides/edit.php?id=' . $id)];
+}
+
+if ($effective !== 'active' && $effective !== 'no_id') {
+    $blockers[] = ['This guide is ' . strtolower(Roster::EFFECTIVE[$effective]) . ', so a printed card would fail.',
+                   'Change the status', base_url('/admin/tour-guides/edit.php?id=' . $id)];
+}
+
+if (!QrService::isPublishable()) {
+    $blockers[] = [QrService::unpublishableReason(),
+                   'Set the public address', base_url('/admin/settings/index.php')];
+}
+
+$dtStyle = 'font-size:.71rem; letter-spacing:.05em; text-transform:uppercase; color:var(--ink-3)';
+?>
+
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+    <a class="text-muted small" href="<?= e(base_url('/admin/tour-guides/index.php')) ?>">
+        <i class="fa-solid fa-arrow-left"></i> Roster
+    </a>
     <div class="d-flex gap-2 flex-wrap">
-        <a class="btn btn-outline-secondary btn-sm"
-           href="<?= e(base_url('/admin/tour-guides/edit.php?id=' . $id)) ?>">
+        <a class="btn btn-outline-secondary btn-sm" href="<?= e(base_url('/admin/tour-guides/edit.php?id=' . $id)) ?>">
             <i class="fa-solid fa-pen"></i> Edit
         </a>
-        <?php /* Opens over the record rather than in a new tab. Looking at
-                 somebody's ID is a glance, not a departure — and the officer is
-                 usually mid-way through checking the details behind it. */ ?>
         <button type="button" class="btn btn-brand btn-sm" data-dialog="idCard">
             <i class="fa-solid fa-id-card"></i> Tour Guide ID
         </button>
@@ -126,14 +152,11 @@ require __DIR__ . '/../_partials/head.php';
 </div>
 
 <?php if ($effective !== 'active'): ?>
-    <?php /* Said once, loudly, at the top. An officer opening this record is
-             usually about to assign this person to a visitor. */ ?>
     <div class="alert alert-warning">
         <strong>This guide cannot be assigned.</strong>
         <?= match ($effective) {
-            'expired'   => 'Their ID expired on ' . e(format_date((string) $guide['valid_until'], 'F j, Y'))
-                         . '. Set a new "valid until" date to reinstate them.',
-            'no_id'     => 'No ID has been issued — set a "valid until" date first.',
+            'expired'   => 'Their ID expired on ' . e(format_date((string) $guide['valid_until'], 'F j, Y')) . '.',
+            'no_id'     => 'No ID has been issued &mdash; set a "valid until" date first.',
             'suspended' => 'They are suspended.',
             'revoked'   => 'Their accreditation has been revoked.',
             default     => '',
@@ -144,310 +167,279 @@ require __DIR__ . '/../_partials/head.php';
     </div>
 <?php endif; ?>
 
-<div class="row g-3">
-    <div class="col-lg-5">
-        <section class="panel">
-            <header class="panel__head">
-                <h2><i class="fa-solid fa-user"></i> Guide</h2>
-                <span class="pill pill--<?= $tone ?>"><?= e(Roster::EFFECTIVE[$effective]) ?></span>
-            </header>
-            <div class="panel__body">
-                <div class="d-flex gap-3 mb-3">
-                    <?php if ($photo !== null): ?>
-                        <img src="<?= e($photo) ?>" alt="" width="84" height="84"
-                             style="border-radius:8px; object-fit:cover;">
-                    <?php endif; ?>
-                    <div>
-                        <h3 class="h5 mb-1"><?= e((string) $guide['full_name']) ?></h3>
-                        <code><?= e((string) $guide['guide_code']) ?></code>
-                    </div>
-                </div>
+<?php /* IDENTITY IS NOT A PANEL. It is the subject of the page, so it gets no
+         heading saying "Guide" &mdash; the photograph and the name say that. */ ?>
+<section class="panel mb-3">
+    <div class="panel__body d-flex align-items-center gap-3 flex-wrap">
+        <?php if ($photo !== null): ?>
+            <img src="<?= e($photo) ?>" alt="" width="72" height="72"
+                 style="border-radius:10px; object-fit:cover; flex-shrink:0;">
+        <?php endif; ?>
 
-                <table class="table table-sm mb-0">
-                    <tr>
-                        <th class="text-muted fw-normal" style="width:40%">Valid until</th>
-                        <td><?= $guide['valid_until']
-                                ? e(format_date((string) $guide['valid_until'], 'F j, Y'))
-                                : '<span class="text-muted">not issued</span>' ?></td>
-                    </tr>
-                    <?php if ($guide['mobile_number']): ?>
-                        <tr><th class="text-muted fw-normal">Mobile</th>
-                            <td><a href="tel:<?= e(preg_replace('/[^0-9+]/', '', (string) $guide['mobile_number']) ?? '') ?>"><?= e((string) $guide['mobile_number']) ?></a></td></tr>
-                    <?php endif; ?>
-                    <?php if ($guide['email']): ?>
-                        <tr><th class="text-muted fw-normal">Email</th><td><?= e((string) $guide['email']) ?></td></tr>
-                    <?php endif; ?>
-                    <?php if ($guide['address']): ?>
-                        <tr><th class="text-muted fw-normal">Address</th><td><?= e((string) $guide['address']) ?></td></tr>
-                    <?php endif; ?>
-                    <?php if ($guide['id_issued_at']): ?>
-                        <tr><th class="text-muted fw-normal">ID last issued</th>
-                            <td><?= e(format_date((string) $guide['id_issued_at'], 'M j, Y')) ?></td></tr>
-                    <?php endif; ?>
-                    <?php if ($guide['notes']): ?>
-                        <tr><th class="text-muted fw-normal">Office notes</th>
-                            <td><?= nl2br(e((string) $guide['notes'])) ?></td></tr>
-                    <?php endif; ?>
-                </table>
-            </div>
-        </section>
-
-        <?php
-        /* THE CARD, AND WHY IT CAN OR CANNOT BE PRINTED — on the record, not
-         * only inside the card page.
-         *
-         * There is no "Generate ID" step and there deliberately is not one: the
-         * card is drawn from this record every time it is opened, so correcting
-         * a name and reprinting IS the regeneration. But a module with no button
-         * called "generate" leaves somebody hunting for one, and the two things
-         * that actually block a print — no expiry date, no public address — were
-         * only discoverable by clicking through and reading a warning.
-         *
-         * So the blockers are named here, next to the button, before the click. */
-        $blockers = [];
-
-        if ($guide['valid_until'] === null || $guide['valid_until'] === '') {
-            $blockers[] = [
-                'what' => 'No “valid until” date, so there is no card to print.',
-                'fix'  => ['Set a date', base_url('/admin/tour-guides/edit.php?id=' . $id)],
-            ];
-        }
-
-        if ($effective !== 'active' && $effective !== 'no_id') {
-            $blockers[] = [
-                'what' => 'This guide is ' . strtolower(Roster::EFFECTIVE[$effective])
-                        . ', so a printed card would fail verification.',
-                'fix'  => ['Change the status', base_url('/admin/tour-guides/edit.php?id=' . $id)],
-            ];
-        }
-
-        if (!QrService::isPublishable()) {
-            $blockers[] = [
-                'what' => QrService::unpublishableReason(),
-                'fix'  => ['Set the public address', base_url('/admin/settings/index.php')],
-            ];
-        }
-        ?>
-        <section class="panel mt-3">
-            <header class="panel__head">
-                <h2><i class="fa-solid fa-id-card"></i> Tour Guide ID</h2>
-            </header>
-            <div class="panel__body">
-                <p class="text-muted small">
-                    There is no separate &ldquo;generate&rdquo; step. The card is built from this
-                    record every time it is opened &mdash; so correcting a detail and printing
-                    again <em>is</em> how an ID is reissued.
-                </p>
-
-                <?php if ($blockers === []): ?>
-                    <p class="mb-2">
-                        <span class="pill pill--ok">Ready to print</span>
-                    </p>
-                    <button type="button" class="btn btn-brand btn-sm" data-dialog="idCard">
-                        <i class="fa-solid fa-print"></i> Open the card &mdash; front &amp; back
-                    </button>
-                <?php else: ?>
-                    <p class="mb-2"><span class="pill pill--flag">Not ready to print</span></p>
-                    <ul class="small mb-2">
-                        <?php foreach ($blockers as $b): ?>
-                            <li>
-                                <?= e((string) $b['what']) ?>
-                                <a href="<?= e((string) $b['fix'][1]) ?>"><?= e((string) $b['fix'][0]) ?></a>
-                            </li>
-                        <?php endforeach; ?>
-                    </ul>
-                    <?php /* Still openable. An officer rehearsing the layout before the
-                             office has settled its public address is doing something
-                             reasonable, and the card page repeats the warning. */ ?>
-                    <button type="button" class="btn btn-outline-secondary btn-sm" data-dialog="idCard">
-                        Preview it anyway
-                    </button>
+        <div class="flex-grow-1" style="min-width:200px">
+            <h2 class="h4 mb-1"><?= e((string) $guide['full_name']) ?></h2>
+            <p class="mb-0 cell-sub">
+                <code><?= e((string) $guide['guide_code']) ?></code>
+                <?php if ($guide['valid_until']): ?>
+                    &middot; valid until <?= e(format_date((string) $guide['valid_until'], 'F j, Y')) ?>
                 <?php endif; ?>
-            </div>
-        </section>
+            </p>
+        </div>
 
-        <section class="panel mt-3">
-            <header class="panel__head">
-                <h2><i class="fa-solid fa-qrcode"></i> Verification</h2>
-            </header>
-            <div class="panel__body">
-                <p class="text-muted small">
-                    The QR code on the front of the card opens this page. It carries a
-                    random token, not the guide's record number &mdash; so scanning one
-                    card tells nobody anything about the next.
-                </p>
-                <p class="mb-2">
-                    <a href="<?= e($verifyUrl) ?>" target="_blank" rel="noopener"
-                       class="text-break small"><?= e($verifyUrl) ?></a>
-                </p>
-
-                <form method="post"
-                      onsubmit="return confirm('Every card already printed for this guide will stop verifying. Continue?');">
-                    <?= csrf_field() ?>
-                    <input type="hidden" name="id" value="<?= $id ?>">
-                    <input type="hidden" name="action" value="rotate">
-                    <button class="btn btn-outline-danger btn-sm" type="submit">
-                        <i class="fa-solid fa-rotate"></i> Issue a new QR code
-                    </button>
-                    <span class="form-text d-block mt-1">Use this if a card is lost or stolen.</span>
-                </form>
-            </div>
-        </section>
+        <span class="pill pill--<?= $tone ?>"><?= e(Roster::EFFECTIVE[$effective]) ?></span>
     </div>
+</section>
 
-    <div class="col-lg-7">
+<div class="row g-3">
+
+    <!-- ============ the record ============ -->
+    <div class="col-lg-8">
         <section class="panel">
-            <header class="panel__head">
-                <h2><i class="fa-solid fa-certificate"></i> Credentials &mdash; typed lines</h2>
-            </header>
+            <header class="panel__head"><h2><i class="fa-regular fa-address-card"></i> Details</h2></header>
             <div class="panel__body">
-                <?php if ($credentials === []): ?>
-                    <p class="text-muted mb-0">
-                        None recorded. These are the short lines printed on the back of the card
-                        and shown on the verification page &mdash;
-                        <a href="<?= e(base_url('/admin/tour-guides/edit.php?id=' . $id)) ?>">type them in</a>.
-                        The scanned documents go in <a href="#certificates">Certificates</a> below.
-                    </p>
-                <?php else: ?>
-                    <ul class="mb-0">
-                        <?php foreach ($credentials as $c): ?>
-                            <li>
-                                <?= e((string) $c['label']) ?>
-                                <?php if ($c['issuer']): ?>
-                                    <span class="cell-sub">&mdash; <?= e((string) $c['issuer']) ?></span>
-                                <?php endif; ?>
-                            </li>
-                        <?php endforeach; ?>
-                    </ul>
-                <?php endif; ?>
+                <?php /* The house .detail-grid, the same one the arrival record
+                         uses. It was a bespoke table here for no reason. */ ?>
+                <dl class="detail-grid">
+                    <div>
+                        <dt>Mobile</dt>
+                        <dd>
+                            <?php if ($guide['mobile_number']): ?>
+                                <a href="tel:<?= e(preg_replace('/[^0-9+]/', '', (string) $guide['mobile_number']) ?? '') ?>"><?= e((string) $guide['mobile_number']) ?></a>
+                            <?php else: ?>
+                                <span class="text-muted">&mdash;</span>
+                            <?php endif; ?>
+                        </dd>
+                    </div>
+                    <div>
+                        <dt>Email</dt>
+                        <dd><?= $guide['email'] ? e((string) $guide['email']) : '<span class="text-muted">&mdash;</span>' ?></dd>
+                    </div>
+                    <div>
+                        <dt>Address</dt>
+                        <dd><?= $guide['address'] ? e((string) $guide['address']) : '<span class="text-muted">&mdash;</span>' ?></dd>
+                    </div>
+                    <div>
+                        <dt>ID last issued</dt>
+                        <dd><?= $guide['id_issued_at']
+                            ? e(format_date((string) $guide['id_issued_at'], 'M j, Y'))
+                            : '<span class="text-muted">never recorded</span>' ?></dd>
+                    </div>
+                    <?php if ($guide['notes']): ?>
+                        <div style="grid-column:1/-1">
+                            <dt>Office notes</dt>
+                            <dd><?= nl2br(e((string) $guide['notes'])) ?></dd>
+                        </div>
+                    <?php endif; ?>
+                </dl>
             </div>
         </section>
 
-        <section class="panel mt-3" id="certificates">
-            <header class="panel__head">
-                <h2><i class="fa-solid fa-file-shield"></i> Certificates &mdash; scanned documents</h2>
-            </header>
+        <?php /* TWO HALVES OF ONE QUESTION &mdash; what is this guide qualified in.
+                 One is typed and goes on the card; the other is the scan that
+                 proves it. Side by side, so the difference is visible instead of
+                 explained in a paragraph. */ ?>
+        <section class="panel mt-3">
+            <header class="panel__head"><h2><i class="fa-solid fa-award"></i> Qualifications</h2></header>
             <div class="panel__body">
-                <?php /* Held under storage/, not uploads/. A training certificate
-                         carries a private individual's full name and often their
-                         birth date; "the URL is long" is obscurity, not access
-                         control. They are served through certificate.php, which
-                         checks who is asking. */ ?>
-                <p class="text-muted small">
-                    <strong>This is where files go.</strong> Upload the scan or photograph of the
-                    actual certificate here. Readable by signed-in office staff only &mdash; the
-                    public verification page lists their names but never the files themselves.
-                </p>
+                <div class="row g-4">
 
-                <?php if ($certificates !== []): ?>
-                    <div class="table-responsive mb-3">
-                        <table class="table table-sm align-middle mb-0">
-                            <tbody>
-                            <?php foreach ($certificates as $c): ?>
-                                <?php
-                                $lapsed = $c['expires_on'] !== null
-                                    && (string) $c['expires_on'] < date('Y-m-d');
-                                ?>
-                                <tr>
-                                    <td>
-                                        <strong><?= e((string) $c['title']) ?></strong>
+                    <div class="col-md-5">
+                        <p class="mb-2" style="<?= $dtStyle ?>">On the card</p>
+
+                        <?php if ($credentials === []): ?>
+                            <p class="text-muted small mb-0">
+                                None yet.
+                                <a href="<?= e(base_url('/admin/tour-guides/edit.php?id=' . $id)) ?>">Add them</a>.
+                            </p>
+                        <?php else: ?>
+                            <ul class="mb-0 ps-3 small">
+                                <?php foreach ($credentials as $c): ?>
+                                    <li class="mb-1">
+                                        <?= e((string) $c['label']) ?>
                                         <?php if ($c['issuer']): ?>
                                             <span class="cell-sub d-block"><?= e((string) $c['issuer']) ?></span>
                                         <?php endif; ?>
-                                    </td>
-                                    <td class="small text-muted">
-                                        <?= $c['issued_on'] ? e(format_date((string) $c['issued_on'], 'M j, Y')) : '—' ?>
-                                        <?php if ($c['expires_on']): ?>
-                                            <span class="d-block <?= $lapsed ? 'text-danger' : '' ?>">
-                                                <?= $lapsed ? 'expired ' : 'until ' ?>
-                                                <?= e(format_date((string) $c['expires_on'], 'M j, Y')) ?>
+                                    </li>
+                                <?php endforeach; ?>
+                            </ul>
+                        <?php endif; ?>
+                    </div>
+
+                    <div class="col-md-7" id="certificates">
+                        <p class="mb-2" style="<?= $dtStyle ?>">Scanned documents</p>
+
+                        <?php if ($certificates === []): ?>
+                            <p class="text-muted small">Nothing filed yet.</p>
+                        <?php else: ?>
+                            <ul class="list-unstyled mb-2 small">
+                                <?php foreach ($certificates as $c): ?>
+                                    <?php $lapsed = $c['expires_on'] !== null && (string) $c['expires_on'] < date('Y-m-d'); ?>
+                                    <li class="d-flex align-items-start gap-2 mb-2">
+                                        <i class="fa-regular fa-file-lines text-muted mt-1"></i>
+                                        <span class="flex-grow-1">
+                                            <a target="_blank" rel="noopener"
+                                               href="<?= e(base_url('/admin/tour-guides/certificate.php?id=' . (int) $c['id'])) ?>">
+                                                <?= e((string) $c['title']) ?>
+                                            </a>
+                                            <span class="cell-sub d-block">
+                                                <?= $c['issuer'] ? e((string) $c['issuer']) . ' &middot; ' : '' ?>
+                                                <?= $c['issued_on'] ? e(format_date((string) $c['issued_on'], 'M Y')) : '' ?>
+                                                <?php if ($c['expires_on']): ?>
+                                                    <span class="<?= $lapsed ? 'text-danger' : '' ?>">
+                                                        &middot; <?= $lapsed ? 'expired' : 'to' ?>
+                                                        <?= e(format_date((string) $c['expires_on'], 'M Y')) ?>
+                                                    </span>
+                                                <?php endif; ?>
                                             </span>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td class="text-end">
-                                        <a class="btn btn-outline-secondary btn-sm" target="_blank" rel="noopener"
-                                           href="<?= e(base_url('/admin/tour-guides/certificate.php?id=' . (int) $c['id'])) ?>">
-                                            View
-                                        </a>
-                                        <form method="post" class="d-inline"
-                                              onsubmit="return confirm('Delete this certificate and its file?');">
+                                        </span>
+                                        <form method="post" class="d-inline">
                                             <?= csrf_field() ?>
                                             <input type="hidden" name="id" value="<?= $id ?>">
                                             <input type="hidden" name="action" value="certificate_delete">
                                             <input type="hidden" name="certificate_id" value="<?= (int) $c['id'] ?>">
-                                            <button class="btn btn-outline-danger btn-sm" type="submit">
+                                            <button class="btn btn-sm btn-link text-danger p-0" type="submit"
+                                                    data-confirm="Delete this certificate and its file?"
+                                                    data-confirm-tone="danger"
+                                                    aria-label="Delete this certificate">
                                                 <i class="fa-solid fa-trash"></i>
                                             </button>
                                         </form>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                <?php endif; ?>
+                                    </li>
+                                <?php endforeach; ?>
+                            </ul>
+                        <?php endif; ?>
 
-                <form method="post" enctype="multipart/form-data" class="row g-2">
-                    <?= csrf_field() ?>
-                    <input type="hidden" name="id" value="<?= $id ?>">
-                    <input type="hidden" name="action" value="certificate">
+                        <?php /* FOLDED AWAY UNTIL WANTED. An always-open upload form
+                                 is 200px of controls competing with the record, on
+                                 most of the visits where nobody is filing anything. */ ?>
+                        <details>
+                            <?php /* list-style:none so the native triangle does not sit
+                                     beside a drawn plus — two markers for one control. */ ?>
+                            <summary class="small" style="cursor:pointer; color:var(--green); list-style:none">
+                                <i class="fa-solid fa-chevron-right" style="font-size:.7em"></i>
+                                Add a certificate
+                            </summary>
 
-                    <div class="col-md-6">
-                        <label class="form-label small" for="cert_title">Certificate name <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control form-control-sm" id="cert_title"
-                               name="title" maxlength="160" required placeholder="First Aid Training">
+                            <form method="post" enctype="multipart/form-data" class="row g-2 mt-1">
+                                <?= csrf_field() ?>
+                                <input type="hidden" name="id" value="<?= $id ?>">
+                                <input type="hidden" name="action" value="certificate">
+
+                                <div class="col-12">
+                                    <label class="form-label small mb-1" for="cert_title">Name <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control form-control-sm" id="cert_title"
+                                           name="title" maxlength="160" required placeholder="First Aid Training">
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label small mb-1" for="cert_issuer">Issued by</label>
+                                    <input type="text" class="form-control form-control-sm" id="cert_issuer"
+                                           name="issuer" maxlength="160" placeholder="Philippine Red Cross">
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label small mb-1" for="cert_issued">Date issued</label>
+                                    <input type="date" class="form-control form-control-sm" id="cert_issued" name="issued_on">
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label small mb-1" for="cert_expires">Expires</label>
+                                    <input type="date" class="form-control form-control-sm" id="cert_expires" name="expires_on">
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label small mb-1" for="cert_file">File <span class="text-danger">*</span></label>
+                                    <input type="file" class="form-control form-control-sm" id="cert_file" name="file"
+                                           accept="image/jpeg,image/png,application/pdf" required>
+                                    <div class="form-text">JPG, PNG or PDF, up to 8&nbsp;MB. Office staff only.</div>
+                                </div>
+                                <div class="col-12">
+                                    <button class="btn btn-brand btn-sm" type="submit">File certificate</button>
+                                </div>
+                            </form>
+                        </details>
                     </div>
-                    <div class="col-md-6">
-                        <label class="form-label small" for="cert_issuer">Issuing organisation</label>
-                        <input type="text" class="form-control form-control-sm" id="cert_issuer"
-                               name="issuer" maxlength="160" placeholder="Philippine Red Cross">
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label small" for="cert_issued">Date issued</label>
-                        <input type="date" class="form-control form-control-sm" id="cert_issued" name="issued_on">
-                    </div>
-                    <div class="col-md-3">
-                        <label class="form-label small" for="cert_expires">Expires</label>
-                        <input type="date" class="form-control form-control-sm" id="cert_expires" name="expires_on">
-                    </div>
-                    <div class="col-md-6">
-                        <label class="form-label small" for="cert_file">File <span class="text-danger">*</span></label>
-                        <input type="file" class="form-control form-control-sm" id="cert_file" name="file"
-                               accept="image/jpeg,image/png,application/pdf" required>
-                    </div>
-                    <div class="col-12">
-                        <button class="btn btn-brand btn-sm" type="submit">
-                            <i class="fa-solid fa-upload"></i> File certificate
-                        </button>
-                        <span class="form-text ms-2">JPG, PNG or PDF, up to 8&nbsp;MB.</span>
-                    </div>
-                </form>
+                </div>
             </div>
         </section>
+    </div>
 
-        <section class="panel mt-3">
-            <header class="panel__head">
-                <h2><i class="fa-solid fa-triangle-exclamation"></i> Remove</h2>
-            </header>
+    <!-- ============ everything actionable ============ -->
+    <div class="col-lg-4">
+        <?php /* THE CARD AND ITS QR ARE ONE THING, not two panels. The code on the
+                 front opens the page this panel links to; splitting them made a
+                 reader hunt for which panel owned which half. */ ?>
+        <section class="panel">
+            <header class="panel__head"><h2><i class="fa-solid fa-id-card"></i> ID card</h2></header>
             <div class="panel__body">
-                <p class="text-muted small">
-                    Removing a guide deletes their credentials and certificate files. Requests
-                    they were assigned to keep the name and number they were answered with &mdash;
-                    a visitor's record of what they were told must not be rewritten.
+                <?php if ($blockers === []): ?>
+                    <p class="mb-2"><span class="pill pill--ok">Ready to print</span></p>
+                <?php else: ?>
+                    <p class="mb-2"><span class="pill pill--flag">Not ready to print</span></p>
+                    <ul class="small ps-3 mb-3">
+                        <?php foreach ($blockers as $b): ?>
+                            <li class="mb-1">
+                                <?= e((string) $b[0]) ?>
+                                <a href="<?= e((string) $b[2]) ?>"><?= e((string) $b[1]) ?></a>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                <?php endif; ?>
+
+                <button type="button" class="btn btn-brand btn-sm w-100 mb-2" data-dialog="idCard">
+                    <i class="fa-solid fa-print"></i> Open the card
+                </button>
+
+                <p class="form-text mt-0 mb-3">
+                    Built from this record each time &mdash; correcting a detail and printing
+                    again <em>is</em> how an ID is reissued.
                 </p>
-                <form method="post" action="<?= e(base_url('/admin/tour-guides/index.php')) ?>"
-                      onsubmit="return confirm('Remove <?= e(addslashes((string) $guide['full_name'])) ?> from the roster?');">
+
+                <hr class="my-3">
+
+                <p class="mb-2" style="<?= $dtStyle ?>">Verification page</p>
+                <p class="small mb-2">
+                    <?php /* The 32-character token used to be printed in full and
+                             wrapped over two lines. Nobody reads it; it is a link. */ ?>
+                    <a href="<?= e($verifyUrl) ?>" target="_blank" rel="noopener">
+                        What a visitor sees when they scan
+                        <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                    </a>
+                </p>
+
+                <form method="post">
                     <?= csrf_field() ?>
                     <input type="hidden" name="id" value="<?= $id ?>">
-                    <input type="hidden" name="action" value="delete">
-                    <button class="btn btn-outline-danger btn-sm" type="submit">
-                        <i class="fa-solid fa-trash"></i> Remove from roster
+                    <input type="hidden" name="action" value="rotate">
+                    <button class="btn btn-sm btn-outline-secondary w-100" type="submit"
+                            data-confirm="Every card already printed for this guide will stop verifying. Continue?"
+                            data-confirm-tone="danger">
+                        <i class="fa-solid fa-rotate"></i> Issue a new QR code
                     </button>
+                    <span class="form-text d-block mt-1">If a card is lost or stolen.</span>
                 </form>
             </div>
         </section>
     </div>
 </div>
+
+<?php /* THE ONE DESTRUCTIVE ACTION, ON ITS OWN AND LAST. It had a full panel with
+         a heading and a paragraph, which gave deleting a person the same weight
+         on the page as their telephone number. */ ?>
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-4 pt-3"
+     style="border-top:1px solid var(--line)">
+    <p class="cell-sub mb-0" style="max-width:46rem">
+        Removing <?= e((string) $guide['full_name']) ?> deletes their credentials and certificate
+        files. Requests they were assigned keep the name and number they were answered with.
+    </p>
+    <form method="post" action="<?= e(base_url('/admin/tour-guides/index.php')) ?>">
+        <?= csrf_field() ?>
+        <input type="hidden" name="id" value="<?= $id ?>">
+        <input type="hidden" name="action" value="delete">
+        <button class="btn btn-sm btn-link text-danger" type="submit"
+                data-confirm="Remove this guide from the roster?"
+                data-confirm-tone="danger">
+            Remove from roster
+        </button>
+    </form>
+</div>
+
 
 <?php /* THE CARD, OVER THE RECORD — rendered here, not framed.
          It WAS an <iframe>. The document root sends X-Frame-Options: DENY,

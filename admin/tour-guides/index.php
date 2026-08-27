@@ -21,6 +21,7 @@ require_once __DIR__ . '/../../bootstrap.php';
 use App\Core\ActivityLog;
 use App\Core\Auth;
 use App\Core\Csrf;
+use App\Core\Paginator;
 use App\Core\Session;
 use App\Repositories\TourGuideRosterRepository as Roster;
 
@@ -55,8 +56,30 @@ if ($status !== '' && !isset(Roster::STATUSES[$status])) {
     $status = '';
 }
 
+/* One parameter for the derived states, separate from `status` — see the note
+   in TourGuideRosterRepository::all(). */
+$show = (string) ($_GET['show'] ?? '');
+
+if (!in_array($show, ['active', 'expired', 'no_id', 'barred'], true)) {
+    $show = '';
+}
+
 $search = trim((string) ($_GET['q'] ?? ''));
-$guides = Roster::all(['status' => $status, 'search' => $search]);
+
+/* PAGED, LIKE EVERY OTHER LIST HERE.
+ *
+ * This screen shipped without a pager — my omission. With one guide on the
+ * roster nothing looked wrong; at forty it is a forty-row page with no way to
+ * break it, and the office has to scroll past the whole municipality to reach
+ * the last name.
+ *
+ * Paginator::slice()'s own default window rather than a size chosen here, which
+ * is what alerts, managers, messages, videos and the rest all do. The request
+ * queue is the single exception and only because its cards are 476 px tall. */
+$allGuides = Roster::all(['status' => $status, 'show' => $show, 'search' => $search]);
+
+$pager  = Paginator::slice($allGuides, $_GET['page'] ?? null);
+$guides = $pager['rows'];
 
 /* Counted from the same computed status the rows show, not from a second
    query with its own idea of what "expired" means. */
@@ -97,54 +120,68 @@ $sheetOpen = old_all() !== [];
 require __DIR__ . '/../_partials/head.php';
 ?>
 
-<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-    <p class="text-muted mb-0">
-        Guides the Municipal Tourism Office has accredited. Only a guide whose card
-        is <strong>active and unexpired</strong> can be assigned to a request.
-    </p>
-    <button type="button" class="btn btn-brand btn-sm" data-dialog="addGuide">
-        <i class="fa-solid fa-user-plus"></i> Add tour guide
-    </button>
-</div>
+<?php
+/* THE COUNTS ARE THE FILTER.
+ *
+ * They were five flat panels that only displayed a number, four of which read
+ * zero — a full band of vertical space spent saying nothing, on a screen the
+ * office complained was too long. As links they cost the same room and do a job,
+ * and they are the same .stat-card the request queue and the rest of the admin
+ * already use, so this page stops looking like it came from somewhere else.
+ *
+ * 'expired' and 'no_id' are derived, not stored, so they filter on their own
+ * parameter rather than pretending to be values of `status`. */
+$cards = [
+    ['icon' => 'fa-circle-check',  'tone' => 'green', 'value' => $tally['active'],    'label' => 'Active',       'q' => 'show=active'],
+    ['icon' => 'fa-calendar-xmark','tone' => 'amber', 'value' => $tally['expired'],   'label' => 'Expired',      'q' => 'show=expired'],
+    ['icon' => 'fa-id-badge',      'tone' => 'blue',  'value' => $tally['no_id'],     'label' => 'No ID issued', 'q' => 'show=no_id'],
+    ['icon' => 'fa-user-slash',    'tone' => 'teal',  'value' => $tally['suspended'] + $tally['revoked'],
+     'label' => 'Suspended or revoked', 'q' => 'show=barred'],
+];
+?>
 
-<?php /* Expired and never-issued are called out because both are silent
-         failures: the guide is on the roster, looks fine in a list, and cannot
-         be assigned. An officer should learn that here rather than at the
-         moment they are trying to answer a visitor. */ ?>
-<div class="row g-2 mb-3">
-    <?php foreach ([
-        ['active',    'Active',        'ok'],
-        ['expired',   'Expired',       'flag'],
-        ['no_id',     'No ID issued',  'void'],
-        ['suspended', 'Suspended',     'flag'],
-        ['revoked',   'Revoked',       'void'],
-    ] as [$key, $label, $tone]): ?>
-        <div class="col-6 col-md">
-            <div class="panel h-100">
-                <div class="panel__body py-2">
-                    <span class="pill pill--<?= $tone ?>"><?= n($tally[$key]) ?></span>
-                    <span class="cell-sub d-block mt-1"><?= e($label) ?></span>
-                </div>
+<div class="stat-grid">
+    <?php foreach ($cards as $card): ?>
+        <a class="stat-card stat-card--<?= e($card['tone']) ?>" href="index.php?<?= e($card['q']) ?>">
+            <div class="stat-card__icon"><i class="fa-solid <?= e($card['icon']) ?>"></i></div>
+            <div class="stat-card__body">
+                <p class="stat-card__value"><?= n((int) $card['value']) ?></p>
+                <p class="stat-card__label"><?= e($card['label']) ?></p>
             </div>
-        </div>
+        </a>
     <?php endforeach; ?>
 </div>
 
-<form class="row g-2 mb-3" method="get">
-    <div class="col-md-5">
-        <input type="search" class="form-control form-control-sm" name="q"
-               value="<?= e($search) ?>" placeholder="Name, ID number, or mobile">
-    </div>
-    <div class="col-md-3">
-        <select class="form-select form-select-sm" name="status">
-            <option value="">Any status set by the office</option>
-            <?php foreach (Roster::STATUSES as $key => $label): ?>
-                <option value="<?= e($key) ?>" <?= $status === $key ? 'selected' : '' ?>><?= e($label) ?></option>
+<?php /* One bar, the same one arrivals, messages and videos use. The search, the
+         filter and the primary action were three stacked blocks before. */ ?>
+<form class="filter-bar" method="get">
+    <div class="filter-bar__row">
+        <div class="search-field">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input type="search" name="q" value="<?= e($search) ?>" placeholder="Name, ID number, or mobile">
+        </div>
+
+        <select name="show" class="form-select form-select-sm">
+            <option value="">Every guide</option>
+            <?php foreach (['active' => 'Active only', 'expired' => 'Expired ID',
+                            'no_id' => 'No ID issued', 'barred' => 'Suspended or revoked'] as $key => $label): ?>
+                <option value="<?= e($key) ?>" <?= $show === $key ? 'selected' : '' ?>><?= e($label) ?></option>
             <?php endforeach; ?>
         </select>
-    </div>
-    <div class="col-md-2">
-        <button class="btn btn-outline-secondary btn-sm w-100" type="submit">Filter</button>
+
+        <button type="submit" class="btn btn-sm btn-outline-secondary">Apply</button>
+
+        <?php if ($show !== '' || $search !== ''): ?>
+            <a class="btn btn-sm btn-link" href="index.php">Clear</a>
+        <?php endif; ?>
+
+        <div class="filter-bar__spacer"></div>
+
+        <div class="filter-bar__actions">
+            <button type="button" class="btn btn-brand btn-sm" data-dialog="addGuide">
+                <i class="fa-solid fa-user-plus"></i> Add tour guide
+            </button>
+        </div>
     </div>
 </form>
 
@@ -242,5 +279,9 @@ require __DIR__ . '/../_partials/head.php';
     require __DIR__ . '/_form.php';
     ?>
 </dialog>
+
+<?php /* Renders nothing while there is only one page — the partial decides,
+         not this file. */ ?>
+<?php require __DIR__ . '/../../app/views/partials/pager.php'; ?>
 
 <?php require __DIR__ . '/../_partials/foot.php'; ?>

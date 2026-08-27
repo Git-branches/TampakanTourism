@@ -350,6 +350,21 @@ final class DestinationRepository
             [$photoId, $destinationId]);
     }
 
+    /**
+     * The map a visitor downloads before they lose signal.
+     *
+     * Pass null to remove it. The file itself is left on disk rather than
+     * unlinked: it may be the only copy of a sketch somebody walked out to
+     * draw, and a stray image in uploads costs nothing next to that.
+     */
+    public static function setOfflineMap(int $destinationId, ?string $path): void
+    {
+        Database::run(
+            'UPDATE destinations SET offline_map_image = ? WHERE id = ?',
+            [$path, $destinationId]
+        );
+    }
+
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------

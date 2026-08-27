@@ -214,11 +214,13 @@ final class AlertRepository
         return Database::first(
             'SELECT a.*, d.name AS destination_name, m.full_name AS raised_by_name,
                     m.mobile_number AS raised_by_number,
-                    ad.full_name AS acknowledged_by_name
+                    ad.full_name AS acknowledged_by_name,
+                    rp.full_name AS replied_by_name
                FROM destination_alerts a
                LEFT JOIN destinations d ON d.id = a.destination_id
                LEFT JOIN destination_managers m ON m.id = a.raised_by
                LEFT JOIN admins ad ON ad.id = a.acknowledged_by
+               LEFT JOIN admins rp ON rp.id = a.replied_by
               WHERE a.id = ?',
             [$id]
         );
@@ -247,11 +249,13 @@ final class AlertRepository
 
         return Database::all(
             'SELECT a.*, d.name AS destination_name, m.full_name AS raised_by_name,
-                    ad.full_name AS acknowledged_by_name
+                    ad.full_name AS acknowledged_by_name,
+                    rp.full_name AS replied_by_name
                FROM destination_alerts a
                LEFT JOIN destinations d ON d.id = a.destination_id
                LEFT JOIN destination_managers m ON m.id = a.raised_by
                LEFT JOIN admins ad ON ad.id = a.acknowledged_by
+               LEFT JOIN admins rp ON rp.id = a.replied_by
               WHERE ' . implode(' AND ', $clauses) . "
               ORDER BY FIELD(a.status, 'new', 'acknowledged', 'resolved', 'dismissed'),
                        FIELD(a.severity, 'urgent', 'warning', 'info'),
@@ -375,40 +379,40 @@ final class AlertRepository
     {
         $alert = self::find($alertId);
 
-        if ($alert === null || $alert['severity'] !== 'urgent') {
+        if ($alert === null) {
             return 0;
         }
 
-        $configured = (string) (setting('alert_sms_recipients', '') ?? '');
+        /* How serious it has to be before it becomes a text. A manager writing
+           "closed for maintenance" is exactly what this flow carries, so the
+           default threshold is 'warning' and not 'urgent'. Texting on 'info'
+           too is how a recipient learns to stop reading them. */
+        $rank      = ['info' => 0, 'warning' => 1, 'urgent' => 2];
+        $threshold = (string) (setting('alert_sms_threshold', 'warning') ?? 'warning');
 
-        if (trim($configured) === '') {
+        if (($rank[$alert['severity']] ?? 0) < ($rank[$threshold] ?? 1)) {
             return 0;
         }
 
         $where = (string) ($alert['destination_name'] ?: 'an unverified number');
+        $label = $alert['severity'] === 'urgent' ? 'URGENT' : ucfirst((string) self::CATEGORIES[$alert['category']]);
 
-        /* Short on purpose. One SMS segment where possible, and the detail is
-           on the screen the officer opens next. */
-        $body = 'TourSync URGENT — ' . $where . ': '
-            . mb_substr((string) $alert['message'], 0, 90)
-            . ' | Open Destination Alerts.';
+        /* Short on purpose. One segment where possible, and the detail is on the
+           screen the officer opens next. */
+        $body = 'TourSync ' . $label . ' — ' . $where . ': '
+            . mb_substr((string) $alert['message'], 0, 88)
+            . ' | Reply in Destination Alerts.';
 
         $sent = 0;
 
-        foreach (preg_split('/[,;\s]+/', $configured) ?: [] as $raw) {
-            $number = SmsGateway::normalise(trim($raw));
-
-            if ($number === null) {
-                continue;
-            }
-
+        foreach (self::officeRecipients() as $number) {
             try {
-                $result = SmsGateway::send($number, $body);
-
-                if (!empty($result['ok'])) {
+                if (!empty(SmsGateway::send($number, $body)['ok'])) {
                     $sent++;
                 }
             } catch (\Throwable $e) {
+                /* Never blocks: the alert is already saved, and a provider
+                   outage must not lose it. */
                 error_log('Alert notification failed: ' . $e->getMessage());
             }
         }
@@ -417,41 +421,143 @@ final class AlertRepository
     }
 
     /**
-     * Texts the manager back.
+     * Whose phone an office notification goes to.
      *
-     * The half that makes the channel two-way. A manager who reports a
-     * landslide and hears nothing has no idea whether the message arrived, and
-     * will drive to town to find out — which is the trip this removes.
+     * Active accounts that carry a number and have not opted out, plus any
+     * extra numbers the office typed in Settings — for people who need the
+     * alert but hold no account, like the MDRRMO duty officer.
      *
-     * @return array{ok:bool, error:string}
+     * Deduplicated: an officer whose number is also in the extras list should
+     * get one text, not two.
+     *
+     * @return array<int, string> normalised E.164 numbers
      */
-    public static function replyBySms(int $id, string $body): array
+    public static function officeRecipients(): array
     {
-        $alert = self::find($id);
+        $numbers = [];
+
+        foreach (Database::all(
+            "SELECT mobile_number FROM admins
+              WHERE is_active = 1 AND alert_sms_opt_in = 1
+                AND mobile_number IS NOT NULL AND mobile_number <> ''"
+        ) as $row) {
+            $numbers[] = (string) $row['mobile_number'];
+        }
+
+        $extra = (string) (setting('alert_sms_recipients', '') ?? '');
+
+        if (trim($extra) !== '') {
+            /* COMMAS AND NEWLINES, NOT SPACES.
+             *
+             * This split on \s as well, so "0917 123 4567" — which is how a
+             * Philippine mobile number is written by every person who has ever
+             * written one — arrived as "0917", "123", "4567". Each piece failed
+             * normalise(), the list came out empty, and the setting silently did
+             * nothing at all.
+             *
+             * normalise() strips whatever is not a digit anyway, so spaces
+             * inside one number need no help from here. */
+            foreach (preg_split('/[,;
+]+/', $extra) ?: [] as $raw) {
+                $numbers[] = $raw;
+            }
+        }
+
+        $out = [];
+
+        foreach ($numbers as $raw) {
+            $number = SmsGateway::normalise(trim($raw));
+
+            if ($number !== null) {
+                $out[$number] = true;
+            }
+        }
+
+        return array_keys($out);
+    }
+
+    /**
+     * Writes the office's answer onto the alert.
+     *
+     * Saved BEFORE the text is attempted, and separately from it. The portal is
+     * the record; the SMS is the convenience. If the provider is down, the
+     * manager still finds the answer when they next open the system, and the
+     * office does not have to remember to type it twice.
+     *
+     * A reply also acknowledges: an officer who has written a sentence back has
+     * plainly read it, and making them press a second button to say so is how
+     * an alert sits at "New" with an answer underneath it.
+     */
+    public static function recordReply(int $id, string $body, int $adminId): void
+    {
+        Database::run(
+            "UPDATE destination_alerts
+                SET office_reply = ?, replied_by = ?, replied_at = NOW(),
+                    status          = IF(status = 'new', 'acknowledged', status),
+                    acknowledged_by = COALESCE(acknowledged_by, ?),
+                    acknowledged_at = COALESCE(acknowledged_at, NOW())
+              WHERE id = ?",
+            [mb_substr(trim($body), 0, 600), $adminId, $adminId, $id]
+        );
+    }
+
+    /**
+     * Texts the manager the office's reply.
+     *
+     * The other half of the loop the client asked for: the manager reports
+     * through the system, the office answers through the system, and each side
+     * hears about it on the phone they are actually holding. A reply the
+     * manager never sees leaves them assuming nobody read the report.
+     *
+     * @return array{sent:bool, reason:string}
+     */
+    public static function notifyManagerOfReply(int $alertId, string $officeMessage): array
+    {
+        $alert = self::find($alertId);
 
         if ($alert === null) {
-            return ['ok' => false, 'error' => 'Alert not found.'];
+            return ['sent' => false, 'reason' => 'Alert not found.'];
         }
 
-        /* The number they texted from, falling back to the one on file. */
-        /* Parenthesised: PHP 8 deprecates chaining ?: without them, and the
-           grouping here is not obvious enough to leave to precedence. */
-        $number = (string) (($alert['from_number'] ?: $alert['raised_by_number']) ?: '');
+        /* The number they texted from wins over the one on file — it is the
+           handset that was actually in their hand at the destination. */
+        $number = SmsGateway::normalise((string) (($alert['from_number'] ?: $alert['raised_by_number']) ?: ''));
 
-        if ($number === '') {
-            return ['ok' => false, 'error' => 'No mobile number on record for this alert.'];
+        if ($number === null) {
+            return ['sent' => false, 'reason' => 'No mobile number on record for this manager.'];
         }
 
-        $result = SmsGateway::send($number, $body);
+        /* An opt-out is honoured even when the office presses send. They can
+           still read it in the portal; this only governs the text. */
+        if ($alert['raised_by'] !== null) {
+            $optIn = Database::scalar(
+                'SELECT reply_sms_opt_in FROM destination_managers WHERE id = ?',
+                [(int) $alert['raised_by']]
+            );
 
-        if (!empty($result['ok'])) {
-            Database::run('UPDATE destination_alerts SET reply_sent_at = NOW() WHERE id = ?', [$id]);
-
-            return ['ok' => true, 'error' => ''];
+            if ($optIn !== null && (int) $optIn === 0) {
+                return ['sent' => false, 'reason' => 'This manager has turned off SMS replies.'];
+            }
         }
 
-        return ['ok' => false, 'error' => (string) ($result['error'] ?? 'The message could not be sent.')];
+        $body = 'Tampakan Tourism Office: ' . mb_substr(trim($officeMessage), 0, 200);
+
+        try {
+            $result = SmsGateway::send($number, $body);
+        } catch (\Throwable $e) {
+            error_log('Reply notification failed: ' . $e->getMessage());
+            return ['sent' => false, 'reason' => 'The message could not be sent.'];
+        }
+
+        if (empty($result['ok'])) {
+            return ['sent' => false, 'reason' => (string) ($result['error'] ?? 'The message could not be sent.')];
+        }
+
+        Database::run('UPDATE destination_alerts SET reply_sent_at = NOW() WHERE id = ?', [$alertId]);
+
+        return ['sent' => true, 'reason' => ''];
     }
+
 
     // -------------------------------------------------------------------------
     // The inbound log

@@ -5,6 +5,7 @@ namespace App\Repositories;
 
 use App\Core\Auth;
 use App\Core\Database;
+use App\Core\SmsGateway;
 
 /**
  * Administrative accounts.
@@ -74,9 +75,22 @@ final class AdminRepository
 
     public static function updateProfile(int $id, array $data): void
     {
+        /* The mobile number is what an urgent destination alert is texted to.
+           Stored normalised so a number typed as "0917 123 4567" and the same
+           number typed as "+639171234567" are one phone — the alert sender
+           compares them, and two spellings would text somebody twice. */
+        $mobile = isset($data['mobile_number']) ? trim((string) $data['mobile_number']) : '';
+        $mobile = $mobile !== '' ? (SmsGateway::normalise($mobile) ?? $mobile) : null;
+
         Database::run(
-            'UPDATE admins SET full_name = ?, email = ? WHERE id = ?',
-            [$data['full_name'], $data['email'], $id]
+            'UPDATE admins SET full_name = ?, email = ?, mobile_number = ?, alert_sms_opt_in = ? WHERE id = ?',
+            [
+                $data['full_name'],
+                $data['email'],
+                $mobile,
+                !empty($data['alert_sms_opt_in']) ? 1 : 0,
+                $id,
+            ]
         );
     }
 

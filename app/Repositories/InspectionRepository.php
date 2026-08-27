@@ -140,7 +140,7 @@ final class InspectionRepository
     }
 
     /** The office queue. Drafts never appear — they have not been handed over. */
-    public static function queue(array $filters = []): array
+    public static function queue(array $filters = [], int $limit = 200): array
     {
         $clauses = ["r.status <> 'draft'"];
         $params  = [];
@@ -171,7 +171,7 @@ final class InspectionRepository
               WHERE ' . implode(' AND ', $clauses) . '
               ORDER BY FIELD(r.status, \'submitted\', \'reviewing\', \'rejected\', \'approved\'),
                        r.submitted_at ASC
-              LIMIT 200',
+              LIMIT ' . max(1, min(500, $limit)),
             $params
         );
     }
