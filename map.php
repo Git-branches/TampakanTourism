@@ -28,7 +28,7 @@ $categories  = CategoryRepository::withDestinations();
 <title>Tourist Map — Tampakan Tourism</title>
 <meta name="description" content="Interactive map of every tourist destination in the Municipality of Tampakan, South Cotabato, with directions and visitor information.">
 <link rel="icon" href="assets/img/tampakan_logo.png" sizes="any">
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
 <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet">
@@ -37,30 +37,37 @@ $categories  = CategoryRepository::withDestinations();
 <body id="top">
 
 <?php
-/* No navbar, matching the destination and announcement pages. The gradient
-   banner is this page's header, and the map below it wants every pixel of
-   height it can get — a navbar costs it a strip of the viewport on exactly the
-   screens where the map is hardest to read. Wayfinding is the breadcrumb,
-   styled up by .page-head--top because it is now the only way back. */
-$showNavbar = false;
+/* NAVBAR ON.
+ *
+ * It used to be off, and the reason given here was that "the map wants every
+ * pixel of viewport height it can get". That was measured and it is not true:
+ * .full-map is `height: min(70vh, 620px)`, a fixed box. It does not expand into
+ * free space, so the navbar costs the map nothing at all.
+ *
+ * What removing it did cost was every route out of this page. Someone who spots
+ * a marker and wants to see the destination list had one link — Home — and had
+ * to start over. On a municipal site the persistent bar is also what says whose
+ * site this is; without it the green band is a header floating above a map. */
+$showNavbar = true;
 require __DIR__ . '/app/views/partials/public-nav.php';
 ?>
 
 <main>
-<header class="page-head page-head--top">
-    <div class="container">
-        <nav aria-label="Breadcrumb" class="crumbs">
-            <a href="<?= e(base_url('/')) ?>">Home</a>
-            <i class="fa-solid fa-angle-right"></i>
-            <span>Tourist Map</span>
-        </nav>
-        <h1>Interactive Tourist Map</h1>
-        <p>
-            <?= n($markerCount) ?> destination<?= $markerCount === 1 ? '' : 's' ?> pinned across the municipality.
-            Tap a marker for details and directions.
-        </p>
-    </div>
-</header>
+<?php
+/* Shared with the tour guide page and anything else that grows an interior
+   header. The markup used to live here in full, which is how the guide page
+   ended up with a different one. */
+$head = [
+    'title'  => 'Interactive Tourist Map',
+    'sub'    => n($markerCount) . ' destination' . ($markerCount === 1 ? '' : 's')
+        . ' pinned across the municipality. Tap a marker for details and directions.',
+    'crumbs' => [
+        ['label' => 'Home', 'href' => base_url('/')],
+        ['label' => 'Tourist Map'],
+    ],
+];
+require __DIR__ . '/app/views/partials/page-head.php';
+?>
 
 <section class="section section--light section--snug">
     <div class="container">
@@ -117,6 +124,8 @@ require __DIR__ . '/app/views/partials/public-nav.php';
 <!-- The shared behaviour script: navbar scroll state, back-to-top, reading
      progress. Its absence here was why the map page alone had no scroll
      effect on the navbar. -->
+<script src="<?= e(asset('js/vendor/sweetalert2.all.min.js')) ?>"></script>
+<script src="<?= e(asset('js/notify.js')) ?>"></script>
 <script src="<?= e(asset('js/script.js')) ?>"></script>
 <script>
 (function () {
@@ -210,7 +219,8 @@ require __DIR__ . '/app/views/partials/public-nav.php';
     if (locate) {
         locate.addEventListener('click', () => {
             if (!navigator.geolocation) {
-                alert('Your browser does not support location services.');
+                TourSync.alertWarning('Location not available',
+                    'This browser does not offer location services.');
                 return;
             }
             locate.disabled = true;
@@ -226,7 +236,8 @@ require __DIR__ . '/app/views/partials/public-nav.php';
                     locate.innerHTML = '<i class="fa-solid fa-location-crosshairs"></i> Where am I?';
                 },
                 () => {
-                    alert('Location is unavailable. Browsers only share it over a secure (https) connection.');
+                    TourSync.alertWarning('Location is unavailable',
+                        'Browsers only share your location over a secure (https) connection.');
                     locate.disabled = false;
                     locate.innerHTML = '<i class="fa-solid fa-location-crosshairs"></i> Where am I?';
                 }
@@ -235,5 +246,14 @@ require __DIR__ . '/app/views/partials/public-nav.php';
     }
 })();
 </script>
+
+<!-- =========================================================================
+     THE TOURISM ASSISTANT
+     Every public page carries it. A visitor reading an advisory, planning a
+     route or filling in a guide request has the same questions as one on the
+     home page, and should not have to go back to ask them.
+     ====================================================================== -->
+<?php require __DIR__ . '/app/views/partials/chat-widget.php'; ?>
+
 </body>
 </html>

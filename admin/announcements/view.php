@@ -246,8 +246,9 @@ require __DIR__ . '/../_partials/head.php';
                         Publish the announcement before sending it.
                     </div>
                 <?php elseif (Auth::isOfficer()): ?>
-                    <form method="post" class="mt-3"
-                          onsubmit="return confirm('Send this announcement to <?= count($recipients) ?> manager(s)?\n\n<?= SmsGateway::isLive() ? 'This spends real SMS credits and cannot be recalled.' : 'Test mode — nothing will actually be sent.' ?>');">
+                    <form method="post" class="mt-3" data-confirm="Send this announcement to &lt;?= count($recipients) ?&gt; manager(s)?
+
+&lt;?= SmsGateway::isLive() ? 'This spends real SMS credits and cannot be recalled.' : 'Test mode — nothing will actually be sent.' ?&gt;" data-confirm-tone="normal">
                         <?= csrf_field() ?>
                         <input type="hidden" name="id" value="<?= $id ?>">
                         <input type="hidden" name="action" value="dispatch">

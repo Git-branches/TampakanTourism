@@ -11,13 +11,32 @@ if (!defined('TOURSYNC')) {
 }
 
 $isEdit = !empty($a['id']);
+
+/* THE SAME COMPOSER IN THREE PLACES.
+ *
+ * create.php and edit.php render this as a full page; the list renders it
+ * inside a dialog behind the New Announcement button. Only the chrome differs.
+ * Three panels become three labelled groups in the sheet — a panel inside a
+ * dialog is a card inside a card, and the nesting reads as a mistake. */
+$inSheet = !empty($inSheet);
 ?>
-<form method="post" class="form-grid" id="announceForm" novalidate>
+<form method="post" id="announceForm" novalidate
+      <?= $inSheet ? 'action="create.php" class="sheet__form"' : 'class="form-grid"' ?>>
     <?= csrf_field() ?>
 
-    <section class="panel">
-        <header class="panel__head"><h2><i class="fa-solid fa-pen-nib"></i> Message</h2></header>
-        <div class="panel__body">
+    <?php if ($inSheet): ?>
+        <header class="sheet__head">
+            <h2><i class="fa-solid fa-bullhorn" aria-hidden="true"></i> New announcement</h2>
+            <button type="button" class="sheet__close" data-dialog-close aria-label="Close">
+                <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+            </button>
+        </header>
+        <div class="sheet__body">
+    <?php endif; ?>
+
+    <section class="<?= $inSheet ? 'sheet__group' : 'panel' ?>">
+        <header class="<?= $inSheet ? 'sheet__legend' : 'panel__head' ?>"><h2><i class="fa-solid fa-pen-nib"></i> Message</h2></header>
+        <div class="<?= $inSheet ? 'sheet__fields' : 'panel__body' ?>">
             <div class="row g-3">
 
                 <div class="col-md-8">
@@ -57,9 +76,9 @@ $isEdit = !empty($a['id']);
         </div>
     </section>
 
-    <section class="panel">
-        <header class="panel__head"><h2><i class="fa-solid fa-users-rectangle"></i> Who Receives This</h2></header>
-        <div class="panel__body">
+    <section class="<?= $inSheet ? 'sheet__group' : 'panel' ?>">
+        <header class="<?= $inSheet ? 'sheet__legend' : 'panel__head' ?>"><h2><i class="fa-solid fa-users-rectangle"></i> Who Receives This</h2></header>
+        <div class="<?= $inSheet ? 'sheet__fields' : 'panel__body' ?>">
             <div class="row g-3">
 
                 <div class="col-md-6">
@@ -114,9 +133,9 @@ $isEdit = !empty($a['id']);
         </div>
     </section>
 
-    <section class="panel">
-        <header class="panel__head"><h2><i class="fa-regular fa-calendar"></i> Event &amp; Scheduling</h2></header>
-        <div class="panel__body">
+    <section class="<?= $inSheet ? 'sheet__group' : 'panel' ?>">
+        <header class="<?= $inSheet ? 'sheet__legend' : 'panel__head' ?>"><h2><i class="fa-regular fa-calendar"></i> Event &amp; Scheduling</h2></header>
+        <div class="<?= $inSheet ? 'sheet__fields' : 'panel__body' ?>">
             <div class="row g-3">
 
                 <div class="col-md-4">
@@ -169,12 +188,23 @@ $isEdit = !empty($a['id']);
         </div>
     </section>
 
+    <?php if ($inSheet): ?>
+        </div>
+
+        <footer class="sheet__foot">
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-dialog-close>Cancel</button>
+            <button type="submit" class="btn btn-sm btn-brand">
+                <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Create Announcement
+            </button>
+        </footer>
+    <?php else: ?>
     <div class="form-actions">
         <a href="index.php" class="btn btn-outline-secondary">Cancel</a>
         <button type="submit" class="btn btn-brand">
             <i class="fa-solid fa-floppy-disk"></i> <?= $isEdit ? 'Save Changes' : 'Create Announcement' ?>
         </button>
     </div>
+    <?php endif; ?>
 </form>
 
 <script>

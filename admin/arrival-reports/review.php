@@ -597,8 +597,9 @@ require __DIR__ . '/../_partials/head.php';
 
         <div class="row g-4" <?= Auth::isOfficer() ? '' : 'hidden' ?>>
             <div class="col-lg-5">
-                <form method="post"
-                      onsubmit="return confirm('Approve this report?\n\n<?= n($totals['total_visitors']) ?> visitors across <?= n(count($days)) ?> day(s) will be written into the municipality\'s tourism records.');">
+                <form method="post" data-confirm="Approve this report?
+
+&lt;?= n($totals['total_visitors']) ?&gt; visitors across &lt;?= n(count($days)) ?&gt; day(s) will be written into the municipality's tourism records." data-confirm-tone="normal">
                     <?= csrf_field() ?>
                     <input type="hidden" name="action" value="approve">
 

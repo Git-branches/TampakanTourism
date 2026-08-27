@@ -12,6 +12,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../../bootstrap.php';
 
+use App\Core\Paginator;
 use App\Core\ActivityLog;
 use App\Core\Auth;
 use App\Core\Database;
@@ -47,10 +48,14 @@ if ($filters['action'] !== '') {
 $where = $clauses ? 'WHERE ' . implode(' AND ', $clauses) : '';
 
 $total   = (int) Database::scalar("SELECT COUNT(*) FROM activity_logs l {$where}", $params);
-$perPage = 40;
-$pages   = max(1, (int) ceil($total / $perPage));
-$page    = max(1, min((int) ($_GET['page'] ?? 1), $pages));
-$offset  = ($page - 1) * $perPage;
+/* Was 40 a page with the arithmetic done here. The SQL still does the paging
+   — an activity log is the one table that genuinely grows without limit — but
+   the window and the clamping now come from the one place that does it. */
+$window  = Paginator::of($total, $_GET['page'] ?? null);
+$perPage = $window['perPage'];
+$page    = $window['page'];
+$offset  = $window['offset'];
+$pages   = $window['pages'];
 
 $rows = Database::all(
     "SELECT l.*, a.full_name, a.username
@@ -61,6 +66,8 @@ $rows = Database::all(
       LIMIT {$perPage} OFFSET {$offset}",
     $params
 );
+
+$pager    = ['rows' => $rows] + $window;
 
 $admins   = Database::all('SELECT id, full_name FROM admins ORDER BY full_name');
 $entities = Database::all('SELECT DISTINCT entity_type FROM activity_logs WHERE entity_type IS NOT NULL ORDER BY entity_type');
@@ -167,5 +174,7 @@ require __DIR__ . '/../_partials/head.php';
         </nav>
     <?php endif; ?>
 <?php endif; ?>
+
+<?php require __DIR__ . '/../../app/views/partials/pager.php'; ?>
 
 <?php require __DIR__ . '/../_partials/foot.php'; ?>

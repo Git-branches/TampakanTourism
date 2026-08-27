@@ -2,8 +2,11 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../../bootstrap.php';
+require_once __DIR__ . '/_helpers.php';
 
+use App\Core\Paginator;
 use App\Core\Auth;
+use App\Core\Database;
 use App\Core\Notifier;
 use App\Core\SmsGateway;
 use App\Repositories\AnnouncementRepository;
@@ -21,10 +24,39 @@ $filters = [
     'search' => trim((string) ($_GET['q'] ?? '')),
 ];
 
-$result     = AnnouncementRepository::paginate($filters, (int) ($_GET['page'] ?? 1), 15);
+$result     = AnnouncementRepository::paginate($filters, (int) ($_GET['page'] ?? 1), Paginator::PER_PAGE);
+$pager      = Paginator::adopt($result);
 $counts     = AnnouncementRepository::statusCounts();
 $recipients = count(ManagerRepository::smsRecipients());
 $retryable  = Notifier::retryableCount();
+
+/* The composer is rendered into a dialog at the foot of this page, so what it
+   needs is loaded here as well as in create.php. */
+$destinations   = Database::all("SELECT id, name FROM destinations WHERE status='active' ORDER BY name");
+$recipientCount = $recipients;
+
+/* Rejected input comes back from create.php with its errors; the dialog
+   reopens over the list rather than sending anybody to a second screen. */
+/* NOT $a. The list below walks the announcements with
+   `foreach ($result['rows'] as $a)`, and the dialog is rendered after it — so a
+   variable called $a here would hold the last row on the page by the time the
+   composer read it, and the rejected draft would come back as somebody else's
+   announcement. */
+$sheetAnnouncement = array_fill_keys([
+    'id','title','summary','body','type','audience','status',
+    'destination_id','event_date','event_location','publish_at','expires_at',
+], '');
+
+$sheetAnnouncement['type']     = 'announcement';
+$sheetAnnouncement['audience'] = 'public';
+$sheetAnnouncement['status']   = 'draft';
+
+foreach (array_keys($sheetAnnouncement) as $k) {
+    $old = old_all();
+    if (isset($old[$k])) { $sheetAnnouncement[$k] = $old[$k]; }
+}
+
+$sheetOpen = old_all() !== [];
 
 require __DIR__ . '/../_partials/head.php';
 ?>
@@ -76,7 +108,9 @@ require __DIR__ . '/../_partials/head.php';
 
         <button type="submit" class="btn btn-sm btn-outline-secondary">Apply</button>
     </form>
-    <a href="create.php" class="btn btn-brand btn-sm"><i class="fa-solid fa-plus"></i> New Announcement</a>
+    <button type="button" class="btn btn-brand btn-sm" data-dialog="addAnnouncement">
+        <i class="fa-solid fa-plus"></i> New Announcement
+    </button>
 </div>
 
 <?php if ($result['rows'] === []): ?>
@@ -87,7 +121,11 @@ require __DIR__ . '/../_partials/head.php';
             <p><strong>No announcements yet.</strong></p>
             <p>Publish advisories, closure notices, event listings, and report submission
                schedules from one place.</p>
-            <p class="mt-3"><a href="create.php" class="btn btn-brand btn-sm"><i class="fa-solid fa-plus"></i> Write the first one</a></p>
+            <p class="mt-3">
+                <button type="button" class="btn btn-brand btn-sm" data-dialog="addAnnouncement">
+                    <i class="fa-solid fa-plus"></i> Write the first one
+                </button>
+            </p>
         </div>
     </div></div>
 
@@ -133,15 +171,18 @@ require __DIR__ . '/../_partials/head.php';
         <?php endforeach; ?>
     </div>
 
-    <?php if ($result['pages'] > 1): ?>
-        <nav class="pager">
-            <?php for ($p = 1; $p <= $result['pages']; $p++): ?>
-                <a href="?status=<?= e($filters['status']) ?>&page=<?= $p ?>"
-                   class="<?= $p === $result['page'] ? 'is-current' : '' ?>"><?= $p ?></a>
-            <?php endfor; ?>
-        </nav>
-    <?php endif; ?>
+    <?php /* Was a hand-rolled row of numbers that rebuilt the query from
+             $filters['status'] alone, so page two of any other filter
+             quietly showed the unfiltered list. */ ?>
+    <?php require __DIR__ . '/../../app/views/partials/pager.php'; ?>
 
 <?php endif; ?>
+
+<?php /* The list's own copy of the composer. Same _form.php create.php and
+         edit.php use, so a field added there appears here without anyone
+         remembering to. */ ?>
+<dialog class="sheet sheet--wide" id="addAnnouncement"<?= $sheetOpen ? ' data-open' : '' ?>>
+    <?php $inSheet = true; $a = $sheetAnnouncement; require __DIR__ . '/_form.php'; ?>
+</dialog>
 
 <?php require __DIR__ . '/../_partials/foot.php'; ?>

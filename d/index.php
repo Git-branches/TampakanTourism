@@ -327,18 +327,139 @@ $hasDirections = $d['latitude'] !== null && $d['longitude'] !== null;
         </section>
     <?php endif; ?>
 
-    <!-- ===================== GETTING AROUND ===================== -->
-    <?php if ($hasDirections): ?>
+    <!-- ===================== 3a. THIS PLACE, FILMED =====================
+         Only this destination's videos. Somebody standing at Jadas Falls with
+         the sign in front of them gets the Jadas clip and nothing else — a
+         gallery of the whole municipality is a different errand.
+
+         preload="none" is not a nicety here. This page is opened on mobile data
+         at a trailhead, and a video that starts downloading itself has spent
+         somebody's load before they chose to watch anything. -->
+    <?php $qrVideos = App\Repositories\VideoRepository::published((int) $d['id'], 3); ?>
+    <?php if ($qrVideos !== []): ?>
         <section class="lb-card">
-            <h2 class="lb-h2"><i class="fa-solid fa-diamond-turn-right"></i> Directions</h2>
-            <p class="lb-muted">Opens in your maps app. Signal can be weak here — load it before you set off.</p>
-            <a class="lb-btn lb-btn--primary"
-               href="https://www.google.com/maps/dir/?api=1&destination=<?= e((string) $d['latitude']) ?>,<?= e((string) $d['longitude']) ?>"
-               target="_blank" rel="noopener">
-                <i class="fa-solid fa-route"></i> Get directions
-            </a>
+            <h2 class="lb-h2"><i class="fa-solid fa-film"></i> Watch</h2>
+
+            <?php foreach ($qrVideos as $qrVideo): ?>
+                <?php $qrEmbed = $qrVideo['source'] === 'external'
+                    ? App\Repositories\VideoRepository::embedUrl((string) $qrVideo['external_url'])
+                    : null; ?>
+                <div class="lb-video">
+                    <?php if ($qrVideo['source'] === 'upload' && $qrVideo['file_path']): ?>
+                        <video controls preload="none" playsinline
+                               <?= $qrVideo['poster_path']
+                                    ? 'poster="' . e(base_url('/' . $qrVideo['poster_path'])) . '"'
+                                    : '' ?>>
+                            <source src="<?= e(base_url('/' . $qrVideo['file_path'])) ?>"
+                                    type="<?= e((string) ($qrVideo['mime_type'] ?: 'video/mp4')) ?>">
+                        </video>
+                    <?php elseif ($qrEmbed !== null): ?>
+                        <iframe src="<?= e($qrEmbed) ?>" title="<?= e((string) $qrVideo['title']) ?>"
+                                loading="lazy" allowfullscreen
+                                referrerpolicy="strict-origin-when-cross-origin"></iframe>
+                    <?php endif; ?>
+                </div>
+                <?php if ($qrVideo['caption']): ?>
+                    <p class="lb-muted"><?= e((string) $qrVideo['caption']) ?></p>
+                <?php endif; ?>
+            <?php endforeach; ?>
         </section>
     <?php endif; ?>
+
+    <!-- =============== 3b. THE MUNICIPALITY'S OWN HERITAGE ===============
+         SHARED BY EVERY QR CODE, and separate from the block above on purpose.
+         The section above is about this one place; this one is about Tampakan,
+         and it reads identically at Bulol Falls and at Kolon Ridge because it
+         is the same municipality either way.
+
+         Two sections rather than one merged paragraph: a visitor should be able
+         to tell which sentences are about the ground under their feet and which
+         are about the town they drove through to get here. -->
+    <?php
+    $municipalHeritage = trim((string) (setting('municipal_heritage', '') ?? ''));
+    $municipalTitle    = trim((string) (setting('municipal_heritage_title', '') ?? ''))
+        ?: 'Local Culture & Heritage of Tampakan';
+    ?>
+    <?php if ($municipalHeritage !== ''): ?>
+        <section class="lb-card lb-card--heritage">
+            <h2 class="lb-h2"><i class="fa-solid fa-people-group"></i> <?= e($municipalTitle) ?></h2>
+            <p><?= nl2br(e($municipalHeritage)) ?></p>
+        </section>
+    <?php endif; ?>
+
+    <!-- ===================== GETTING AROUND =====================
+         Somebody scanning this sign has already arrived, so directions here are
+         for the journey OUT — back to town, or on to the next place. The
+         printable sheet matters more than the maps-app link: they are standing
+         at the point where signal usually fails, which is the last moment they
+         can save anything at all. -->
+    <?php $qrRoutes = App\Repositories\RouteRepository::forDestination((int) $d['id']); ?>
+    <?php if ($hasDirections || $qrRoutes !== [] || $d['offline_map_image']): ?>
+        <section class="lb-card">
+            <h2 class="lb-h2"><i class="fa-solid fa-diamond-turn-right"></i> Directions</h2>
+            <p class="lb-muted">Signal is weak here — save these before you move on.</p>
+
+            <?php if ($qrRoutes !== []): ?>
+                <a class="lb-btn lb-btn--primary"
+                   href="<?= e(base_url('/directions.php?slug=' . urlencode((string) $d['slug']))) ?>">
+                    <i class="fa-solid fa-file-arrow-down"></i> Printable directions sheet
+                </a>
+            <?php endif; ?>
+
+            <?php if ($d['offline_map_image']): ?>
+                <a class="lb-btn"
+                   href="<?= e(base_url('/' . $d['offline_map_image'])) ?>"
+                   download="<?= e((string) $d['slug']) ?>-map.jpg">
+                    <i class="fa-solid fa-map"></i> Download the map
+                </a>
+            <?php endif; ?>
+
+            <?php if ($hasDirections): ?>
+                <a class="lb-btn"
+                   href="https://www.google.com/maps/dir/?api=1&destination=<?= e((string) $d['latitude']) ?>,<?= e((string) $d['longitude']) ?>"
+                   target="_blank" rel="noopener">
+                    <i class="fa-solid fa-route"></i> Open in maps
+                </a>
+            <?php endif; ?>
+        </section>
+    <?php endif; ?>
+
+    <!-- ===================== ALSO NEARBY ===================== -->
+    <?php $qrNearby = App\Repositories\RouteRepository::nearby((int) $d['id'], 3); ?>
+    <?php if ($qrNearby !== []): ?>
+        <section class="lb-card">
+            <h2 class="lb-h2"><i class="fa-solid fa-location-crosshairs"></i> Also nearby</h2>
+            <p class="lb-muted">Other places in Tampakan within reach of here.</p>
+            <ul class="lb-nearby">
+                <?php foreach ($qrNearby as $n): ?>
+                    <li>
+                        <a href="<?= e(base_url('/destination.php?slug=' . urlencode((string) $n['slug']))) ?>">
+                            <strong><?= e((string) $n['name']) ?></strong>
+                            <span><?= e(number_format((float) $n['distance_km'], 1)) ?> km away</span>
+                        </a>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+        </section>
+    <?php endif; ?>
+
+    <!-- ===================== A LOCAL GUIDE ===================== -->
+    <!-- Placed on the QR page and not only on the website because this is the
+         moment it is asked: somebody is standing at the trailhead deciding
+         whether to go up alone. src=qr tells the Office they are already here,
+         which is a different urgency from a request made a week out. -->
+    <section class="lb-card">
+        <h2 class="lb-h2"><i class="fa-solid fa-person-hiking"></i> Want a local guide?</h2>
+        <p>
+            The Municipal Tourism Office can arrange someone who knows
+            <?= e((string) $d['name']) ?> &mdash; the trail, the history, and the safe way round.
+        </p>
+        <a class="lb-btn lb-btn--primary"
+           href="<?= e(base_url('/tour-guide.php?src=qr&d=' . urlencode((string) $d['slug']))) ?>">
+            <i class="fa-solid fa-paper-plane"></i> Request a tour guide
+        </a>
+        <p class="lb-muted">They text you the guide's name and number, usually the same day.</p>
+    </section>
 
     <!-- ===================== THE PAPER LOGBOOK ===================== -->
     <!-- Said plainly, because the sign no longer asks them to type anything and

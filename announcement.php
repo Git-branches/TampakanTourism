@@ -32,7 +32,7 @@ $style = $a !== null
     <meta name="robots" content="noindex">
 <?php endif; ?>
 <link rel="icon" href="assets/img/tampakan_logo.png" sizes="any">
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
 <link rel="stylesheet" href="<?= e(asset('css/style.css')) ?>">
@@ -40,14 +40,13 @@ $style = $a !== null
 <body id="top">
 
 <?php
-/* No navbar, matching the destination and map pages — the gradient banner
-   below is this page's header and does not need a second one above it.
+/* NAVBAR ON, found or not.
  *
- * The not-found branch keeps its navbar, for the same reason destination.php
- * does: that branch has no banner at all, so dropping the header too would
- * leave somebody who followed an expired advisory on a bare white page with a
- * single button on it. */
-$showNavbar = ($a === null);
+ * It was previously shown only on the not-found branch, which meant a reader
+ * who reached a real announcement lost every route out of it. Somebody who has
+ * just read that a trail is closed is precisely the person who then wants the
+ * map or the destination list. */
+$showNavbar = true;
 require __DIR__ . '/app/views/partials/public-nav.php';
 ?>
 
@@ -71,22 +70,20 @@ require __DIR__ . '/app/views/partials/public-nav.php';
 
 <?php else: ?>
 
-    <header class="page-head page-head--top">
-        <div class="container">
-            <nav aria-label="Breadcrumb" class="crumbs">
-                <a href="<?= e(base_url('/')) ?>">Home</a>
-                <i class="fa-solid fa-angle-right"></i>
-                <a href="<?= e(announcements_url()) ?>">Announcements</a>
-                <i class="fa-solid fa-angle-right"></i>
-                <span><?= e(AnnouncementRepository::TYPES[$a['type']]) ?></span>
-            </nav>
-            <h1><?= e($a['title']) ?></h1>
-            <p>
-                <i class="fa-regular fa-calendar"></i>
-                <?= e(format_date($a['publish_at'] ?: $a['created_at'], 'F j, Y')) ?>
-            </p>
-        </div>
-    </header>
+    <?php
+    /* The shared header, same as the map and the tour guide page. */
+    $head = [
+        'title'  => (string) $a['title'],
+        'icon'   => 'fa-regular fa-calendar',
+        'sub'    => format_date($a['publish_at'] ?: $a['created_at'], 'F j, Y'),
+        'crumbs' => [
+            ['label' => 'Home',          'href' => base_url('/')],
+            ['label' => 'Announcements', 'href' => announcements_url()],
+            ['label' => AnnouncementRepository::TYPES[$a['type']]],
+        ],
+    ];
+    require __DIR__ . '/app/views/partials/page-head.php';
+    ?>
 
     <section class="section section--light">
         <div class="container">
@@ -143,6 +140,17 @@ require __DIR__ . '/app/views/partials/public-nav.php';
 
 <?php require __DIR__ . '/app/views/partials/public-footer.php'; ?>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="<?= e(asset('js/vendor/sweetalert2.all.min.js')) ?>"></script>
+<script src="<?= e(asset('js/notify.js')) ?>"></script>
 <script src="<?= e(asset('js/script.js')) ?>"></script>
+
+<!-- =========================================================================
+     THE TOURISM ASSISTANT
+     Every public page carries it. A visitor reading an advisory, planning a
+     route or filling in a guide request has the same questions as one on the
+     home page, and should not have to go back to ask them.
+     ====================================================================== -->
+<?php require __DIR__ . '/app/views/partials/chat-widget.php'; ?>
+
 </body>
 </html>

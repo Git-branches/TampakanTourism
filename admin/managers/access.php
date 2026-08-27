@@ -240,8 +240,9 @@ require __DIR__ . '/../_partials/head.php';
 
         <?php if ($m['username']): ?>
             <hr class="my-4">
-            <form method="post"
-                  onsubmit="return confirm('Revoke sign-in for <?= e(addslashes($m['full_name'])) ?>?\n\nThey will lose access immediately. Their submitted reports are kept.');">
+            <form method="post" data-confirm="Revoke sign-in for &lt;?= e(addslashes($m['full_name'])) ?&gt;?
+
+They will lose access immediately. Their submitted reports are kept.">
                 <?= csrf_field() ?>
                 <input type="hidden" name="action" value="revoke">
                 <button type="submit" class="btn btn-sm btn-outline-danger">

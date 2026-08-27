@@ -8,7 +8,9 @@ declare(strict_types=1);
  */
 
 require_once __DIR__ . '/../../bootstrap.php';
+require_once __DIR__ . '/_helpers.php';
 
+use App\Core\Paginator;
 use App\Core\Auth;
 use App\Repositories\CategoryRepository;
 use App\Repositories\DestinationRepository;
@@ -28,8 +30,28 @@ $filters = [
     'dir'         => (string) ($_GET['dir'] ?? 'desc'),
 ];
 
-$result     = DestinationRepository::paginate($filters, (int) ($_GET['page'] ?? 1), 12);
+$result     = DestinationRepository::paginate($filters, (int) ($_GET['page'] ?? 1), Paginator::PER_PAGE);
+$pager      = Paginator::adopt($result);
 $categories = CategoryRepository::all();
+
+/* NOT $d. The table below walks the list with `foreach ($result['rows'] as $d)`,
+   and the dialog is rendered after it — so a variable called $d here would hold
+   the last destination on the page by the time the form read it, and the
+   rejected input would come back as somebody else's record. */
+$sheetDestination = array_fill_keys([
+    'id', 'name', 'slug', 'category_id', 'short_description', 'description', 'history',
+    'cultural_heritage', 'operating_hours', 'entrance_fee', 'facilities', 'reminders',
+    'safety_notes', 'barangay', 'address',
+    'latitude', 'longitude', 'contact_person', 'contact_phone', 'local_hotline',
+    'contact_email', 'is_featured',
+], '');
+
+foreach (array_keys($sheetDestination) as $key) {
+    $rejected = old_all();
+    if (isset($rejected[$key])) { $sheetDestination[$key] = $rejected[$key]; }
+}
+
+$sheetOpen = old_all() !== [];
 
 $counts = [
     'active'   => (int) App\Core\Database::scalar("SELECT COUNT(*) FROM destinations WHERE status = 'active'"),
@@ -76,9 +98,9 @@ require __DIR__ . '/../_partials/head.php';
         <?php endif; ?>
     </form>
 
-    <a href="create.php" class="btn btn-brand btn-sm">
+    <button type="button" class="btn btn-brand btn-sm" data-dialog="addDestination">
         <i class="fa-solid fa-plus"></i> Add Destination
-    </a>
+    </button>
 </div>
 
 <?php if ($result['rows'] === []): ?>
@@ -94,8 +116,11 @@ require __DIR__ . '/../_partials/head.php';
                     <p><strong>No destinations registered yet.</strong></p>
                     <p>Add the first one and it appears on the public website immediately —
                        no code change, no separate upload.</p>
-                    <p class="mt-3"><a href="create.php" class="btn btn-brand btn-sm">
-                        <i class="fa-solid fa-plus"></i> Add the first destination</a></p>
+                    <p class="mt-3">
+                        <button type="button" class="btn btn-brand btn-sm" data-dialog="addDestination">
+                            <i class="fa-solid fa-plus"></i> Add the first destination
+                        </button>
+                    </p>
                 <?php endif; ?>
             </div>
         </div>
@@ -152,33 +177,67 @@ require __DIR__ . '/../_partials/head.php';
                     </div>
                 </div>
 
+                <?php
+                /* FOUR EQUAL BUTTONS, and the labels are wrapped so they can be
+                   dropped without touching the icons.
+                 *
+                 * They used to be four plain buttons of whatever width their
+                 * own text needed, inside a 268px column. They did not fit, so
+                 * each label wrapped under its icon and the row became two
+                 * lines of ragged, differently-sized controls — with the fourth
+                 * button carrying no label at all, which made it look like a
+                 * different kind of thing from the three beside it.
+                 *
+                 * Every title= is set whether or not the label is showing, so
+                 * the meaning survives at the widths where the text does not. */
+                ?>
                 <div class="dest-tile__actions">
-                    <a href="edit.php?id=<?= (int) $d['id'] ?>" class="btn btn-sm btn-outline-secondary">
-                        <i class="fa-solid fa-pen"></i> Edit
+                    <a href="edit.php?id=<?= (int) $d['id'] ?>"
+                       class="btn btn-sm btn-outline-secondary" title="Edit details">
+                        <i class="fa-solid fa-pen" aria-hidden="true"></i>
+                        <span class="btn-label">Edit</span>
                     </a>
-                    <a href="photos.php?id=<?= (int) $d['id'] ?>" class="btn btn-sm btn-outline-secondary">
-                        <i class="fa-solid fa-images"></i> Photos
+                    <a href="photos.php?id=<?= (int) $d['id'] ?>"
+                       class="btn btn-sm btn-outline-secondary" title="Photos">
+                        <i class="fa-solid fa-images" aria-hidden="true"></i>
+                        <span class="btn-label">Photos</span>
+                    </a>
+                    <a href="routes.php?id=<?= (int) $d['id'] ?>"
+                       class="btn btn-sm btn-outline-secondary" title="Directions">
+                        <i class="fa-solid fa-diamond-turn-right" aria-hidden="true"></i>
+                        <span class="btn-label">Routes</span>
                     </a>
                     <?php if ($d['status'] === 'active'): ?>
                         <a href="<?= e(base_url('/destination.php?slug=' . $d['slug'])) ?>"
-                           target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary" title="View public page">
-                            <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                           target="_blank" rel="noopener"
+                           class="btn btn-sm btn-outline-secondary" title="Open the public page in a new tab">
+                            <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i>
+                            <span class="btn-label">View</span>
                         </a>
+                    <?php else: ?>
+                        <?php /* Archived: the public page 404s, so the slot is held
+                                 rather than left to stretch the other three. */ ?>
+                        <span class="btn btn-sm btn-outline-secondary is-disabled"
+                              aria-disabled="true" title="Archived — no public page">
+                            <i class="fa-solid fa-eye-slash" aria-hidden="true"></i>
+                            <span class="btn-label">Hidden</span>
+                        </span>
                     <?php endif; ?>
                 </div>
             </article>
         <?php endforeach; ?>
     </div>
 
-    <?php if ($result['pages'] > 1): ?>
-        <nav class="pager" aria-label="Pages">
-            <?php for ($p = 1; $p <= $result['pages']; $p++): ?>
-                <a href="<?= e(filter_url(['page' => $p])) ?>"
-                   class="<?= $p === $result['page'] ? 'is-current' : '' ?>"><?= $p ?></a>
-            <?php endfor; ?>
-        </nav>
-    <?php endif; ?>
+    <?php require __DIR__ . '/../../app/views/partials/pager.php'; ?>
 
 <?php endif; ?>
+
+<?php /* The list's own copy of the form. Same _form.php create.php and edit.php
+         use, so a field added there appears here without anyone remembering to.
+         Rendered last, which is why the values are held in $sheetDestination
+         until now — the table above walks the list in $d. */ ?>
+<dialog class="sheet sheet--wide" id="addDestination"<?= $sheetOpen ? ' data-open' : '' ?>>
+    <?php $inSheet = true; $d = $sheetDestination; require __DIR__ . '/_form.php'; ?>
+</dialog>
 
 <?php require __DIR__ . '/../_partials/foot.php'; ?>

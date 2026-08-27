@@ -2,24 +2,44 @@
 declare(strict_types=1);
 
 /**
- * TourSync — tourist arrivals (admin).      Feature 2 / Problem 2
+ * TourSync — the visitor register.                                  Feature 2
  *
- * Every row here was written by a visitor's own phone. Nobody collected,
- * consolidated, or delivered anything: this screen reads the same rows the
- * tourist created, which is what removes the manual submission step.
+ * One row per person who signed a paper logbook at a destination: transcribed
+ * by the destination manager, submitted as an arrival report, and approved by
+ * this office. Approval is the only thing that writes here.
+ *
+ * WHAT THIS SCREEN IS FOR, now that the office does not collect arrivals
+ *
+ *   looking one up   "who was at Jadas Falls on 14 August?" — after an
+ *                    incident, or when a visitor asks about a lost item, this
+ *                    is the only screen with names on it
+ *   checking a total the monthly form shows figures; this shows the people
+ *                    behind them, which is what makes a figure defensible
+ *   exporting        a filtered CSV for a request the office has to answer
+ *   voiding          one bad row, with a reason, without sending the whole
+ *                    report back
+ *
+ * It is READ-ONLY as to creation. There is no "add an arrival" here and there
+ * must not be: a row typed on this screen would carry no manager, no report and
+ * no review, and would still have landed on the DOT form beside figures that
+ * went through all three. The screen that did that was removed.
+ *
+ * PRIVACY. Names, contact numbers and home addresses under RA 10173. Officer
+ * and staff only, never public, and never the chatbot's.
  */
 
 require_once __DIR__ . '/../../bootstrap.php';
 
+use App\Core\Paginator;
 use App\Core\Auth;
 use App\Core\Database;
 use App\Repositories\ArrivalRepository;
 
 Auth::require();
 
-$pageTitle    = 'Tourist Arrivals';
+$pageTitle    = 'Visitor Register';
 $pageIcon     = 'fa-user-check';
-$pageSubtitle = 'Recorded directly by visitors — no manual submission';
+$pageSubtitle = 'One row per person who signed a paper logbook — written here only by approving a report';
 
 $filters = [
     'from'           => trim((string) ($_GET['from'] ?? '')),
@@ -31,7 +51,8 @@ $filters = [
     'search'         => trim((string) ($_GET['q'] ?? '')),
 ];
 
-$result = ArrivalRepository::paginate($filters, (int) ($_GET['page'] ?? 1), 25);
+$result = ArrivalRepository::paginate($filters, (int) ($_GET['page'] ?? 1), Paginator::PER_PAGE);
+$pager  = Paginator::adopt($result);
 
 $destinations = Database::all("SELECT id, name FROM destinations ORDER BY name");
 $flaggedCount = ArrivalRepository::countFlagged();
@@ -84,8 +105,10 @@ require __DIR__ . '/../_partials/head.php';
 
         <select name="source" class="form-select form-select-sm">
             <option value="">Any source</option>
-            <option value="qr"     <?= $filters['source'] === 'qr'     ? 'selected' : '' ?>>QR scan</option>
-            <option value="manual" <?= $filters['source'] === 'manual' ? 'selected' : '' ?>>Manual entry</option>
+            <option value="manual" <?= $filters['source'] === 'manual' ? 'selected' : '' ?>>Paper logbook</option>
+            <!-- Kept so historical rows from the retired QR logbook can still
+                 be found. Nothing new is written with this source. -->
+            <option value="qr"     <?= $filters['source'] === 'qr'     ? 'selected' : '' ?>>QR scan (retired)</option>
         </select>
     </div>
 
@@ -98,8 +121,17 @@ require __DIR__ . '/../_partials/head.php';
 
         <div class="filter-bar__spacer"></div>
 
-        <a href="manual.php" class="btn btn-sm btn-outline-secondary">
-            <i class="fa-solid fa-pen"></i> Manual Entry
+        <?php
+        /* "Manual Entry" was here. Removed with the screen behind it: a row
+           typed by the office carried no manager, no report and no review, and
+           still reached the monthly DOT form. Arrivals now arrive one way — a
+           manager submits, the office approves.
+
+           A PHP comment, not an HTML one: this explains an internal decision
+           and there is no reason to ship it to every browser. */
+        ?>
+        <a href="<?= e(base_url('/admin/arrival-reports/index.php')) ?>" class="btn btn-sm btn-outline-secondary">
+            <i class="fa-solid fa-inbox"></i> Reports to Review
         </a>
         <a href="export.php?<?= e($queryString) ?>" class="btn btn-sm btn-brand">
             <i class="fa-solid fa-file-csv"></i> Export CSV
@@ -123,11 +155,14 @@ require __DIR__ . '/../_partials/head.php';
                 <p><a href="index.php">Clear the filters</a> to see everything.</p>
             <?php else: ?>
                 <p><strong>No arrivals recorded yet.</strong></p>
-                <p>Records appear here the moment a visitor scans a destination QR code and
-                   submits the digital logbook — no collection or encoding step in between.</p>
+                <p>
+                    Visitors sign the paper logbook at the destination. The manager copies that page
+                    into an arrival report and submits it, and the entries appear here once the
+                    Office approves the report &mdash; not before.
+                </p>
                 <p class="mt-3">
-                    <a href="<?= e(base_url('/admin/qrcodes/index.php')) ?>" class="btn btn-brand btn-sm">
-                        <i class="fa-solid fa-qrcode"></i> Print the QR posters
+                    <a href="<?= e(base_url('/admin/arrival-reports/index.php')) ?>" class="btn btn-brand btn-sm">
+                        <i class="fa-solid fa-inbox"></i> Review submitted reports
                     </a>
                 </p>
             <?php endif; ?>
@@ -162,16 +197,23 @@ require __DIR__ . '/../_partials/head.php';
                         <td><span class="tag"><?= e(ucfirst(str_replace('_', ' ', $a['tourist_type']))) ?></span></td>
                         <td>
                             <?php
-                            $origin = array_filter([$a['origin_city'], $a['origin_province']]);
-                            echo e($origin ? implode(', ', $origin) : ($a['origin_country'] ?: '—'));
+                            echo e(origin_label($a['origin_city'], $a['origin_province'], $a['origin_country']));
                             ?>
                         </td>
                         <td class="text-end num"><?= n($a['total_visitors']) ?></td>
                         <td>
+                            <?php
+                            /* The stored value is still 'manual' — it means "a
+                               person typed this", which is true. What changed is
+                               WHO: the destination manager copying the paper
+                               page, not an officer at a desk. The label says the
+                               thing an officer needs to know. */
+                            ?>
                             <?php if ($a['source'] === 'qr'): ?>
-                                <span class="pill pill--qr"><i class="fa-solid fa-qrcode"></i> Scan</span>
+                                <span class="pill pill--qr"><i class="fa-solid fa-qrcode"></i> QR scan</span>
+                                <span class="cell-sub">retired channel</span>
                             <?php else: ?>
-                                <span class="pill pill--manual"><i class="fa-solid fa-pen"></i> Manual</span>
+                                <span class="pill pill--manual"><i class="fa-solid fa-book-open"></i> Paper logbook</span>
                             <?php endif; ?>
 
                             <?php
@@ -226,5 +268,7 @@ require __DIR__ . '/../_partials/head.php';
     <?php endif; ?>
 
 <?php endif; ?>
+
+<?php require __DIR__ . '/../../app/views/partials/pager.php'; ?>
 
 <?php require __DIR__ . '/../_partials/foot.php'; ?>

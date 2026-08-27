@@ -88,6 +88,7 @@ if (!function_exists('public_nav')) {
             ['label' => 'Home',          'href' => $onHome ? '#home' : base_url('/'), 'match' => 'index.php'],
             ['label' => 'Destinations',  'href' => $onHome ? '#destinations' : destinations_url(), 'match' => 'destinations'],
             ['label' => 'Tourist Map',   'href' => base_url('/map.php'),              'match' => 'map.php'],
+            ['label' => 'Tour Guide',    'href' => base_url('/tour-guide.php'),       'match' => 'tour-guide.php'],
             ['label' => 'Announcements', 'href' => $onHome ? '#news' : announcements_url(), 'match' => 'announcements'],
             ['label' => 'Travel Guide',  'href' => $section('travel-guide'),          'match' => ''],
             ['label' => 'About',         'href' => $section('about'),                 'match' => ''],
@@ -352,6 +353,30 @@ if (!function_exists('flash_back')) {
     {
         Session::put('_errors', $errors);
         Session::put('_old', array_diff_key($input, array_flip(['password', 'password_confirm', '_token'])));
+
+        /* SAY SOMETHING AT THE TOP, not only beside the field.
+         *
+         * This used to redirect in silence and leave the whole explanation to
+         * inline field errors. On a long form — Settings, the destination form,
+         * the report form — the field that failed is often below the fold, so
+         * pressing Save appeared to do nothing at all and people pressed it
+         * again. One toast tells them the save did not happen and how many
+         * fields to look for.
+         *
+         * Skipped when $errors is empty, which is how the two callers that
+         * raise their own message (a save that threw rather than a field that
+         * failed) avoid getting a second toast on top of it. */
+        if ($errors !== []) {
+            $count = count($errors);
+
+            Session::flash(
+                'danger',
+                $count === 1
+                    ? 'Nothing was saved — one field needs your attention.'
+                    : 'Nothing was saved — ' . $count . ' fields need your attention.'
+            );
+        }
+
         redirect($url);
     }
 }
@@ -398,5 +423,117 @@ if (!function_exists('json_response')) {
         header('Content-Type: application/json; charset=utf-8');
         echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         exit;
+    }
+}
+
+if (!function_exists('origin_label')) {
+    /**
+     * Formats where a visitor came from, without saying it twice.
+     *
+     * Three screens used to build this with array_filter() + implode() and each
+     * of them printed "General Santos City, General Santos City" — because on
+     * the DOT form that city IS its own province, so origin_city and
+     * origin_province legitimately hold the same string. Sarangani, Cotabato,
+     * Cavite and the other province-level entries do the same thing.
+     *
+     * The country is dropped when a province is already shown: "Koronadal City,
+     * South Cotabato, Philippines" tells a Tampakan officer nothing the first
+     * two words did not. It is KEPT when there is no province, which is exactly
+     * the foreign visitor — "Osaka, Japan" needs the second half.
+     *
+     * One function rather than a fix in each template, because three copies of
+     * this rule is three places for it to drift apart again.
+     */
+    function origin_label(?string $city, ?string $province, ?string $country = null, string $fallback = '—'): string
+    {
+        $parts = [];
+
+        foreach ([$city, $province] as $piece) {
+            $piece = trim((string) $piece);
+
+            if ($piece === '') {
+                continue;
+            }
+
+            // Case-insensitive: "General Santos City" must not follow "general santos city".
+            foreach ($parts as $existing) {
+                if (mb_strtolower($existing) === mb_strtolower($piece)) {
+                    continue 2;
+                }
+            }
+
+            $parts[] = $piece;
+        }
+
+        /* Keyed on the PROVINCE being absent, not on there being nothing at all.
+         *
+         * Today the classifier stores city and province as NULL for a foreign
+         * visitor and only fills origin_country, so either test would pass. But
+         * the moment a foreign entry carries a city — "Osaka" — a rule written
+         * against emptiness would drop "Japan" and leave a Tampakan officer
+         * reading a city name with no country attached. A domestic row already
+         * showing its province does not need "Philippines" after it. */
+        $country  = trim((string) $country);
+        $province = trim((string) $province);
+
+        if ($country !== '' && $province === '') {
+            $parts[] = $country;
+        }
+
+        return $parts === [] ? $fallback : implode(', ', $parts);
+    }
+}
+
+if (!function_exists('upload_limit_bytes')) {
+    /**
+     * The largest single file this server will actually accept.
+     *
+     * "40 MB" was written into six places — two upload messages, the form text,
+     * a card subtitle, a class constant and a migration comment — all of them
+     * repeating what php.ini happened to say on the machine it was written on.
+     * The office deploys to shared hosting, where that number is somebody
+     * else's to set, and every one of those sentences would have gone on
+     * confidently naming a limit that no longer existed.
+     *
+     * Both directives matter and the smaller one wins: upload_max_filesize caps
+     * the file, post_max_size caps the whole submission it travels in.
+     */
+    function upload_limit_bytes(): int
+    {
+        static $bytes = null;
+
+        if ($bytes !== null) {
+            return $bytes;
+        }
+
+        $parse = static function (string $raw): int {
+            $raw  = trim($raw);
+            $unit = strtolower(substr($raw, -1));
+            $n    = (int) $raw;
+
+            return match ($unit) {
+                'g'     => $n * 1024 * 1024 * 1024,
+                'm'     => $n * 1024 * 1024,
+                'k'     => $n * 1024,
+                default => $n,
+            };
+        };
+
+        $file = $parse((string) ini_get('upload_max_filesize'));
+        $post = $parse((string) ini_get('post_max_size'));
+
+        /* A zero means "no limit" for post_max_size, so it cannot be allowed to
+           win a min() against a real number. */
+        $candidates = array_filter([$file, $post], static fn(int $v): bool => $v > 0);
+
+        return $bytes = $candidates === [] ? 40 * 1024 * 1024 : (int) min($candidates);
+    }
+}
+
+if (!function_exists('upload_limit_mb')) {
+    /** The same limit as a whole number of megabytes, for saying out loud. */
+    function upload_limit_mb(): int
+    {
+        return (int) floor(upload_limit_bytes() / 1048576);
     }
 }

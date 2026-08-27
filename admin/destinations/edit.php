@@ -91,10 +91,9 @@ require __DIR__ . '/../_partials/head.php';
             </a>
         <?php endif; ?>
 
-        <form method="post" action="archive.php" class="d-inline"
-              onsubmit="return confirm('<?= $d['status'] === 'active'
+        <form method="post" action="archive.php" class="d-inline" data-confirm="&lt;?= $d['status'] === 'active'
                   ? 'Archive this destination? It disappears from the public site and the map, but every recorded arrival is kept.'
-                  : 'Restore this destination to the public site?' ?>');">
+                  : 'Restore this destination to the public site?' ?&gt;" data-confirm-tone="normal">
             <?= csrf_field() ?>
             <input type="hidden" name="id" value="<?= $id ?>">
             <input type="hidden" name="status" value="<?= $d['status'] === 'active' ? 'archived' : 'active' ?>">

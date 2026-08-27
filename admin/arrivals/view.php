@@ -117,7 +117,7 @@ require __DIR__ . '/../_partials/head.php';
                     <div><dt>Stay</dt><dd><?= $a['stay_type'] === 'overnight' ? 'Overnight' : ($a['stay_type'] === 'day_trip' ? 'Day trip' : '—') ?></dd></div>
                     <div><dt>Purpose</dt><dd><?= field(ArrivalRepository::PURPOSES[$a['purpose']] ?? null) ?></dd></div>
                     <div><dt>Party size</dt><dd><?= n($a['total_visitors']) ?> (respondent + <?= n($a['companions_count']) ?>)</dd></div>
-                    <div><dt>Origin</dt><dd><?= field(implode(', ', array_filter([$a['origin_city'], $a['origin_province'], $a['origin_country']]))) ?></dd></div>
+                    <div><dt>Origin</dt><dd><?= field(origin_label($a['origin_city'], $a['origin_province'], $a['origin_country'], '')) ?></dd></div>
                 </dl>
             </div>
         </section>
@@ -167,7 +167,7 @@ require __DIR__ . '/../_partials/head.php';
             <section class="panel">
                 <header class="panel__head"><h2><i class="fa-solid fa-gavel"></i> Review</h2></header>
                 <div class="panel__body">
-                    <form method="post" onsubmit="return confirm('Include this record in published figures?');">
+                    <form method="post" data-confirm="Include this record in published figures?" data-confirm-tone="normal">
                         <?= csrf_field() ?>
                         <input type="hidden" name="id" value="<?= $id ?>">
                         <input type="hidden" name="action" value="approve">
@@ -188,7 +188,7 @@ require __DIR__ . '/../_partials/head.php';
                         totals. The row itself is kept — an official statistic that changed with no
                         trace of what was removed is not auditable.
                     </p>
-                    <form method="post" onsubmit="return confirm('Void this record? Published totals will be recalculated.');">
+                    <form method="post" data-confirm="Void this record? Published totals will be recalculated." data-confirm-tone="normal">
                         <?= csrf_field() ?>
                         <input type="hidden" name="id" value="<?= $id ?>">
                         <input type="hidden" name="action" value="void">

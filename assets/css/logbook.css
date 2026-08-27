@@ -786,3 +786,52 @@ a { color: var(--lb-green-dark); }
 }
 
 .lb-field textarea::placeholder { color: var(--lb-ink-3); }
+
+/* Other places within reach, on the QR page.
+   A list rather than cards: this sits low on a page somebody is scrolling
+   one-handed, and three cards here would push the emergency numbers further
+   from the thumb than they should ever be. */
+.lb-nearby { list-style: none; margin: .75rem 0 0; padding: 0; }
+
+.lb-nearby li + li { margin-top: .5rem; }
+
+.lb-nearby a {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: .75rem;
+    padding: .8rem .95rem;
+    border: 1px solid var(--lb-line);
+    border-radius: 10px;
+    text-decoration: none;
+    color: inherit;
+}
+.lb-nearby a:active { background: var(--lb-tint); }
+
+.lb-nearby span {
+    flex-shrink: 0;
+    font-size: .8rem;
+    font-weight: 700;
+    color: var(--lb-green);
+}
+
+/* A video on the QR page. One ratio whatever the source, black ground so a
+   letterboxed clip reads as a video rather than a rendering fault. */
+.lb-video {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    margin-top: .75rem;
+    border-radius: var(--lb-radius);
+    overflow: hidden;
+    background: #000;
+}
+.lb-video video,
+.lb-video iframe {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    display: block;
+    object-fit: contain;
+}

@@ -33,7 +33,10 @@ if (is_post()) {
     validate_coordinates($v);
 
     if ($v->fails()) {
-        flash_back($v->errors(), $_POST, 'create.php');
+        /* Back to the list, where the form lives in a dialog; it reopens with
+           the rejected input still in it. create.php on its own is still the
+           same form without the dialog around it. */
+        flash_back($v->errors(), $_POST, 'index.php');
     }
 
     $data = collect_destination_input($v);
@@ -57,7 +60,7 @@ if (is_post()) {
     } catch (Throwable $e) {
         error_log('Destination create failed: ' . $e->getMessage());
         Session::flash('danger', 'The destination could not be saved. Please try again.');
-        flash_back([], $_POST, 'create.php');
+        flash_back([], $_POST, 'index.php');
     }
 
     ActivityLog::record('destination.create', 'destination', $id, 'Created "' . $data['name'] . '"');

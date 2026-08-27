@@ -42,7 +42,11 @@ if (is_post()) {
     }
 
     if ($v->fails()) {
-        flash_back($v->errors(), $_POST, 'create.php');
+        /* Back to the registry, not to this page: the form lives in a dialog
+           there now, and index.php reopens it with the rejected input still
+           in the fields. Visiting create.php directly still works — it is
+           the same form without the dialog around it. */
+        flash_back($v->errors(), $_POST, 'index.php');
     }
 
     $id = ManagerRepository::create([

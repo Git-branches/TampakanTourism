@@ -28,7 +28,8 @@
       "Bash(curl -s \"http://localhost/TampakanTourism/index.php\")",
       "Bash(echo \"=== EXIT $?\")",
       "Bash(curl -s -o /dev/null -w \"%{http_code} %{size_download}\\\\n\" \"http://localhost/TampakanTourism/index.php\")",
-      "Bash(php -r ' *)"
+      "Bash(php -r ' *)",
+      "Bash(awk -F: '$1 > 830 && $1 < 880')"
     ]
   }
 }

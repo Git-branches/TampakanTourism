@@ -95,9 +95,10 @@ require __DIR__ . '/../_partials/head.php';
             <div class="col-md-9">
                 <label for="photos" class="form-label">Choose images</label>
                 <input type="file" id="photos" name="photos[]" multiple
-                       accept="image/jpeg,image/png,image/webp" class="form-control" required>
+                       accept="image/jpeg,image/png,image/webp" class="form-control" required
+                       data-max-mb="<?= n(upload_limit_mb()) ?>">
                 <p class="field-hint">
-                    JPG, PNG, or WebP, up to 5 MB each. Every image is decoded and re-encoded on
+                    JPG, PNG, or WebP, up to <?= n(\App\Core\Uploader::maxMegabytes()) ?> MB each. Every image is decoded and re-encoded on
                     upload — that strips anything hidden in the file and resizes it for the web.
                 </p>
             </div>
@@ -142,7 +143,7 @@ require __DIR__ . '/../_partials/head.php';
                                 </form>
                             <?php endif; ?>
 
-                            <form method="post" onsubmit="return confirm('Delete this photo permanently?');">
+                            <form method="post" data-confirm="Delete this photo permanently?">
                                 <?= csrf_field() ?>
                                 <input type="hidden" name="id" value="<?= $id ?>">
                                 <input type="hidden" name="action" value="delete">

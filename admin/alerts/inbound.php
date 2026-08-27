@@ -129,8 +129,9 @@ require __DIR__ . '/../_partials/head.php';
         <div class="d-flex gap-2 flex-wrap">
             <form method="post">
                 <?= csrf_field() ?>
-                <button type="submit" name="action" value="rotate-secret" class="btn btn-brand btn-sm"
-                        onclick="return confirm('Generate a new secret?\n\nInbound texts will be refused until the provider is updated with it.');">
+                <button type="submit" name="action" value="rotate-secret" class="btn btn-brand btn-sm" data-confirm="Generate a new secret?
+
+Inbound texts will be refused until the provider is updated with it.">
                     <i class="fa-solid fa-key"></i> <?= $secret === '' ? 'Switch on and generate a secret' : 'Rotate the secret' ?>
                 </button>
             </form>
@@ -138,8 +139,7 @@ require __DIR__ . '/../_partials/head.php';
             <?php if ($secret !== ''): ?>
                 <form method="post">
                     <?= csrf_field() ?>
-                    <button type="submit" name="action" value="disable" class="btn btn-sm btn-outline-secondary"
-                            onclick="return confirm('Switch inbound SMS off?');">
+                    <button type="submit" name="action" value="disable" class="btn btn-sm btn-outline-secondary" data-confirm="Switch inbound SMS off?">
                         Switch off
                     </button>
                 </form>

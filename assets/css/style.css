@@ -3202,26 +3202,105 @@ body [data-aos="tt-pop"][data-aos] {
 .main-nav.is-solid .navbar-toggler-icon-custom { color: var(--green-dark); }
 
 /* ---- Page header (below the solid navbar) -------------------------------- */
+/* =============================================================================
+   PAGE HEAD — giving the banner a horizon
+   -----------------------------------------------------------------------------
+   The flat gradient read as undesigned, and it was: a two-stop ramp with
+   nothing in it. The fix is not a photograph.
+
+   WHY NOT A PHOTOGRAPH
+
+     - There is no natural photograph for the map page or the guide form. One
+       chosen anyway is decoration, and decoration on a government page is the
+       thing that makes it look amateur, not the thing that saves it.
+     - Every interior page would carry the download.
+     - White type over a photo needs a heavy scrim, which lands you back at a
+       nearly flat dark field — the same look, several hundred kilobytes later.
+     - It would cost the destination page its one real advantage. That page is
+       photo-led on purpose; if every banner is a photograph, none of them is.
+
+   WHAT IS HERE INSTEAD
+
+   A ridgeline. Tampakan sits at the foot of Mt. Matutum and the municipality is
+   described by its terrain in every other context — so the horizon is the one
+   ornament here that carries meaning rather than filling space.
+
+   Drawn as an inline data URI: no HTTP request, about 1KB, and it renders with
+   the radio off. Anchored to the bottom edge, well clear of the text, at an
+   opacity low enough that it reads as depth rather than as a picture.
+   ========================================================================== */
+
 .page-head {
+    position: relative;
     background: linear-gradient(135deg, var(--green-dark), var(--green) 55%, var(--blue));
     color: var(--white);
     padding: 3.2rem 0 2.6rem;
+    overflow: hidden;
+}
+
+/* Light from above, so the gradient has somewhere to fall away to. Very low
+   contrast — the point is that nobody notices it, only that the band stops
+   looking like a solid fill. */
+.page-head::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+        radial-gradient(120% 90% at 12% -30%, rgba(255, 255, 255, .16), transparent 58%);
+}
+
+/* The horizon. Two ranges: a pale one behind, a firmer one in front, which is
+   what stops it reading as a single cut-out shape.
+
+   preserveAspectRatio is slice + bottom so the ridge keeps its proportions and
+   stays welded to the lower edge at any width. */
+.page-head::after {
+    content: "";
+    position: absolute;
+    inset: auto 0 0 0;
+    height: 78px;
+    pointer-events: none;
+    background-repeat: no-repeat;
+    background-position: bottom center;
+    background-size: 100% 100%;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 120' preserveAspectRatio='none'%3E%3Cpath fill='%23ffffff' fill-opacity='.07' d='M0 96 L112 74 L208 88 L330 52 L392 70 L470 40 L556 66 L640 30 L712 58 L800 44 L904 72 L1010 50 L1104 76 L1216 58 L1320 82 L1440 66 L1440 120 L0 120 Z'/%3E%3Cpath fill='%23ffffff' fill-opacity='.10' d='M0 112 L96 100 L190 108 L286 86 L360 98 L452 74 L540 92 L620 62 L668 44 L716 62 L800 90 L890 76 L986 96 L1088 82 L1190 102 L1300 90 L1400 104 L1440 98 L1440 120 L0 120 Z'/%3E%3C/svg%3E");
+}
+
+/* Everything in the banner sits above both layers. */
+.page-head > .container { position: relative; z-index: 1; }
+
+/* On a phone the band is short and the ridge would climb into the subtitle. */
+@media (max-width: 575.98px) {
+    .page-head::after { height: 46px; }
+}
+
+/* The ridge is ornament. A visitor who has asked for less motion and less
+   visual noise loses nothing by not having a horizon. */
+@media (prefers-reduced-motion: reduce) {
+    .page-head::before { display: none; }
 }
 
 /* -----------------------------------------------------------------------------
    The banner as the top of the page
    -----------------------------------------------------------------------------
-   The announcements, announcement and map pages drop the navbar the way the
-   destination page does, so this gradient now starts at pixel zero with nothing
-   above it. Two things follow from that.
+   For a page that carries NO navbar, so this gradient starts at pixel zero with
+   nothing above it. Two things follow.
 
    The first is breathing room: 3.2rem was measured under a navbar, and against
    the top edge of the viewport it reads as cramped.
 
-   The second matters more. With no navbar, the breadcrumb is the only way back
-   into the site until the visitor reaches the footer — so it is not allowed to
+   The second matters more. With no navbar the breadcrumb is the only way back
+   into the site until the visitor reaches the footer, so it is not allowed to
    look like faint grey furniture. The links sit at full strength with a rule
    under them; only the current page, which leads nowhere, stays quiet.
+
+   NOTHING USES THIS TODAY. The map, announcement, destination and tour guide
+   pages all carry the navbar now, and page-head.php selects this modifier from
+   $showNavbar automatically — so it applies itself the moment some future page
+   turns the bar off, and stays out of the way until then. An earlier version of
+   this comment claimed those four pages had no navbar; they had just been
+   given one, and the comment was the last thing to find out.
    -------------------------------------------------------------------------- */
 .page-head--top { padding-top: 4.4rem; }
 
@@ -3542,26 +3621,6 @@ body [data-aos="tt-pop"][data-aos] {
     gap: .5rem;
 }
 .reminder-box div { font-size: .9rem; color: var(--gray-700); line-height: 1.7; }
-
-.dest-gallery {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    gap: .7rem;
-}
-.dest-gallery a {
-    display: block;
-    aspect-ratio: 4 / 3;
-    border-radius: var(--radius-sm);
-    overflow: hidden;
-    box-shadow: var(--shadow-sm);
-}
-.dest-gallery img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    transition: transform .5s var(--ease);
-}
-.dest-gallery a:hover img { transform: scale(1.07); }
 
 /* ---- Sidebar cards ------------------------------------------------------- */
 
@@ -4691,4 +4750,1592 @@ body.has-chat-dock .back-to-top {
    labels read worse than six full-width ones. */
 @media (max-width: 359.98px) {
     .chat-actions { grid-template-columns: 1fr; }
+}
+
+/* =============================================================================
+   RATING SUMMARY — the public face of visitor feedback
+   -----------------------------------------------------------------------------
+   Ratings are published; written comments go privately to the Municipal Tourism
+   Office. So this is a score and a spread, not a list of cards — a tourist
+   deciding where to go on Saturday gets the signal, and a complaint about a
+   named caretaker does not become something the municipality hosts.
+   ========================================================================== */
+
+.rating-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.75rem 2.5rem;
+    align-items: center;
+    padding: 1.5rem;
+    border: 1px solid var(--line, #e2e8e4);
+    border-radius: 14px;
+    background: #fff;
+}
+
+.rating-summary__score {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .3rem;
+    min-width: 8rem;
+}
+
+.rating-summary__score strong {
+    font-size: 2.9rem;
+    line-height: 1;
+    font-weight: 700;
+    color: var(--green-dark, #1b5e20);
+    font-variant-numeric: tabular-nums;
+}
+
+.rating-summary__stars { color: #F5A524; font-size: 1rem; letter-spacing: .06em; }
+
+.rating-summary__score span { font-size: .82rem; color: var(--ink-3, #7b8791); }
+
+.rating-summary__bars {
+    flex: 1 1 16rem;
+    display: flex;
+    flex-direction: column;
+    gap: .38rem;
+}
+
+.rating-bar { display: flex; align-items: center; gap: .6rem; font-size: .8rem; }
+
+.rating-bar__label {
+    min-width: 2.4rem;
+    display: flex;
+    align-items: center;
+    gap: .18rem;
+    color: var(--ink-2, #4a5761);
+    font-variant-numeric: tabular-nums;
+}
+
+.rating-bar__label i { font-size: .68rem; color: #F5A524; }
+
+.rating-bar__track {
+    flex: 1;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--line-soft, #edf1ee);
+    overflow: hidden;
+}
+
+.rating-bar__fill {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    background: #F5A524;
+}
+
+.rating-bar__count {
+    min-width: 2rem;
+    text-align: right;
+    color: var(--ink-3, #7b8791);
+    font-variant-numeric: tabular-nums;
+}
+
+.reviews-note {
+    margin: .9rem 0 0;
+    font-size: .82rem;
+    color: var(--ink-3, #7b8791);
+}
+
+@media (max-width: 575.98px) {
+    .rating-summary { gap: 1.25rem; padding: 1.15rem; }
+    .rating-summary__score { min-width: 0; width: 100%; flex-direction: row; align-items: baseline; gap: .7rem; }
+    .rating-summary__score strong { font-size: 2.2rem; }
+}
+
+
+/* =============================================================================
+   GETTING THERE — routes, the offline prompt, and nearby destinations
+   -----------------------------------------------------------------------------
+   The map in the sidebar answers "where is it". This answers "how do I get
+   there", which is the question asked at the junction where the concrete road
+   ends and there are three gravel tracks.
+
+   Deliberately quiet typography. These are instructions somebody reads while
+   standing up, on a phone, possibly in the rain — long measure, generous line
+   height, and no decoration competing with the words.
+   ========================================================================== */
+
+.dest-routes { margin-top: 2.5rem; }
+
+.route-card {
+    border: 1px solid var(--gray-200);
+    border-left: 4px solid var(--green);
+    border-radius: 12px;
+    padding: 1.25rem 1.35rem;
+    margin-bottom: 1rem;
+    background: var(--white);
+}
+
+.route-card__from {
+    margin: 0 0 .3rem;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--green-dark);
+}
+.route-card__from i { color: var(--green); margin-right: .35rem; }
+
+.route-card__meta {
+    margin: 0 0 .7rem;
+    font-size: .86rem;
+    font-weight: 600;
+    color: var(--gray-600);
+}
+
+/* Long measure and loose leading: this is the paragraph somebody re-reads
+   twice at a fork in the road. */
+.route-card__body {
+    margin: 0;
+    line-height: 1.75;
+}
+
+.route-card__fare {
+    margin: .7rem 0 0;
+    font-size: .86rem;
+    color: var(--gray-600);
+}
+.route-card__fare i { color: var(--amber); }
+
+/* ---------- take it with you ---------- */
+
+.route-offline {
+    margin-top: 1.25rem;
+    padding: 1.15rem 1.35rem;
+    border-radius: 12px;
+    background: var(--green-pale);
+    border: 1px solid rgba(46, 125, 50, .22);
+}
+
+.route-offline__lede {
+    margin: 0 0 .9rem;
+    font-size: .95rem;
+    line-height: 1.6;
+    color: var(--green-dark);
+}
+.route-offline__lede i { margin-right: .4rem; }
+
+.route-offline__actions {
+    display: flex;
+    gap: .6rem;
+    flex-wrap: wrap;
+}
+
+/* ---------- nearby ---------- */
+
+.nearby-card {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding: 1.1rem 1.2rem;
+    border: 1px solid var(--gray-200);
+    border-radius: 12px;
+    background: var(--white);
+    text-decoration: none;
+    color: inherit;
+    transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+.nearby-card:hover {
+    transform: translateY(-3px);
+    border-color: var(--green-light);
+    box-shadow: 0 10px 24px rgba(27, 94, 32, .12);
+    color: inherit;
+}
+
+/* The distance leads, because it is the reason this card is here at all. */
+.nearby-card__distance {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    align-self: flex-start;
+    margin-bottom: .55rem;
+    padding: .2rem .6rem;
+    border-radius: 999px;
+    background: var(--green-pale);
+    color: var(--green-dark);
+    font-size: .78rem;
+    font-weight: 700;
+}
+
+.nearby-card__name  { font-weight: 700; font-size: 1.02rem; color: var(--green-dark); }
+.nearby-card__where { font-size: .8rem; color: var(--gray-600); margin-top: .1rem; }
+.nearby-card__text  {
+    margin-top: .45rem;
+    font-size: .88rem;
+    line-height: 1.55;
+    color: var(--gray-600);
+}
+
+@media (max-width: 575.98px) {
+    .route-card { padding: 1rem 1.1rem; }
+    .route-offline__actions .btn { width: 100%; }
+}
+
+
+
+
+/* =============================================================================
+   REQUEST A TOUR GUIDE
+   -----------------------------------------------------------------------------
+   A municipal service form. The look is taken from how an LGU actually presents
+   itself on paper — a masthead with the seal, a rule under it, and the business
+   of the page below in plain black on white. Restrained on purpose: colour is
+   used to mark what is interactive and what is official, not for decoration.
+
+   WHAT THE FIRST VERSION GOT WRONG, kept here because both were real:
+
+     1. A tall dark-green gradient banner with the title in near-black. h1 in
+        this stylesheet sets `color: var(--ink)`, which beat the white inherited
+        from the banner, so the page title was almost invisible. Colour on a
+        dark ground now has to be set explicitly, never inherited.
+
+     2. It scrolled. Eight questions stacked one per row under a 280px banner
+        put the submit button two screens down. Same questions now, but the
+        three short "when" answers share a line and the masthead is a band.
+
+   Filled in one-handed, often on a phone: 16px inputs (below that iOS zooms on
+   focus), 44px+ tap targets, one column the moment the screen narrows.
+   ========================================================================== */
+
+/* ---------- layout ---------- */
+
+.tgr-section {
+    padding-block: clamp(1.5rem, 3.5vw, 2.5rem);
+    background: var(--gray-100);
+}
+
+.tgr-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+    gap: clamp(1rem, 2.5vw, 1.75rem);
+    align-items: start;
+}
+
+/* ---------- the answer after submitting ---------- */
+
+.tgr-result {
+    display: flex;
+    gap: .8rem;
+    align-items: flex-start;
+    padding: .95rem 1.1rem;
+    border-radius: var(--radius-sm);
+    margin-bottom: 1.1rem;
+    border-left: 4px solid;
+}
+.tgr-result i { font-size: 1.15rem; margin-top: .1rem; }
+.tgr-result strong { display: block; font-size: .95rem; }
+.tgr-result p { margin: .1rem 0 0; font-size: .9rem; line-height: 1.55; }
+
+.tgr-result--ok  { background: var(--green-pale); border-color: var(--green);  color: var(--green-dark); }
+.tgr-result--bad { background: #FDECEA;           border-color: #C62828;       color: #8E1F1B; }
+
+/* The message clears when the visitor starts correcting the form, or when they
+   press this. It used to have neither, and sat there arguing with the field it
+   had just asked them to fill in. */
+.tgr-result__close {
+    margin-left: auto;
+    flex: none;
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: inherit;
+    opacity: .55;
+    cursor: pointer;
+}
+
+.tgr-result__close:hover { opacity: 1; background: rgba(0, 0, 0, .06); }
+
+.tgr-result__close:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+    opacity: 1;
+}
+
+.tgr-result__close i { font-size: .85rem; margin-top: 0; }
+
+.tgr-result {
+    transition: opacity .24s var(--ease), transform .24s var(--ease);
+}
+
+.tgr-result.is-going {
+    opacity: 0;
+    transform: translateY(-6px);
+    pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .tgr-result { transition: none; }
+}
+
+/* ---------- the form ---------- */
+
+.tgr-card {
+    background: var(--white);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius);
+    padding: clamp(1.25rem, 3vw, 1.85rem);
+}
+
+.tgr-fieldset { border: 0; padding: 0; margin: 0 0 1.35rem; }
+.tgr-fieldset:last-of-type { margin-bottom: 1.1rem; }
+
+/* A section label, not a banner. Small caps and a hairline rule — the way a
+   form printed by an office divides itself. */
+.tgr-legend {
+    display: flex;
+    align-items: center;
+    gap: .55rem;
+    width: 100%;
+    float: none;
+    margin: 0 0 .95rem;
+    padding-bottom: .5rem;
+    border-bottom: 1px solid var(--gray-200);
+    font-size: .76rem;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--green-dark);
+}
+
+.tgr-legend span {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--green-dark);
+    color: var(--white);
+    font-size: .68rem;
+    font-weight: 700;
+}
+
+.tgr-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .9rem;
+}
+.tgr-row--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+.tgr-field { margin-bottom: .9rem; }
+.tgr-field.is-hidden { display: none; }
+.tgr-field--last { margin-bottom: 0; }
+.tgr-row .tgr-field { margin-bottom: 0; }
+
+.tgr-field > label {
+    display: block;
+    margin-bottom: .35rem;
+    font-size: .82rem;
+    font-weight: 600;
+    color: var(--gray-700);
+}
+.tgr-field > label em    { color: #C62828; font-style: normal; }
+.tgr-field > label small { color: var(--gray-500); font-weight: 400; font-size: .78rem; }
+
+.tgr-input {
+    width: 100%;
+    height: 44px;
+    padding: 0 .8rem;
+    /* 16px exactly: below it, iOS Safari zooms the viewport on focus. */
+    font-size: 16px;
+    font-family: inherit;
+    color: var(--ink);
+    background: var(--white);
+    border: 1px solid var(--gray-300);
+    border-radius: var(--radius-sm);
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+.tgr-input::placeholder { color: var(--gray-500); }
+
+.tgr-input:focus {
+    outline: none;
+    border-color: var(--green-dark);
+    box-shadow: 0 0 0 3px rgba(27, 94, 32, .13);
+}
+
+.tgr-input.is-invalid { border-color: #C62828; background: #FDF7F6; }
+
+textarea.tgr-input {
+    height: auto;
+    padding: .65rem .8rem;
+    resize: vertical;
+    line-height: 1.55;
+}
+
+.tgr-hint {
+    display: flex;
+    align-items: center;
+    gap: .3rem;
+    margin: .3rem 0 0;
+    font-size: .78rem;
+    color: var(--ink-soft);
+}
+.tgr-hint i { color: var(--green-dark); font-size: .72rem; }
+
+.tgr-error { margin: .3rem 0 0; font-size: .8rem; font-weight: 500; color: #C62828; }
+
+/* ---------- the destination, confirmed ---------- */
+
+.tgr-chosen {
+    display: flex;
+    align-items: center;
+    gap: .7rem;
+    padding: .7rem .85rem;
+    margin-bottom: .9rem;
+    border: 1px solid rgba(27, 94, 32, .28);
+    border-left: 3px solid var(--green-dark);
+    border-radius: var(--radius-sm);
+    background: var(--green-pale);
+}
+.tgr-chosen > i      { color: var(--green-dark); }
+.tgr-chosen span     { flex: 1; min-width: 0; }
+.tgr-chosen strong   { display: block; font-size: .92rem; color: var(--green-dark); }
+.tgr-chosen small    { display: block; font-size: .75rem; color: var(--ink-soft); }
+
+.tgr-chosen__change {
+    flex-shrink: 0;
+    padding: .3rem .7rem;
+    border: 1px solid var(--green-dark);
+    border-radius: var(--radius-sm);
+    background: var(--white);
+    color: var(--green-dark);
+    font: inherit;
+    font-size: .78rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+.tgr-chosen__change:hover { background: var(--green-dark); color: var(--white); }
+
+/* ---------- the destination picker, repeated ----------
+   A visitor wanting two places gets a second copy of the dropdown they already
+   understand. Deliberately NOT a native <select multiple>: that control asks
+   for a ctrl-click, and this form is filled in on a phone more often than on
+   anything with a ctrl key.
+
+   The rows sit in a plain stack with the same rhythm as the rest of the form,
+   so adding one moves the page by exactly one field height. */
+
+.tgr-dest + .tgr-dest { margin-top: .55rem; }
+
+.tgr-dest > label {
+    display: block;
+    margin-bottom: .35rem;
+    font-size: .82rem;
+    font-weight: 600;
+    color: var(--gray-700);
+}
+
+.tgr-dest__control { display: flex; gap: .5rem; align-items: center; }
+.tgr-dest__control .tgr-input { flex: 1; min-width: 0; }
+
+/* 44px square, matching the stepper: the smallest thing a thumb hits reliably.
+   Hidden on the only row, which cannot be removed because it is the field. */
+.tgr-dest__remove {
+    flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+    border: 1px solid var(--gray-300);
+    border-radius: var(--radius-sm);
+    background: var(--white);
+    color: var(--ink-soft);
+    cursor: pointer;
+    transition: color .15s ease, border-color .15s ease, background .15s ease;
+}
+.tgr-dest__remove[hidden] { display: none; }
+.tgr-dest__remove:hover {
+    border-color: #C62828;
+    background: #FDF7F6;
+    color: #C62828;
+}
+
+/* A quiet link, not a second submit button. It sits under a field the visitor
+   has usually already answered, and competing with "Send Request" for
+   attention is how a form ends up with people adding rows they do not want. */
+.tgr-dest-add {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    margin-top: .55rem;
+    padding: .35rem .1rem;
+    border: 0;
+    background: none;
+    color: var(--green-dark);
+    font: inherit;
+    font-size: .82rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+.tgr-dest-add i { font-size: .72rem; }
+.tgr-dest-add:hover:not(:disabled) { text-decoration: underline; }
+
+/* Unavailable while the first row still says "I am not sure yet" — the hint
+   below it says so, because a dead control with no explanation is something
+   people reload the page over. */
+.tgr-dest-add:disabled { color: var(--gray-500); cursor: default; }
+
+#destAdviceHint[hidden], #destConflict[hidden] { display: none; }
+
+/* ---------- group size ---------- */
+
+.tgr-stepper {
+    display: flex;
+    height: 44px;
+    border: 1px solid var(--gray-300);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+}
+
+.tgr-stepper button {
+    width: 44px;                 /* a thumb, not a native spinner arrow */
+    flex-shrink: 0;
+    border: 0;
+    background: var(--gray-100);
+    color: var(--gray-700);
+    cursor: pointer;
+    transition: background .15s ease;
+}
+.tgr-stepper button:hover { background: var(--green-pale); color: var(--green-dark); }
+
+.tgr-stepper input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    border-inline: 1px solid var(--gray-300);
+    text-align: center;
+    font-size: 16px;
+    font-family: inherit;
+    font-weight: 600;
+    color: var(--ink);
+}
+.tgr-stepper input:focus { outline: none; background: var(--green-pale); }
+
+/* The native spinners duplicate the buttons either side of them. */
+.tgr-stepper input::-webkit-outer-spin-button,
+.tgr-stepper input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.tgr-stepper input[type=number] { -moz-appearance: textfield; appearance: textfield; }
+
+/* ---------- submit ---------- */
+
+.tgr-submit {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: .55rem;
+    width: 100%;
+    height: 48px;
+    border: 0;
+    border-radius: var(--radius-sm);
+    /* Solid, not a gradient. An official action reads as one colour. */
+    background: var(--green-dark);
+    color: var(--white);
+    font-family: inherit;
+    font-size: .98rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .15s ease;
+}
+.tgr-submit:hover  { background: var(--green); }
+.tgr-submit:active { background: #14471A; }
+
+.tgr-privacy {
+    display: flex;
+    gap: .5rem;
+    margin: .9rem 0 0;
+    padding-top: .85rem;
+    border-top: 1px solid var(--gray-200);
+    font-size: .78rem;
+    line-height: 1.55;
+    color: var(--ink-soft);
+}
+.tgr-privacy i { margin-top: .15rem; color: var(--green-dark); }
+
+/* ---------- aside ---------- */
+
+.tgr-aside { position: sticky; top: 5.5rem; }
+
+.tgr-steps,
+.tgr-note,
+.tgr-call {
+    background: var(--white);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius);
+    padding: 1.15rem 1.25rem;
+    margin-bottom: .9rem;
+}
+
+.tgr-steps h2 {
+    margin: 0 0 .9rem;
+    font-size: .76rem;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--green-dark);
+}
+
+.tgr-steps ol { list-style: none; margin: 0; padding: 0; }
+
+.tgr-steps li {
+    display: flex;
+    gap: .7rem;
+    position: relative;
+    padding-bottom: .9rem;
+}
+.tgr-steps li:last-child { padding-bottom: 0; }
+
+/* The connecting rail — three points read as one sequence. */
+.tgr-steps li:not(:last-child)::before {
+    content: "";
+    position: absolute;
+    left: 11px;
+    top: 26px;
+    bottom: 2px;
+    width: 1px;
+    background: var(--gray-300);
+}
+
+.tgr-steps__num {
+    display: grid;
+    place-items: center;
+    position: relative;
+    z-index: 1;
+    flex-shrink: 0;
+    width: 23px;
+    height: 23px;
+    border-radius: 50%;
+    background: var(--green-pale);
+    border: 1px solid rgba(27, 94, 32, .25);
+    color: var(--green-dark);
+    font-size: .74rem;
+    font-weight: 700;
+}
+
+.tgr-steps strong { display: block; font-size: .87rem; color: var(--ink); }
+.tgr-steps p      { margin: .1rem 0 0; font-size: .81rem; line-height: 1.5; color: var(--ink-soft); }
+
+.tgr-note {
+    display: flex;
+    gap: .6rem;
+    background: #FFFBF2;
+    border-color: rgba(184, 128, 31, .3);
+}
+.tgr-note i { color: #B8801F; margin-top: .15rem; }
+.tgr-note p { margin: 0; font-size: .82rem; line-height: 1.55; color: #6B5416; }
+
+.tgr-call { text-align: center; }
+
+.tgr-call__label {
+    margin: 0 0 .4rem;
+    font-size: .78rem;
+    color: var(--ink-soft);
+}
+
+.tgr-call__link {
+    display: inline-flex;
+    align-items: center;
+    gap: .45rem;
+    font-size: 1.08rem;
+    font-weight: 700;
+    color: var(--green-dark);
+    text-decoration: none;
+}
+.tgr-call__link:hover { color: var(--green); }
+
+.tgr-call__hours { margin: .35rem 0 0; font-size: .76rem; color: var(--gray-500); }
+
+/* ---------- narrow ---------- */
+
+@media (max-width: 991.98px) {
+    .tgr-layout { grid-template-columns: 1fr; }
+
+    /* The form comes first on a phone. The aside is reassurance; the form is
+       what they came for. */
+    .tgr-aside { position: static; order: 2; }
+    .tgr-main  { order: 1; }
+
+}
+
+@media (max-width: 575.98px) {
+
+    /* Date and time stay on one line; group size drops below. Three columns at
+       this width makes the date input unreadable. */
+    .tgr-row,
+    .tgr-row--3 { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .8rem; }
+    .tgr-row--3 > .tgr-field:last-child { grid-column: 1 / -1; }
+
+    .tgr-chosen { flex-wrap: wrap; }
+    .tgr-chosen__change { width: 100%; text-align: center; }
+}
+
+@media (max-width: 400px) {
+    .tgr-row, .tgr-row--3 { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .tgr-submit, .tgr-input, .tgr-stepper button { transition: none; }
+}
+
+/* -----------------------------------------------------------------------------
+   The one script word in the hero
+   -----------------------------------------------------------------------------
+   HERE AND NOWHERE ELSE, and the restriction is the whole point.
+
+   A brush face carries feeling, which is what a landing hero is for. It carries
+   nothing useful on "Interactive Tourist Map" or "Request a Tour Guide" — those
+   are service labels on a municipal website, read at a glance by somebody
+   looking for a thing, and setting them in script would undo the plain
+   institutional tone the rest of the site is built on.
+
+   So it is a MIX, never a replacement: sans for the sentence, script for the
+   word the sentence is actually about. That is the pattern on every travel
+   poster that uses one well.
+
+   Sized at 1.18em rather than a fixed rem so it tracks the hero's own clamp,
+   and given a slightly looser line-height because descenders on a script face
+   collide with the line beneath at the sizes this reaches on a phone.
+   -------------------------------------------------------------------------- */
+.hero__title-em {
+    font-family: "Dancing Script", "Poppins", cursive;
+    font-weight: 700;
+    font-size: 1.18em;
+    line-height: 1.15;
+
+    /* Optical alignment: a script baseline sits high against a heavy sans on
+       the same line, so it is nudged down to share one. */
+    display: inline-block;
+    transform: translateY(.06em);
+
+    /* Never italicised on top of a face that already slants — browsers
+       synthesise a second slant and the letterforms smear. */
+    font-style: normal;
+}
+
+/* The face may not arrive — a Google Fonts request can fail on a slow
+   connection, and the fallback is a plain sans at 1.18em, which reads as a
+   size jump for no reason. Matching it back down keeps the line intact. */
+@supports not (font-family: "Dancing Script") {
+    .hero__title-em { font-size: 1em; transform: none; }
+}
+
+/* -----------------------------------------------------------------------------
+   Video gallery
+   -----------------------------------------------------------------------------
+   One ratio for every card whatever the source, so an uploaded portrait clip
+   and a YouTube embed sit in the same grid without one of them stretching the
+   row. The frame is black rather than the page colour: a video letterboxed
+   against white looks like a rendering fault, against black it looks like a
+   video.
+   -------------------------------------------------------------------------- */
+
+.video-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 1.5rem;
+}
+
+.video-card {
+    background: var(--white);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--shadow-sm);
+}
+
+.video-card__frame {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    background: #000;
+    flex: 0 0 auto;
+}
+.video-card__frame video,
+.video-card__frame iframe {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    display: block;
+    object-fit: contain;   /* contain, not cover — a promo clip must not be cropped */
+}
+
+.video-card__body { padding: 1.1rem 1.25rem 1.25rem; flex: 1 1 auto; }
+
+.video-card__title {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+    line-height: 1.35;
+    color: var(--green-dark);
+}
+
+.video-card__place {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    margin-top: .4rem;
+    font-size: .82rem;
+    font-weight: 600;
+    color: var(--green);
+    text-decoration: none;
+}
+.video-card__place:hover { text-decoration: underline; }
+
+.video-card__caption {
+    margin: .55rem 0 0;
+    font-size: .88rem;
+    line-height: 1.6;
+    color: var(--ink-soft);
+}
+
+@media (max-width: 575.98px) {
+    .video-grid { grid-template-columns: 1fr; gap: 1.1rem; }
+}
+
+/* ---- A destination's own video ------------------------------------------
+   Above the photo gallery on the spot page: if the office went out and filmed
+   the place, that is the best thing on the page.
+   ------------------------------------------------------------------------ */
+/* This block was written twice, identically, a few rules apart. The second copy
+   won every time, so editing the first changed nothing on screen. */
+
+/* ---- A destination's own videos -----------------------------------------
+   The lead clip is full width with the destination's name over it; everything
+   else sits in a two-up grid under a heading that says what it is. The office's
+   own film and a visitor's phone footage should not look like the same thing.
+   ------------------------------------------------------------------------ */
+.dest-videos { margin-bottom: 2.25rem; }
+
+.dest-videos__head { margin-bottom: .9rem; }
+.dest-videos__head .dest-h2 { margin-bottom: .3rem; }
+.dest-videos__head .dest-h2 i { color: var(--green); margin-right: .4rem; }
+
+/* .dest-videos__group, .dest-video-grid and the figcaption rules that went with
+   them were removed when the grid of extra players became the playlist beside
+   the lead video. .dest-video and .dest-video__frame stay — the one remaining
+   player still uses them, and so does the QR page. */
+
+.dest-video { margin: 0; }
+
+/* ONE PLAYER-SHAPED RECTANGLE, WHATEVER IS PUT IN IT.
+ *
+ * Briefly the frame shrank to fit each clip, so a portrait phone video showed
+ * at its true width with no black anywhere. Honest, and it looked broken: the
+ * video pulled away from the column and left white space around itself, which
+ * reads as a picture that failed to load rather than a decision.
+ *
+ * Black is not damage — black is the player. YouTube, Vimeo and every set-top
+ * box in the world hold a fixed rectangle and letterbox whatever does not fill
+ * it, and people have been reading that as "video" for a century.
+ *
+ * It also keeps the column still: the gallery beside this one stays level no
+ * matter what the office uploads next.
+ *
+ * contain, never cover — bordering a promotional film is a cost; cropping one
+ * is losing part of what the office went out and filmed. */
+.dest-video__frame {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: #000;
+    border: 1px solid var(--gray-200);
+}
+
+.dest-video__frame video,
+.dest-video__frame iframe {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    display: block;
+    object-fit: contain;
+}
+
+/* The lead earns a shadow the others do not, which is most of what makes it
+   read as the main item rather than the first of several. */
+.dest-video--lead .dest-video__frame { box-shadow: var(--shadow-md); }
+
+
+/* =============================================================================
+   DESTINATION PAGE — the practical layout
+   -----------------------------------------------------------------------------
+   The page answers four questions in the order a visitor asks them: what does
+   this place look like, what do I need to bring, how do I reach somebody, and
+   where else could I go. Everything below serves that order.
+   ========================================================================== */
+
+/* ---- Section headings, shared -------------------------------------------- */
+
+.dest-block__head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: .85rem;
+    flex-wrap: wrap;
+}
+.dest-block__head--split { align-items: center; }
+
+.dest-block__title {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    margin: 0;
+    font-size: 1.12rem;
+    font-weight: 700;
+    color: var(--green-dark);
+    line-height: 1.3;
+}
+.dest-block__title i { color: var(--green); font-size: .95em; }
+
+.dest-block__sub {
+    margin: .25rem 0 0;
+    font-size: .88rem;
+    line-height: 1.55;
+    color: var(--ink-soft);
+}
+
+.dest-block__more {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    flex-shrink: 0;
+    font-size: .83rem;
+    font-weight: 600;
+    color: var(--green);
+    text-decoration: none;
+    white-space: nowrap;
+}
+.dest-block__more:hover { color: var(--green-dark); text-decoration: underline; }
+.dest-block__more i { font-size: .75em; }
+
+/* ---- Video beside the photographs ---------------------------------------- */
+
+.dest-media { margin-bottom: 2.25rem; }
+
+/* Six thumbnails in a 3x2 block that ends level with the video beside it. A
+   ragged bottom edge between two columns of different content is the thing that
+   makes a two-up row look accidental. */
+.dest-gallery {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: .5rem;
+}
+.dest-gallery a {
+    display: block;
+    aspect-ratio: 4 / 3;
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--gray-100);
+}
+.dest-gallery img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform .3s var(--ease);
+}
+.dest-gallery a:hover img { transform: scale(1.06); }
+
+/* ---- Before you visit ----------------------------------------------------- */
+
+.dest-prep { margin: 2.25rem 0; }
+
+.prep-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: .7rem;
+    margin-top: .9rem;
+}
+
+/* Pale green, not amber. These used to sit in a warning box, which framed
+   "bring water" as a hazard notice — the practical things a visitor needs are
+   not a warning, and styling them as one is why nobody read them. */
+.prep-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .35rem;
+    padding: 1rem .7rem;
+    border-radius: var(--radius);
+    background: var(--green-pale);
+    border: 1px solid rgba(46, 125, 50, .16);
+    text-align: center;
+}
+.prep-card i { font-size: 1.15rem; color: var(--green); }
+.prep-card strong {
+    font-size: .82rem;
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--green-dark);
+}
+.prep-card span {
+    font-size: .76rem;
+    line-height: 1.4;
+    color: var(--ink-soft);
+}
+
+/* ---- The sidebar --------------------------------------------------------- */
+
+.side-card {
+    background: var(--white);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius);
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+    box-shadow: var(--shadow-xs);
+}
+
+.side-card__title {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    margin: 0 0 .8rem;
+    font-size: .98rem;
+    font-weight: 700;
+    color: var(--green-dark);
+    line-height: 1.35;
+}
+.side-card__title i { color: var(--green); }
+
+.side-card__lede {
+    margin: -.35rem 0 .9rem;
+    font-size: .85rem;
+    line-height: 1.6;
+    color: var(--ink-soft);
+}
+
+.side-contact { list-style: none; margin: 0 0 1rem; padding: 0; }
+.side-contact li {
+    display: flex;
+    gap: .6rem;
+    align-items: flex-start;
+    padding: .4rem 0;
+    font-size: .87rem;
+    line-height: 1.5;
+    color: var(--ink);
+}
+.side-contact i { color: var(--green); margin-top: .22rem; font-size: .85rem; flex-shrink: 0; }
+.side-contact a { color: var(--ink); text-decoration: none; word-break: break-word; }
+.side-contact a:hover { color: var(--green); text-decoration: underline; }
+
+/* Numbered, because the fourth step is the one that surprises people: this is
+   not an instant booking and the visitor has to come to the office. A list they
+   read before pressing the button is a list that prevents that surprise. */
+.side-steps { list-style: none; margin: 0 0 1.1rem; padding: 0; counter-reset: none; }
+.side-steps li {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    padding: .32rem 0;
+    font-size: .85rem;
+    color: var(--ink);
+}
+.side-steps span {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--green-pale);
+    border: 1px solid rgba(46, 125, 50, .3);
+    color: var(--green-dark);
+    font-size: .72rem;
+    font-weight: 700;
+}
+
+.btn-side {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: .5rem;
+    width: 100%;
+    padding: .7rem 1rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--green);
+    background: var(--green-pale);
+    color: var(--green-dark);
+    font-size: .88rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: background .18s var(--ease), color .18s var(--ease);
+}
+.btn-side:hover { background: var(--green); color: var(--white); }
+
+.btn-side--solid {
+    background: var(--grad-brand);
+    border-color: transparent;
+    color: var(--white);
+    box-shadow: 0 6px 16px -6px rgba(27, 94, 32, .45);
+}
+.btn-side--solid:hover { color: var(--white); filter: brightness(1.07); }
+
+/* ---- You may also like ---------------------------------------------------- */
+
+.dest-also { margin-top: 2.5rem; }
+
+.also-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 1rem;
+}
+
+.also-card {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: var(--white);
+    text-decoration: none;
+    color: inherit;
+    transition: transform .2s var(--ease), box-shadow .2s var(--ease);
+}
+.also-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-md);
+    color: inherit;
+}
+
+.also-card__media {
+    position: relative;
+    display: block;
+    aspect-ratio: 16 / 10;
+    background: var(--gray-100);
+}
+.also-card__media img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* Only rendered where a distance was actually measured — see the markup. */
+.also-card__km {
+    position: absolute;
+    top: .5rem;
+    left: .5rem;
+    padding: .18rem .55rem;
+    border-radius: 999px;
+    background: rgba(18, 58, 27, .85);
+    color: var(--white);
+    font-size: .72rem;
+    font-weight: 700;
+}
+
+.also-card__body { display: block; padding: .8rem .9rem 1rem; }
+.also-card__body strong {
+    display: block;
+    font-size: .95rem;
+    font-weight: 700;
+    line-height: 1.35;
+    color: var(--green-dark);
+}
+.also-card__where {
+    display: flex;
+    align-items: center;
+    gap: .3rem;
+    margin-top: .25rem;
+    font-size: .79rem;
+    color: var(--ink-soft);
+}
+.also-card__where i { color: var(--green); font-size: .75em; }
+
+/* ---- narrow --------------------------------------------------------------- */
+
+@media (max-width: 991.98px) {
+    /* The sidebar is reference material; the pictures are what somebody came
+       for. On a phone the aside follows the main column rather than pushing it
+       below three cards of contact details. */
+    .dest-aside { margin-top: 1.5rem; }
+}
+
+@media (max-width: 575.98px) {
+    .dest-gallery { grid-template-columns: repeat(2, 1fr); }
+    .prep-grid { grid-template-columns: repeat(2, 1fr); }
+    .also-grid { grid-template-columns: 1fr; }
+}
+
+/* Thumbnails past the sixth, revealed by the "View all photos" control. Hidden
+   rather than not rendered so the lightbox still walks the whole set and the
+   button needs no request to do its job. */
+/* Never shown as tiles. They exist so the viewer has the whole set to walk
+   through once the door tile opens it — the grid itself never grows, because a
+   long scroll of small squares is not how anyone looks at photographs. */
+.dest-gallery a.is-extra { display: none; }
+
+/* The control is a <button> because it changes what is on screen rather than
+   going anywhere; it is painted like the links beside it. */
+button.dest-block__more {
+    border: 0;
+    background: none;
+    padding: 0;
+    font: inherit;
+    font-size: .83rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+/* ---- The gallery door tile -----------------------------------------------
+   Nine tiles, three by three, so the block finishes level with the 16:9 video
+   beside it. When there are more, the ninth photograph stays and is dimmed
+   under the remaining count — a tenth thumbnail shrunk into a "more" button
+   would read as a picture nobody is allowed to open.
+   ------------------------------------------------------------------------ */
+.dest-gallery a { position: relative; }
+
+.dest-gallery__door {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: .1rem;
+    background: rgba(18, 58, 27, .72);
+    color: var(--white);
+    text-align: center;
+    transition: background .2s var(--ease);
+}
+.dest-gallery a.is-door:hover .dest-gallery__door { background: rgba(18, 58, 27, .82); }
+
+.dest-gallery__door strong { font-size: 1.35rem; font-weight: 800; line-height: 1; }
+.dest-gallery__door small  { font-size: .72rem; font-weight: 600; opacity: .92; }
+
+/* ---- Recent ratings -------------------------------------------------------
+   Stars and a date. The office's rule is that a rating is public and a comment
+   is not, so there is nothing else on these rows — and a row with a name and a
+   home town on it would be blank anyway, since the digital logbook that
+   supplied both was removed.
+   ------------------------------------------------------------------------ */
+.rating-feed { list-style: none; margin: 1.1rem 0 0; padding: 0; }
+
+.rating-feed li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: .55rem 0;
+    border-bottom: 1px solid var(--gray-100);
+}
+.rating-feed li:last-child { border-bottom: 0; }
+.rating-feed li.is-extra { display: none; }
+.rating-feed.is-open li.is-extra { display: flex; }
+
+.rating-feed__stars { color: var(--amber); font-size: .88rem; letter-spacing: .06em; }
+.rating-feed__when  { font-size: .8rem; color: var(--ink-soft); white-space: nowrap; }
+
+.rating-feed__more {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    margin-top: .8rem;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: .83rem;
+    font-weight: 600;
+    color: var(--green);
+    cursor: pointer;
+}
+.rating-feed__more:hover { color: var(--green-dark); text-decoration: underline; }
+
+/* ---- The two moved sections, now inside the narrower main column ---------- */
+.reviews-section { margin-top: 2.5rem; }
+
+/* Three across at the column's full width, one on a phone. The four-up rule
+   from when this ran the whole page width would leave cards too narrow to
+   carry a destination name on one line. */
+.dest-also .also-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+
+@media (max-width: 575.98px) {
+    .dest-gallery__door strong { font-size: 1.05rem; }
+    .dest-gallery__door small  { font-size: .64rem; }
+}
+
+
+/* =============================================================================
+   SWEETALERT2 ON THE PUBLIC SIDE
+   =============================================================================
+   The same dialogs the office sees, in the public palette. A visitor asking for
+   a guide and an officer approving one should meet the same shape of question —
+   that consistency is most of what makes a system feel like one system.
+
+   Tokens differ between the two stylesheets (--ink-soft here, --ink-2 in
+   admin.css), so this is not a copy of that block; only the look is shared.
+   ========================================================================== */
+
+.ts-swal {
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg);
+    font-family: inherit;
+    padding: 1.7rem 1.6rem 1.4rem;
+}
+
+.ts-swal__title {
+    font-size: 1.12rem;
+    font-weight: 600;
+    color: var(--ink);
+    padding: 0;
+}
+
+.ts-swal__text,
+.ts-swal .swal2-html-container {
+    font-size: .9rem;
+    color: var(--ink-soft);
+    line-height: 1.6;
+    margin: .55rem 0 0;
+}
+
+.ts-swal .swal2-actions {
+    gap: .55rem;
+    margin: 1.4rem 0 0;
+    justify-content: flex-end;
+    width: 100%;
+}
+
+.ts-swal .swal2-actions .btn { min-width: 104px; }
+
+.ts-swal .swal2-input,
+.ts-swal .swal2-textarea {
+    font-size: .9rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid #DDE4DF;
+    box-shadow: none;
+    margin: 1rem 0 0;
+}
+
+.ts-swal .swal2-input:focus,
+.ts-swal .swal2-textarea:focus {
+    border-color: var(--green);
+    box-shadow: 0 0 0 3px var(--green-pale);
+}
+
+.ts-swal .swal2-validation-message {
+    background: #FDECEC;
+    color: #C62828;
+    font-size: .82rem;
+    border-radius: var(--radius-sm);
+}
+
+/* ---- Toasts -------------------------------------------------------------- */
+.ts-swal--toast {
+    padding: .9rem 1.05rem;
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-lg);
+    border: 1px solid #E4EBE6;
+}
+
+.ts-swal--toast .swal2-title {
+    font-size: .88rem;
+    font-weight: 500;
+    color: var(--ink);
+    line-height: 1.45;
+    margin: 0;
+    padding: 0;
+}
+
+.ts-swal--toast .swal2-timer-progress-bar { background: var(--green); }
+.ts-swal--toast.swal2-icon-error   .swal2-timer-progress-bar { background: #C62828; }
+.ts-swal--toast.swal2-icon-warning .swal2-timer-progress-bar { background: var(--amber); }
+.ts-swal--toast.swal2-icon-info    .swal2-timer-progress-bar { background: var(--blue); }
+
+/* Below the public navbar rather than under it. */
+.swal2-container.swal2-top-end { padding-top: 5.5rem; }
+
+@media (max-width: 575.98px) {
+    .swal2-container.swal2-top-end { padding-top: .75rem; }
+    .ts-swal .swal2-actions { flex-direction: column-reverse; }
+    .ts-swal .swal2-actions .btn { width: 100%; }
+}
+
+/* ---- Busy buttons -------------------------------------------------------- */
+.btn.is-busy {
+    opacity: .72;
+    cursor: progress;
+    pointer-events: none;
+}
+
+.btn__spin {
+    width: 13px;
+    height: 13px;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    display: inline-block;
+    animation: ts-spin .65s linear infinite;
+    flex: none;
+    vertical-align: -1px;
+}
+
+@keyframes ts-spin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+    .btn__spin { animation: none; opacity: .6; }
+}
+
+
+/* =============================================================================
+   BUTTON STATES ON THE PUBLIC SIDE
+   =============================================================================
+   Same three gaps as the officer's stylesheet — pressed, disabled, and the
+   outlined variants — but the public palette and the decorative variants
+   (.btn-glass over a photograph, .btn-primary-grad on the hero) need their own
+   treatment rather than a copy.
+   ========================================================================== */
+
+.btn:active:not(:disabled):not(.disabled) {
+    transform: translateY(1px);
+    transition-duration: .06s;
+}
+
+/* The hero buttons lift on hover; their press returns to rest rather than
+   dropping below it. */
+.btn-primary-grad:active:not(:disabled),
+.btn-soft:active:not(:disabled),
+.btn-glass:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.btn:disabled,
+.btn.disabled,
+.btn[aria-disabled="true"] {
+    background: #EDF1EE;
+    background-image: none;
+    border-color: #DDE4DF;
+    color: #96A0A8;
+    box-shadow: none;
+    opacity: 1;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* .btn-glass sits on a photograph, where the flat grey above would disappear
+   into the image. It stays translucent and simply stops responding. */
+.btn-glass:disabled,
+.btn-glass.disabled {
+    background: rgba(255, 255, 255, .18);
+    border-color: rgba(255, 255, 255, .3);
+    color: rgba(255, 255, 255, .55);
+}
+
+.btn-outline-secondary {
+    color: var(--ink-soft);
+    border-color: #DDE4DF;
+    background: #fff;
+}
+.btn-outline-secondary:hover {
+    background: #F4F7F5;
+    border-color: var(--ink-soft);
+    color: var(--ink);
+}
+
+.btn-outline-danger {
+    color: #C62828;
+    border-color: #E9C4C4;
+    background: #fff;
+}
+.btn-outline-danger:hover { background: #C62828; border-color: #C62828; color: #fff; }
+
+/* A visitor's phone is the common case here, not the exception. */
+@media (max-width: 575.98px) {
+    .btn { max-width: 100%; }
+}
+
+
+/* =============================================================================
+   THE DESTINATION VIDEO PLAYLIST
+   =============================================================================
+   The office adds a film a year. This is what replaced the column of separate
+   players: one frame, a bar that says which clip is showing and how many there
+   are, and a strip of years to jump straight into one.
+   ========================================================================== */
+
+.vplay { margin-top: .9rem; }
+
+.vplay__bar {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    padding: .6rem .7rem;
+    background: #fff;
+    border: 1px solid #E4EBE6;
+    border-radius: var(--radius-sm);
+}
+
+.vplay__step {
+    flex: none;
+    width: 38px;
+    height: 38px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #DDE4DF;
+    border-radius: 50%;
+    background: #fff;
+    color: var(--ink);
+    cursor: pointer;
+    transition: background .16s, border-color .16s, color .16s;
+}
+
+.vplay__step:hover:not(:disabled) {
+    background: var(--green);
+    border-color: var(--green);
+    color: #fff;
+}
+
+/* Held rather than hidden at the ends: a control that disappears makes the one
+   beside it move under the cursor that was about to press it. */
+.vplay__step:disabled {
+    opacity: .38;
+    cursor: not-allowed;
+}
+
+.vplay__step:focus-visible {
+    outline: 2px solid var(--green);
+    outline-offset: 2px;
+}
+
+/* min-width:0 so a long title ellipsises instead of pushing the counter and the
+   Next button off the end of the bar. */
+.vplay__now {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    line-height: 1.3;
+}
+
+.vplay__now strong {
+    display: block;
+    font-size: .92rem;
+    color: var(--ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.vplay__now span {
+    font-size: .76rem;
+    color: var(--ink-soft);
+}
+
+.vplay__count {
+    flex: none;
+    font-size: .78rem;
+    color: var(--ink-soft);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+@media (max-width: 575.98px) {
+    /* The counter stays now that the strip is gone — with no tiles underneath,
+       "3 of 7" is the only thing telling a reader there is more to see. */
+    .vplay__bar { gap: .5rem; padding: .5rem; }
+    .vplay__now strong { font-size: .86rem; }
 }

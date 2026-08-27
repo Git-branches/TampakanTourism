@@ -3,9 +3,11 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../../bootstrap.php';
 
+use App\Core\Paginator;
 use App\Core\ActivityLog;
 use App\Core\Auth;
 use App\Core\Csrf;
+use App\Core\Database;
 use App\Core\Session;
 use App\Core\SmsGateway;
 use App\Repositories\ManagerRepository;
@@ -36,8 +38,35 @@ if (is_post()) {
     redirect(base_url('/admin/managers/index.php'));
 }
 
-$managers   = ManagerRepository::all(['search' => trim((string) ($_GET['q'] ?? ''))]);
+$pager      = Paginator::slice(
+    ManagerRepository::all(['search' => trim((string) ($_GET['q'] ?? ''))]),
+    $_GET['page'] ?? null
+);
+$managers   = $pager['rows'];
 $counts     = ManagerRepository::counts();
+
+/* The add form is rendered into a dialog at the foot of this page, so the two
+   things it needs have to be loaded here as well as in create.php. */
+$destinations = Database::all("SELECT id, name FROM destinations WHERE status='active' ORDER BY name");
+
+/* Rejected input comes back from create.php with the errors attached; the
+   sheet reopens over the registry rather than sending anybody to a second
+   screen to read them. */
+/* NOT $m. The table below walks the registry with `foreach ($managers as $m)`,
+   and the dialog is rendered after it — so a variable called $m here would hold
+   the last manager on the page by the time the form read it, and the rejected
+   input would be silently replaced by somebody else's details. */
+$sheetManager = array_fill_keys(
+    ['id','full_name','position','destination_id','mobile_number','email','sms_opt_in','is_active'],
+    ''
+);
+
+foreach (array_keys($sheetManager) as $k) {
+    $old = old_all();
+    if (isset($old[$k])) { $sheetManager[$k] = $old[$k]; }
+}
+
+$sheetOpen = old_all() !== [];
 $uncovered  = ManagerRepository::destinationsWithoutManager();
 $driverLive = SmsGateway::isLive();
 
@@ -93,7 +122,9 @@ require __DIR__ . '/../_partials/head.php';
         </div>
         <button type="submit" class="btn btn-sm btn-outline-secondary">Search</button>
     </form>
-    <a href="create.php" class="btn btn-brand btn-sm"><i class="fa-solid fa-plus"></i> Add Manager</a>
+    <button type="button" class="btn btn-brand btn-sm" data-dialog="addManager">
+        <i class="fa-solid fa-plus"></i> Add Manager
+    </button>
 </div>
 
 <?php if ($managers === []): ?>
@@ -103,7 +134,11 @@ require __DIR__ . '/../_partials/head.php';
             <p><strong>No destination managers registered.</strong></p>
             <p>Add the people responsible at each destination so the Office can reach them
                with advisories, closures, and submission schedules.</p>
-            <p class="mt-3"><a href="create.php" class="btn btn-brand btn-sm"><i class="fa-solid fa-plus"></i> Add the first manager</a></p>
+            <p class="mt-3">
+                <button type="button" class="btn btn-brand btn-sm" data-dialog="addManager">
+                    <i class="fa-solid fa-plus"></i> Add the first manager
+                </button>
+            </p>
         </div>
     </div></div>
 <?php else: ?>
@@ -169,5 +204,14 @@ require __DIR__ . '/../_partials/head.php';
         </div>
     </div>
 <?php endif; ?>
+
+<?php require __DIR__ . '/../../app/views/partials/pager.php'; ?>
+
+<?php /* The registry's own copy of the add form. Same _form.php create.php and
+         edit.php use, so a field added there appears here without anyone
+         remembering to. */ ?>
+<dialog class="sheet" id="addManager"<?= $sheetOpen ? ' data-open' : '' ?>>
+    <?php $inSheet = true; $m = $sheetManager; require __DIR__ . '/_form.php'; ?>
+</dialog>
 
 <?php require __DIR__ . '/../_partials/foot.php'; ?>

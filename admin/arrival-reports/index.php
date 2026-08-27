@@ -15,6 +15,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../../bootstrap.php';
 
+use App\Core\Paginator;
 use App\Core\Auth;
 use App\Core\Database;
 use App\Repositories\ArrivalReportRepository as Reports;
@@ -22,7 +23,7 @@ use App\Repositories\ReportDocumentRepository as Documents;
 
 Auth::require();
 
-$pageTitle    = 'Tourist Arrival Reports';
+$pageTitle    = 'Reports to Review';
 $pageIcon     = 'fa-inbox';
 $pageSubtitle = 'Centralized Tourist Arrival Logbook Submission and Monitoring';
 
@@ -35,10 +36,14 @@ if ($status !== '' && !isset(Reports::STATUSES[$status])) {
     $status = '';
 }
 
-$reports = Reports::queue([
-    'status'         => $status,
-    'destination_id' => $destinationId,
-]);
+$pager = Paginator::slice(
+    Reports::queue([
+        'status'         => $status,
+        'destination_id' => $destinationId,
+    ], 500),
+    $_GET['page'] ?? null
+);
+$reports = $pager['rows'];
 
 $counts       = Reports::counts();
 $destinations = Database::all('SELECT id, name FROM destinations ORDER BY name ASC');
@@ -214,5 +219,7 @@ $filterUrl = static function (array $overrides) use ($status, $destinationId): s
         <?php endif; ?>
     </div>
 </section>
+
+<?php require __DIR__ . '/../../app/views/partials/pager.php'; ?>
 
 <?php require __DIR__ . '/../_partials/foot.php'; ?>

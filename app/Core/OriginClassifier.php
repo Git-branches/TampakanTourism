@@ -211,15 +211,50 @@ final class OriginClassifier
             }
         }
 
-        /* Longest cue first, so "general santos" is not beaten by a shorter
-           substring that happens to appear inside it. */
-        $places = self::PHILIPPINE_PLACES;
-        uksort($places, static fn (string $a, string $b): int => mb_strlen($b) <=> mb_strlen($a));
+        /* TWO PASSES, MUNICIPALITIES BEFORE PROVINCES.
+         *
+         * Length alone is not enough to order these, and ordering by length
+         * alone was wrong in a way that never showed up in a total.
+         *
+         * "Tupi, South Cotabato" contains both `tupi` and `cotabato`. Sorted by
+         * length, the eight-letter province cue won and the entry was filed as
+         * Cotabato — so a visitor from a South Cotabato municipality landed in
+         * the DOT form's OTHER PROVINCE column while the grand total stayed
+         * correct. Eleven municipality cues were shorter than `cotabato` and
+         * every one of them was misfiled: tupi, banga, norala, marbel, tboli,
+         * sto nino, surallah, kor city, korcity, cannery, t boli.
+         *
+         * An address naming a municipality is always more specific than the
+         * province printed after it, whatever the two happen to be spelled
+         * like. So municipality cues are matched first, and only if none hits
+         * does the province-level list get a turn.
+         *
+         * Within each pass, longest still wins — that is what keeps
+         * "general santos" from being beaten by a shorter cue inside it. */
+        $municipalities = [];
+        $provinces      = [];
 
-        foreach ($places as $cue => [$city, $province]) {
-            if (self::contains($text, $cue)) {
-                return self::result('domestic', $city, $province, self::COUNTRY, 'high',
-                    'Read as ' . $city . ($province !== $city ? ', ' . $province : '') . '.');
+        foreach (self::PHILIPPINE_PLACES as $cue => [$city, $province]) {
+            /* city === province marks an entry that IS a province, or a city
+               the DOT form treats as its own province — General Santos, for
+               instance. Anything else names a town inside a province. */
+            if ($city === $province) {
+                $provinces[$cue] = [$city, $province];
+            } else {
+                $municipalities[$cue] = [$city, $province];
+            }
+        }
+
+        $byLength = static fn (string $a, string $b): int => mb_strlen($b) <=> mb_strlen($a);
+        uksort($municipalities, $byLength);
+        uksort($provinces, $byLength);
+
+        foreach ([$municipalities, $provinces] as $pass) {
+            foreach ($pass as $cue => [$city, $province]) {
+                if (self::contains($text, $cue)) {
+                    return self::result('domestic', $city, $province, self::COUNTRY, 'high',
+                        'Read as ' . $city . ($province !== $city ? ', ' . $province : '') . '.');
+                }
             }
         }
 

@@ -15,15 +15,37 @@ if (!defined('TOURSYNC')) {
 
 $facilityList = implode(', ', DestinationRepository::decodeFacilities($d['facilities'] ?? null));
 $isEdit = !empty($d['id']);
+
+/* THE SAME FORM IN THREE PLACES.
+ *
+ * create.php and edit.php render it as a full page; the list renders it inside
+ * a dialog behind the Add Destination button. Only the chrome differs — five
+ * panels become five labelled groups, because a panel inside a dialog is a
+ * card inside a card. */
+$inSheet = !empty($inSheet);
+$grp     = $inSheet ? 'sheet__group'  : 'panel';
+$grpHead = $inSheet ? 'sheet__legend' : 'panel__head';
+$grpBody = $inSheet ? 'sheet__fields' : 'panel__body';
 ?>
 
-<form method="post" enctype="multipart/form-data" class="form-grid" novalidate>
+<form method="post" enctype="multipart/form-data" novalidate
+      <?= $inSheet ? 'action="create.php" class="sheet__form"' : 'class="form-grid"' ?>>
     <?= csrf_field() ?>
 
+    <?php if ($inSheet): ?>
+        <header class="sheet__head">
+            <h2><i class="fa-solid fa-mountain-sun" aria-hidden="true"></i> Add a destination</h2>
+            <button type="button" class="sheet__close" data-dialog-close aria-label="Close">
+                <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+            </button>
+        </header>
+        <div class="sheet__body">
+    <?php endif; ?>
+
     <!-- ================= BASICS ================= -->
-    <section class="panel">
-        <header class="panel__head"><h2><i class="fa-solid fa-circle-info"></i> Basic Information</h2></header>
-        <div class="panel__body">
+    <section class="<?= $grp ?>">
+        <header class="<?= $grpHead ?>"><h2><i class="fa-solid fa-circle-info"></i> Basic Information</h2></header>
+        <div class="<?= $grpBody ?>">
 
             <div class="row g-3">
                 <div class="col-md-8">
@@ -101,9 +123,9 @@ $isEdit = !empty($d['id']);
     </section>
 
     <!-- ================= VISITOR INFORMATION ================= -->
-    <section class="panel">
-        <header class="panel__head"><h2><i class="fa-solid fa-clipboard-list"></i> Visitor Information</h2></header>
-        <div class="panel__body">
+    <section class="<?= $grp ?>">
+        <header class="<?= $grpHead ?>"><h2><i class="fa-solid fa-clipboard-list"></i> Visitor Information</h2></header>
+        <div class="<?= $grpBody ?>">
             <div class="row g-3">
 
                 <div class="col-md-6">
@@ -149,9 +171,9 @@ $isEdit = !empty($d['id']);
     </section>
 
     <!-- ================= LOCATION ================= -->
-    <section class="panel">
-        <header class="panel__head"><h2><i class="fa-solid fa-map-location-dot"></i> Location</h2></header>
-        <div class="panel__body">
+    <section class="<?= $grp ?>">
+        <header class="<?= $grpHead ?>"><h2><i class="fa-solid fa-map-location-dot"></i> Location</h2></header>
+        <div class="<?= $grpBody ?>">
             <div class="row g-3">
 
                 <div class="col-md-4">
@@ -200,9 +222,9 @@ $isEdit = !empty($d['id']);
     </section>
 
     <!-- ================= CONTACT ================= -->
-    <section class="panel">
-        <header class="panel__head"><h2><i class="fa-solid fa-address-book"></i> Site Contact</h2></header>
-        <div class="panel__body">
+    <section class="<?= $grp ?>">
+        <header class="<?= $grpHead ?>"><h2><i class="fa-solid fa-address-book"></i> Site Contact</h2></header>
+        <div class="<?= $grpBody ?>">
             <div class="row g-3">
                 <div class="col-md-4">
                     <label for="contact_person" class="form-label">Contact person</label>
@@ -240,20 +262,30 @@ $isEdit = !empty($d['id']);
 
     <?php if (!$isEdit): ?>
     <!-- ================= PHOTOS (create only) ================= -->
-    <section class="panel">
-        <header class="panel__head"><h2><i class="fa-solid fa-images"></i> Photos</h2></header>
-        <div class="panel__body">
+    <section class="<?= $grp ?>">
+        <header class="<?= $grpHead ?>"><h2><i class="fa-solid fa-images"></i> Photos</h2></header>
+        <div class="<?= $grpBody ?>">
             <label for="photos" class="form-label">Upload photos</label>
             <input type="file" id="photos" name="photos[]" multiple accept="image/jpeg,image/png,image/webp"
-                   class="form-control">
+                   class="form-control" data-max-mb="<?= n(upload_limit_mb()) ?>">
             <p class="field-hint">
-                JPG, PNG, or WebP up to 5 MB each. The first becomes the cover photo; you can change
+                JPG, PNG, or WebP up to <?= n(\App\Core\Uploader::maxMegabytes()) ?> MB each. The first becomes the cover photo; you can change
                 that afterwards. Images are re-encoded and resized on upload.
             </p>
         </div>
     </section>
     <?php endif; ?>
 
+    <?php if ($inSheet): ?>
+        </div>
+
+        <footer class="sheet__foot">
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-dialog-close>Cancel</button>
+            <button type="submit" class="btn btn-sm btn-brand">
+                <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Create Destination
+            </button>
+        </footer>
+    <?php else: ?>
     <div class="form-actions">
         <a href="index.php" class="btn btn-outline-secondary">Cancel</a>
         <button type="submit" class="btn btn-brand">
@@ -261,6 +293,7 @@ $isEdit = !empty($d['id']);
             <?= $isEdit ? 'Save Changes' : 'Create Destination' ?>
         </button>
     </div>
+    <?php endif; ?>
 </form>
 
 <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet">
@@ -280,6 +313,17 @@ $isEdit = !empty($d['id']);
     const hasPin   = el.dataset.lat !== '' && el.dataset.lng !== '';
 
     const map = L.map(el).setView([startLat, startLng], hasPin ? 14 : 12);
+
+    /* A map built inside a closed <dialog> measures its container as zero and
+       paints grey for ever. admin.js fires sheet:open when the dialog is shown;
+       this is the map being told to measure again now that it has a size. */
+    const sheet = el.closest('dialog');
+
+    if (sheet) {
+        sheet.addEventListener('sheet:open', function () {
+            window.setTimeout(function () { map.invalidateSize(); }, 60);
+        });
+    }
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap contributors',

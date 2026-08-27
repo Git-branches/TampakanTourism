@@ -95,6 +95,67 @@ Session::start(
 );
 
 // -----------------------------------------------------------------------------
+// 5b. A POST too large for PHP to accept
+//
+//     When the body exceeds post_max_size, PHP throws the WHOLE request away —
+//     $_POST and $_FILES both arrive empty — but still reports the method as
+//     POST. Every page then ran Csrf::verify(), found no token, and told the
+//     officer their session had expired.
+//
+//     It had not. They had chosen a video a few megabytes over the limit, and
+//     the message sent them off to sign in again instead of to a smaller file.
+//     VideoUploader has a clear message for exactly this, and it never ran,
+//     because no application code sees a request PHP discarded at the door.
+//
+//     Detected before any page calls Csrf::verify(), so the honest error is the
+//     one that reaches the screen. Nothing in this codebase reads a raw request
+//     body, so an empty $_POST with bytes on the wire has only this cause.
+// -----------------------------------------------------------------------------
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST'
+    && $_POST === []
+    && $_FILES === []
+    && (int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {
+
+    $sent  = (int) $_SERVER['CONTENT_LENGTH'];
+    $limit = (static function (): int {
+        $raw  = trim((string) ini_get('post_max_size'));
+        $unit = strtolower(substr($raw, -1));
+        $n    = (int) $raw;
+
+        return match ($unit) {
+            'g'     => $n * 1024 * 1024 * 1024,
+            'm'     => $n * 1024 * 1024,
+            'k'     => $n * 1024,
+            default => $n,
+        };
+    })();
+
+    $message = sprintf(
+        'That upload is %s MB. This server accepts %s MB per submission, so nothing was saved. '
+        . 'Use a smaller file, or add the video as a YouTube link instead — a link has no size limit.',
+        number_format($sent / 1048576, 1),
+        number_format($limit / 1048576, 0)
+    );
+
+    /* Back to the page they were on, but only when it is this site's own —
+       Referer is set by the browser and must never be followed off-host. */
+    $back  = (string) ($_SERVER['HTTP_REFERER'] ?? '');
+    $host  = strtolower((string) parse_url($back, PHP_URL_HOST));
+    $mine  = strtolower((string) ($_SERVER['HTTP_HOST'] ?? ''));
+    $local = $back !== '' && ($host === '' || $host === $mine || $host === explode(':', $mine)[0]);
+
+    if ($local) {
+        Session::flash('danger', $message);
+        header('Location: ' . $back, true, 303);
+        exit;
+    }
+
+    http_response_code(413);
+    header('Content-Type: text/plain; charset=utf-8');
+    exit($message);
+}
+
+// -----------------------------------------------------------------------------
 // 6. Database (lazy — no connection is opened until a query runs)
 // -----------------------------------------------------------------------------
 Database::configure($config['database']);

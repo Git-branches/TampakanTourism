@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../../bootstrap.php';
 
+use App\Core\Paginator;
 use App\Core\Auth;
 use App\Core\Database;
 use App\Core\QrService;
@@ -13,7 +14,7 @@ $pageTitle    = 'QR Codes';
 $pageIcon     = 'fa-qrcode';
 $pageSubtitle = 'One unique code per destination — print, laminate, and install on site';
 
-$destinations = Database::all(
+$pager        = Paginator::slice(Database::all(
     "SELECT d.id, d.name, d.slug, d.barangay, d.qr_token, d.qr_version, d.qr_rotated_at,
             c.name AS category_name,
             COALESCE((SELECT COUNT(*) FROM tourist_arrivals a
@@ -22,7 +23,9 @@ $destinations = Database::all(
        LEFT JOIN categories c ON c.id = d.category_id
       WHERE d.status = 'active'
       ORDER BY d.name"
-);
+), $_GET['page'] ?? null);
+
+$destinations = $pager['rows'];
 
 require __DIR__ . '/../_partials/head.php';
 ?>
@@ -140,8 +143,14 @@ require __DIR__ . '/../_partials/head.php';
                         <i class="fa-solid fa-arrow-up-right-from-square"></i> Test
                     </a>
                     <?php if (Auth::isOfficer()): ?>
+                        <?php
+                        /* Rotating a code kills every laminated sign already
+                           bolted up at that destination, so this asks through
+                           the same dialog as every other irreversible action
+                           rather than through the browser's own box. */
+                        ?>
                         <form method="post" action="rotate.php" class="d-inline"
-                              onsubmit="return confirm('Issue a new code for <?= e(addslashes($d['name'])) ?>?\n\nEvery sign already printed for this destination will stop working and must be replaced.');">
+                              data-confirm="Issue a new code for <?= e($d['name']) ?>? Every sign already printed for this destination will stop working and must be replaced.">
                             <?= csrf_field() ?>
                             <input type="hidden" name="id" value="<?= (int) $d['id'] ?>">
                             <button type="submit" class="btn btn-sm btn-outline-danger">
@@ -172,4 +181,5 @@ document.querySelectorAll("[data-qr]").forEach(function (el) {
 });
 </script>';
 
+require __DIR__ . '/../../app/views/partials/pager.php';
 require __DIR__ . '/../_partials/foot.php';

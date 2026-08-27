@@ -98,8 +98,15 @@ require __DIR__ . '/_partials/head.php';
                 <a href="<?= e(base_url('/admin/qrcodes/index.php')) ?>" class="btn btn-brand btn-sm">
                     <i class="fa-solid fa-print"></i> Print the QR posters
                 </a>
-                <a href="<?= e(base_url('/admin/arrivals/manual.php')) ?>" class="btn btn-outline-secondary btn-sm">
-                    <i class="fa-solid fa-pen"></i> Record one manually
+                <?php
+                /* "Record one manually" was removed. The office monitors and
+                   approves arrivals; it does not originate them. A figure typed
+                   there carried no report, no manager and no approval, and still
+                   landed on the monthly DOT form beside figures that had been
+                   through the whole review. */
+                ?>
+                <a href="<?= e(base_url('/admin/arrival-reports/index.php')) ?>" class="btn btn-outline-secondary btn-sm">
+                    <i class="fa-solid fa-inbox"></i> Review submitted reports
                 </a>
             </p>
         </div>

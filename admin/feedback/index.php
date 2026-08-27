@@ -12,6 +12,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../../bootstrap.php';
 
+use App\Core\Paginator;
 use App\Core\ActivityLog;
 use App\Core\Auth;
 use App\Core\Csrf;
@@ -74,7 +75,8 @@ if (!in_array($filters['status'], ['pending', 'published', 'hidden', ''], true))
     $filters['status'] = 'pending';
 }
 
-$result       = FeedbackRepository::paginate($filters, (int) ($_GET['page'] ?? 1), 20);
+$result       = FeedbackRepository::paginate($filters, (int) ($_GET['page'] ?? 1), Paginator::PER_PAGE);
+$pager        = Paginator::adopt($result);
 $counts       = FeedbackRepository::statusCounts();
 $distribution = FeedbackRepository::distribution();
 $destinations = Database::all("SELECT id, name FROM destinations ORDER BY name");
@@ -230,9 +232,9 @@ require __DIR__ . '/../_partials/head.php';
                             · visited <?= e(format_date($r['visit_date'])) ?>
                         <?php endif; ?>
                         <?php
-                        $origin = array_filter([$r['origin_city'], $r['origin_province'], $r['origin_country']]);
-                        if ($origin): ?>
-                            · from <?= e(implode(', ', $origin)) ?>
+                        $origin = origin_label($r['origin_city'], $r['origin_province'], $r['origin_country'], '');
+                        if ($origin !== ''): ?>
+                            · from <?= e($origin) ?>
                         <?php endif; ?>
                         <?php if ($r['moderator_name']): ?>
                             · reviewed by <?= e($r['moderator_name']) ?>
@@ -251,8 +253,9 @@ require __DIR__ . '/../_partials/head.php';
                         <?php endif; ?>
 
                         <?php if ($r['status'] !== 'hidden'): ?>
-                            <form method="post" class="d-inline"
-                                  onsubmit="return confirm('Hide this review?\n\nOnly abuse and spam should be hidden — not criticism.');">
+                            <form method="post" class="d-inline" data-confirm="Hide this review?
+
+Only abuse and spam should be hidden — not criticism.">
                                 <?= csrf_field() ?>
                                 <input type="hidden" name="id" value="<?= (int) $r['id'] ?>">
                                 <input type="hidden" name="status" value="hidden">
@@ -266,14 +269,9 @@ require __DIR__ . '/../_partials/head.php';
         <?php endforeach; ?>
     </div>
 
-    <?php if ($result['pages'] > 1): ?>
-        <nav class="pager">
-            <?php for ($p = 1; $p <= $result['pages']; $p++): ?>
-                <a href="?status=<?= e($filters['status']) ?>&page=<?= $p ?>"
-                   class="<?= $p === $result['page'] ? 'is-current' : '' ?>"><?= $p ?></a>
-            <?php endfor; ?>
-        </nav>
-    <?php endif; ?>
+    <?php /* Same fix as announcements: the old markup carried only the
+             status filter into the page links. */ ?>
+    <?php require __DIR__ . '/../../app/views/partials/pager.php'; ?>
 
 <?php endif; ?>
 

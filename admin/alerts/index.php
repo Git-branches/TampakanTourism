@@ -15,10 +15,10 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../../bootstrap.php';
 
+use App\Core\Paginator;
 use App\Core\ActivityLog;
 use App\Core\Auth;
 use App\Core\Csrf;
-use App\Core\Database;
 use App\Core\Session;
 use App\Core\SmsGateway;
 use App\Repositories\AlertRepository as Alerts;
@@ -73,7 +73,12 @@ if (is_post()) {
     }
 
     /* The half that makes this two-way. A manager who reports a landslide and
-       hears nothing will drive to town to find out whether it arrived. */
+       hears nothing will drive to town to find out whether it arrived.
+     *
+     * The reply is written into the alert AND texted, in one action. They were
+     * two buttons before, which meant an officer could answer in the system and
+     * the manager — who is not sitting in front of the portal either — would
+     * never learn there was an answer. */
     if ($action === 'reply') {
         $body = trim((string) ($_POST['reply'] ?? ''));
 
@@ -82,15 +87,22 @@ if (is_post()) {
             redirect(base_url('/admin/alerts/index.php#alert' . $id));
         }
 
-        $result = Alerts::replyBySms($id, $body);
+        Alerts::recordReply($id, $body, $adminId);
 
-        if ($result['ok']) {
-            ActivityLog::record('alert.replied', 'destination_alert', $id, 'Texted back: ' . mb_substr($body, 0, 100));
+        $sms = Alerts::notifyManagerOfReply($id, $body);
+
+        ActivityLog::record('alert.replied', 'destination_alert', $id,
+            'Replied to ' . $where . ': ' . mb_substr($body, 0, 100));
+
+        if ($sms['sent']) {
             Session::flash('success', SmsGateway::isLive()
-                ? 'Reply sent by SMS.'
-                : 'Reply written to the SMS log — this system is in test mode, so nothing was actually sent.');
+                ? 'Reply saved and texted to the manager.'
+                : 'Reply saved. SMS is in test mode on this system, so the text went to the log instead of a phone.');
         } else {
-            Session::flash('danger', $result['error']);
+            /* Saved either way. The manager sees it in the portal; the text is
+               the convenience, not the record. */
+            Session::flash('warning', 'Reply saved — the manager will see it in their portal. '
+                . 'It was not texted: ' . $sms['reason']);
         }
     }
 
@@ -103,7 +115,11 @@ $severity = (string) ($_GET['severity'] ?? '');
 if ($status !== '' && !isset(Alerts::STATUSES[$status]))     { $status = ''; }
 if ($severity !== '' && !isset(Alerts::SEVERITIES[$severity])) { $severity = ''; }
 
-$alerts = Alerts::inbox(['status' => $status, 'severity' => $severity]);
+$pager  = Paginator::slice(
+    Alerts::inbox(['status' => $status, 'severity' => $severity], 500),
+    $_GET['page'] ?? null
+);
+$alerts = $pager['rows'];
 $counts = Alerts::counts();
 
 $pageTitle    = 'Destination Alerts';
@@ -218,6 +234,16 @@ require __DIR__ . '/../_partials/head.php';
                 <?php endif; ?>
             </p>
 
+            <?php if ($a['office_reply']): ?>
+                <div class="alert alert-info py-2">
+                    <strong>Your reply:</strong> <?= e((string) $a['office_reply']) ?>
+                    <span class="cell-sub">
+                        <?= $a['replied_by_name'] ? e((string) $a['replied_by_name']) . ' · ' : '' ?>
+                        <?= $a['reply_sent_at'] ? 'texted ' . e(format_date((string) $a['reply_sent_at'], 'M j, g:i A')) : 'not texted' ?>
+                    </span>
+                </div>
+            <?php endif; ?>
+
             <?php if ($a['resolution_note']): ?>
                 <div class="alert alert-<?= $a['status'] === 'resolved' ? 'success' : 'info' ?> py-2">
                     <strong><?= $a['status'] === 'resolved' ? 'Resolved' : 'Note' ?>:</strong>
@@ -289,20 +315,25 @@ require __DIR__ . '/../_partials/head.php';
                             <input type="hidden" name="id" value="<?= (int) $a['id'] ?>">
 
                             <label class="form-label" for="reply<?= (int) $a['id'] ?>">
-                                Text them back
-                                <?php if (!SmsGateway::isLive()): ?>
-                                    <span class="text-muted small">(test mode — written to the log)</span>
-                                <?php endif; ?>
+                                Reply to the manager
                             </label>
                             <input type="text" id="reply<?= (int) $a['id'] ?>" name="reply"
                                    class="form-control form-control-sm" maxlength="300"
+                                   value="<?= e((string) ($a['office_reply'] ?? '')) ?>"
                                    placeholder="e.g. Received. Barangay rescue is on the way.">
 
                             <div class="mt-2">
-                                <button type="submit" name="action" value="reply" class="btn btn-sm btn-outline-secondary">
-                                    <i class="fa-solid fa-reply"></i> Send SMS reply
+                                <button type="submit" name="action" value="reply" class="btn btn-brand btn-sm">
+                                    <i class="fa-solid fa-reply"></i> Send reply
                                 </button>
                             </div>
+
+                            <p class="text-muted small mt-2 mb-0">
+                                Saved to the report and texted to the manager, in one action.
+                                <?php if (!SmsGateway::isLive()): ?>
+                                    <em>SMS is in test mode &mdash; the text goes to the log.</em>
+                                <?php endif; ?>
+                            </p>
                         </form>
                     </div>
                 </div>
@@ -310,5 +341,7 @@ require __DIR__ . '/../_partials/head.php';
         </div>
     </section>
 <?php endforeach; ?>
+
+<?php require __DIR__ . '/../../app/views/partials/pager.php'; ?>
 
 <?php require __DIR__ . '/../_partials/foot.php'; ?>

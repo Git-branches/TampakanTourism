@@ -589,8 +589,16 @@
 
     /* =========================================================================
        09. CONTACT FORM VALIDATION
-       Front-end only — this page ships without backend handling. Replace the
-       success branch with a fetch() to your endpoint when the API exists.
+
+       Client-side validation ONLY. The form posts to api/contact/submit.php and
+       the server has the final say — this exists to catch an empty required
+       field before a round trip, not to decide anything.
+
+       WHAT THIS USED TO DO: preventDefault on every submit, wait 1.2 seconds,
+       and print "your message has been received". Nothing was sent and nothing
+       was stored. Every enquiry made through this form since the site went up
+       was discarded, and each of those people believed the office had read it
+       and chosen not to reply. The fake success is gone.
        ====================================================================== */
     function initContactForm() {
         const form  = $('#contactForm');
@@ -605,36 +613,30 @@
         };
 
         form.addEventListener('submit', (event) => {
-            event.preventDefault();
-
             // Bootstrap's validation styles are driven by :invalid + .was-validated
             form.classList.add('was-validated');
 
             if (!form.checkValidity()) {
+                // The ONLY branch that stops the submission.
+                event.preventDefault();
                 showAlert('error', 'Please complete all required fields before sending.');
                 const firstInvalid = form.querySelector(':invalid');
                 if (firstInvalid) firstInvalid.focus();
                 return;
             }
 
-            const button   = form.querySelector('button[type="submit"]');
-            const original = button.innerHTML;
+            /* Valid: let the browser submit normally. The spinner is honest now
+               — it runs until the page navigates, and the message the visitor
+               reads afterwards comes from the server having actually stored it.
 
-            button.disabled = true;
-            button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Sending&hellip;';
+               The button is NOT disabled: a disabled submit button is omitted
+               from the POST body, and disabling it here would also strand the
+               visitor on a dead form if the request failed. */
+            const button = form.querySelector('button[type="submit"]');
 
-            // Simulated round-trip. Swap for a real request when the API is ready.
-            window.setTimeout(() => {
-                showAlert(
-                    'success',
-                    'Thank you! Your message has been received. The Municipal Tourism Office will respond within one working day.'
-                );
-
-                form.reset();
-                form.classList.remove('was-validated');
-                button.disabled = false;
-                button.innerHTML = original;
-            }, 1200);
+            if (button) {
+                button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Sending&hellip;';
+            }
         });
 
         // Clear the alert as soon as the visitor starts correcting the form.
@@ -999,6 +1001,110 @@
      * always "the last thing I added doesn't work", pointing at the wrong
      * code. Now a failure is named in the console and the rest still run.
      */
+    /* ---------------------------------------------------------------------
+       The destination video playlist
+       ---------------------------------------------------------------------
+       One player, stepped through with Prev/Next or jumped into by pressing a
+       year. The clips arrive as JSON on the container, already resolved by
+       VideoRepository::playlist() — this never builds a URL, because the check
+       that a YouTube id is a real id lives on the server and would be worth
+       nothing if a script could assemble the src afterwards.
+
+       Switching rebuilds the frame rather than swapping a src attribute: an
+       uploaded file is a <video> and a linked one is an <iframe>, and stepping
+       from one to the other means changing the element, not its address.
+       ------------------------------------------------------------------ */
+    function initVideoPlaylist() {
+        var root = document.getElementById('vplay');
+        var frame = document.getElementById('vplayFrame');
+
+        if (!root || !frame) { return; }
+
+        var clips;
+
+        try {
+            clips = JSON.parse(root.dataset.clips || '[]');
+        } catch (e) {
+            return;
+        }
+
+        if (!clips.length) { return; }
+
+        var prev    = root.querySelector('[data-vplay="prev"]');
+        var next    = root.querySelector('[data-vplay="next"]');
+        var title   = root.querySelector('[data-vplay="title"]');
+        var meta    = root.querySelector('[data-vplay="meta"]');
+        var counter = root.querySelector('[data-vplay="index"]');
+
+        var at = 0;
+
+        function render(index, autoplay) {
+            var clip = clips[index];
+            if (!clip) { return; }
+
+            at = index;
+
+            /* Emptied first so the outgoing <video> stops. Assigning innerHTML
+               alone leaves a detached element that keeps playing its audio in
+               some browsers. */
+            var old = frame.querySelector('video');
+            if (old) { old.pause(); }
+            frame.innerHTML = '';
+
+            /* The frame is one fixed 16:9 rectangle whatever goes in it, so
+               stepping between an uploaded file and a linked one swaps the
+               element and nothing else. */
+            var el;
+
+            if (clip.kind === 'upload') {
+                el = document.createElement('video');
+                el.controls = true;
+                el.playsInline = true;
+                el.preload = 'metadata';
+                if (clip.poster) { el.poster = clip.poster; }
+
+                var source = document.createElement('source');
+                source.src = clip.src;
+                source.type = clip.mime || 'video/mp4';
+                el.appendChild(source);
+                el.appendChild(document.createTextNode('Your browser cannot play this video.'));
+            } else {
+                el = document.createElement('iframe');
+                el.src = clip.src;
+                el.title = clip.title;
+                el.loading = 'lazy';
+                el.allowFullscreen = true;
+                el.referrerPolicy = 'strict-origin-when-cross-origin';
+            }
+
+            frame.appendChild(el);
+
+            /* Only after a press, never on load — a video that starts talking
+               when a page opens is the reason people keep their sound off. */
+            if (autoplay && clip.kind === 'upload') {
+                var playing = el.play();
+                if (playing && typeof playing.catch === 'function') { playing.catch(function () {}); }
+            }
+
+            if (title)   { title.textContent = clip.title; }
+            if (meta)    { meta.textContent = (clip.year ? clip.year + ' · ' : '') + (clip.label || ''); }
+            if (counter) { counter.textContent = String(index + 1); }
+
+            if (prev) { prev.disabled = index === 0; }
+            if (next) { next.disabled = index === clips.length - 1; }
+        }
+
+        if (prev) { prev.addEventListener('click', function () { render(at - 1, true); }); }
+        if (next) { next.addEventListener('click', function () { render(at + 1, true); }); }
+
+        /* Arrow keys, but only while the focus is inside the playlist — the
+           page is long and Left/Right elsewhere belong to the reader. */
+        root.addEventListener('keydown', function (event) {
+            if (event.key === 'ArrowLeft'  && at > 0)                { render(at - 1, true); }
+            if (event.key === 'ArrowRight' && at < clips.length - 1) { render(at + 1, true); }
+        });
+    }
+
     function run(name, fn) {
         try {
             fn();
@@ -1021,6 +1127,7 @@
         run('counters',           initCounters);
         run('map',                initMap);
         run('lightbox',           initLightbox);
+        run('videoPlaylist',      initVideoPlaylist);
         run('contactForm',        initContactForm);
         run('images',             initImages);
         run('interactiveEffects', initInteractiveEffects);

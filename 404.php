@@ -25,7 +25,7 @@ $suggestions = DestinationRepository::published([], 3);
 <meta name="robots" content="noindex">
 <title>Page Not Found — Tampakan Tourism</title>
 <link rel="icon" href="<?= e(base_url('assets/img/tampakan_logo.png')) ?>" sizes="any">
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
 <link rel="stylesheet" href="<?= e(base_url('assets/css/style.css')) ?>">

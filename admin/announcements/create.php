@@ -29,7 +29,10 @@ if (is_post()) {
     validate_announcement($v);
 
     if ($v->fails()) {
-        flash_back($v->errors(), $_POST, 'create.php');
+        /* Back to the list, where the composer lives in a dialog; it reopens
+           with the rejected input still in it. create.php on its own is
+           still the same form without the dialog around it. */
+        flash_back($v->errors(), $_POST, 'index.php');
     }
 
     $data = collect_announcement_input($v);

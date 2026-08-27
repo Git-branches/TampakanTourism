@@ -9,13 +9,32 @@ if (!defined('TOURSYNC')) {
 }
 
 $isEdit = !empty($m['id']);
+
+/* THE SAME FIELDS IN THREE PLACES.
+ *
+ * create.php and edit.php render this as a full page; the registry renders it
+ * inside a dialog behind the Add Manager button. Only the chrome differs, and
+ * it differs here rather than in a second copy of eleven form fields that
+ * would drift the first time one of them changed. */
+$inSheet = !empty($inSheet);
 ?>
-<form method="post" class="form-grid" novalidate>
+<form method="post"
+      <?= $inSheet ? 'action="create.php" class="sheet__form"' : 'class="form-grid"' ?> novalidate>
     <?= csrf_field() ?>
 
+    <?php if ($inSheet): ?>
+        <header class="sheet__head">
+            <h2><i class="fa-solid fa-user-plus" aria-hidden="true"></i> Add a destination manager</h2>
+            <button type="button" class="sheet__close" data-dialog-close aria-label="Close">
+                <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+            </button>
+        </header>
+        <div class="sheet__body">
+    <?php else: ?>
     <section class="panel">
         <header class="panel__head"><h2><i class="fa-regular fa-address-card"></i> Manager Details</h2></header>
         <div class="panel__body">
+    <?php endif; ?>
             <div class="row g-3">
 
                 <div class="col-md-6">
@@ -95,6 +114,16 @@ $isEdit = !empty($m['id']);
                 </div>
                 <?php endif; ?>
             </div>
+    <?php if ($inSheet): ?>
+        </div>
+
+        <footer class="sheet__foot">
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-dialog-close>Cancel</button>
+            <button type="submit" class="btn btn-sm btn-brand">
+                <i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Add Manager
+            </button>
+        </footer>
+    <?php else: ?>
         </div>
     </section>
 
@@ -104,4 +133,5 @@ $isEdit = !empty($m['id']);
             <i class="fa-solid fa-floppy-disk"></i> <?= $isEdit ? 'Save Changes' : 'Add Manager' ?>
         </button>
     </div>
+    <?php endif; ?>
 </form>

@@ -89,17 +89,47 @@ final class VisitorRecord
             ];
         }
 
-        /* One pass over the approved arrivals, bucketed in PHP rather than in
-           four separate aggregate queries: the bucketing rule for General
-           Santos is a runtime choice, and expressing it as SQL in three places
-           is three places for it to drift. */
+        /* ONLY WHAT A MANAGER SUBMITTED AND THE OFFICE APPROVED.
+         *
+         * The join to arrival_reports is the rule, not an optimisation. This
+         * sheet is filed with the DOT, and every figure on it has to answer
+         * "where did this come from" with a report: a named manager, a date, a
+         * logbook page behind it.
+         *
+         * Filtering on status='valid' alone was not that guarantee. It counted
+         * any row in the table, and the table has other writers — the retired
+         * QR endpoint, and until today a manual-entry screen where an officer
+         * could type five hundred visitors straight onto this form with no
+         * manager, no review and nothing to point at. The rule now holds
+         * whatever else ever writes there.
+         *
+         * Bucketed in PHP rather than in four aggregate queries: the General
+         * Santos rule is a runtime choice, and expressing it as SQL in three
+         * places is three places for it to drift. */
         $arrivals = Database::all(
-            "SELECT destination_id, tourist_type, origin_province, sex,
-                    COALESCE(SUM(total_visitors), 0) AS visitors
-               FROM tourist_arrivals
-              WHERE status = 'valid'
-                AND visit_date BETWEEN ? AND ?
-              GROUP BY destination_id, tourist_type, origin_province, sex",
+            "SELECT a.destination_id, a.tourist_type, a.origin_province, a.sex,
+                    COALESCE(SUM(a.total_visitors), 0) AS visitors
+               FROM tourist_arrivals a
+               JOIN arrival_reports r ON r.id = a.report_id AND r.status = 'approved'
+              WHERE a.status = 'valid'
+                AND a.visit_date BETWEEN ? AND ?
+              GROUP BY a.destination_id, a.tourist_type, a.origin_province, a.sex",
+            [$start, $end]
+        );
+
+        /* Rows in the month that this sheet deliberately does NOT count.
+         *
+         * Surfaced rather than dropped in silence. If something ever writes an
+         * arrival with no approved report behind it, the officer should learn
+         * that from the screen instead of from a total that quietly disagrees
+         * with the arrivals list. Zero on a healthy system. */
+        $excluded = (int) Database::scalar(
+            "SELECT COALESCE(SUM(a.total_visitors), 0)
+               FROM tourist_arrivals a
+               LEFT JOIN arrival_reports r ON r.id = a.report_id
+              WHERE a.status = 'valid'
+                AND a.visit_date BETWEEN ? AND ?
+                AND (a.report_id IS NULL OR r.status <> 'approved')",
             [$start, $end]
         );
 
@@ -185,6 +215,11 @@ final class VisitorRecord
             'unknown_province' => $unknownProvince,
             'gensan_is_local'  => $gensanIsLocal,
             'has_data'         => $totals['grand']['total'] > 0,
+
+            /* Visitors in this month that exist in the arrivals table but are
+               NOT behind an approved report, so this sheet does not count them.
+               Zero on a healthy system; if it is not, the screen says so. */
+            'excluded'         => $excluded,
         ];
     }
 
