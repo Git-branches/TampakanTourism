@@ -108,3 +108,32 @@ $chatActions = [
         Automated &middot; from published records &middot; nothing you type is stored
     </p>
 </section>
+
+<?php
+/* THE WIDGET BRINGS ITS OWN WIRING.
+ *
+ * The markup, the endpoints and the script used to be three separate blocks
+ * that each page pasted in. One page had them; the other four did not, and
+ * adding the assistant to a page meant remembering all three in the right
+ * order. Now it is one include.
+ *
+ * The guard matters: index.php mounts this once, and a page that included it
+ * twice would define the config twice and bind two widgets to the same
+ * launcher. */
+if (!defined('TOURSYNC_CHAT_MOUNTED')) {
+    define('TOURSYNC_CHAT_MOUNTED', true);
+    ?>
+    <script>
+        /* The endpoints are handed over rather than hardcoded, so the widget
+           works unchanged whether the site is served from the domain root or a
+           subdirectory. The token endpoint is shared with the offline logbook
+           queue. */
+        window.TourSyncChat = {
+            askUrl:   <?= json_encode(base_url('/api/chat/ask.php')) ?>,
+            tokenUrl: <?= json_encode(base_url('/api/arrivals/token.php')) ?>
+        };
+    </script>
+    <script src="<?= e(asset('js/chat.js')) ?>"></script>
+    <?php
+}
+?>
