@@ -414,7 +414,7 @@ $itemTone = static fn (string $s): string => match ($s) {
 
                 <div class="mt-3 d-flex gap-2 flex-wrap">
                     <button type="submit" name="action" value="approve" class="btn btn-brand btn-sm"
-                            <?= $readiness['ready'] ? '' : 'disabled' ?> data-confirm="Record &lt;?= e((string) $report['destination_name']) ?&gt; as compliant?" data-confirm-tone="normal">
+                            <?= $readiness['ready'] ? '' : 'disabled' ?> data-confirm="Record <?= e((string) $report['destination_name']) ?> as compliant?" data-confirm-tone="normal">
                         <i class="fa-solid fa-circle-check"></i> Grant Compliance
                     </button>
 

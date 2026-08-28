@@ -91,9 +91,17 @@ require __DIR__ . '/../_partials/head.php';
             </a>
         <?php endif; ?>
 
-        <form method="post" action="archive.php" class="d-inline" data-confirm="&lt;?= $d['status'] === 'active'
-                  ? 'Archive this destination? It disappears from the public site and the map, but every recorded arrival is kept.'
-                  : 'Restore this destination to the public site?' ?&gt;" data-confirm-tone="normal">
+        <?php
+        /* The PHP tags in this attribute were HTML-escaped, so the ternary never
+           ran and the officer was shown its source instead of a question.
+           Computed above the tag and echoed in as one string. */
+        $archiveAsk = $d['status'] === 'active'
+            ? 'Archive ' . $d['name'] . '? It disappears from the public site and the map, '
+              . 'but every recorded arrival is kept.'
+            : 'Restore ' . $d['name'] . ' to the public site?';
+        ?>
+        <form method="post" action="archive.php" class="d-inline"
+              data-confirm="<?= e($archiveAsk) ?>" data-confirm-tone="normal">
             <?= csrf_field() ?>
             <input type="hidden" name="id" value="<?= $id ?>">
             <input type="hidden" name="status" value="<?= $d['status'] === 'active' ? 'archived' : 'active' ?>">

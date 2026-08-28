@@ -544,7 +544,7 @@ require __DIR__ . '/_partials/head.php';
                     </div>
 
                     <div class="mt-3 d-flex gap-2 flex-wrap">
-                        <button type="submit" name="action" value="confirm" class="btn btn-brand btn-sm" data-confirm="Import &lt;?= n(count($valid)) ?&gt; tourist record(s)?">
+                        <button type="submit" name="action" value="confirm" class="btn btn-brand btn-sm" data-confirm="Import <?= n(count($valid)) ?> tourist record(s)?">
                             <i class="fa-solid fa-file-import"></i> Import <?= n(count($valid)) ?> record(s)
                         </button>
 

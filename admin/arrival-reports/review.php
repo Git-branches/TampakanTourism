@@ -597,9 +597,20 @@ require __DIR__ . '/../_partials/head.php';
 
         <div class="row g-4" <?= Auth::isOfficer() ? '' : 'hidden' ?>>
             <div class="col-lg-5">
-                <form method="post" data-confirm="Approve this report?
-
-&lt;?= n($totals['total_visitors']) ?&gt; visitors across &lt;?= n(count($days)) ?&gt; day(s) will be written into the municipality's tourism records." data-confirm-tone="normal">
+                <?php
+                /* The PHP tags in this attribute were HTML-escaped, so the
+                   officer approving a report — the act that writes figures into
+                   the municipality's official tourism records — was shown the
+                   source of the count instead of the count. Built above the tag
+                   and echoed in as one string. */
+                $approveAsk = sprintf(
+                    "Approve this report?\n\n%s visitors across %s day(s) will be written "
+                    . "into the municipality's tourism records.",
+                    n($totals['total_visitors']),
+                    n(count($days))
+                );
+                ?>
+                <form method="post" data-confirm="<?= e($approveAsk) ?>" data-confirm-tone="normal">
                     <?= csrf_field() ?>
                     <input type="hidden" name="action" value="approve">
 

@@ -246,9 +246,26 @@ require __DIR__ . '/../_partials/head.php';
                         Publish the announcement before sending it.
                     </div>
                 <?php elseif (Auth::isOfficer()): ?>
-                    <form method="post" class="mt-3" data-confirm="Send this announcement to &lt;?= count($recipients) ?&gt; manager(s)?
+                    <?php
+                    /* THE PHP TAGS HERE WERE HTML-ESCAPED, so none of this ran.
+                       The officer was asked to confirm spending real SMS credits
+                       and shown the source of the ternary instead of the warning.
+                       Escaped inside an attribute is invisible in the editor and
+                       in view-source; it only appears in the dialog itself.
 
-&lt;?= SmsGateway::isLive() ? 'This spends real SMS credits and cannot be recalled.' : 'Test mode — nothing will actually be sent.' ?&gt;" data-confirm-tone="normal">
+                       Built above the tag now and echoed in as one string, which
+                       is the shape that cannot be escaped by accident. */
+                    $dispatchAsk = sprintf(
+                        "Send this announcement to %s manager(s)?\n\n%s",
+                        n(count($recipients)),
+                        SmsGateway::isLive()
+                            ? 'This spends real SMS credits and cannot be recalled.'
+                            : 'Test mode — written to the log, nothing is actually sent.'
+                    );
+                    ?>
+                    <form method="post" class="mt-3"
+                          data-confirm="<?= e($dispatchAsk) ?>"
+                          data-confirm-tone="<?= SmsGateway::isLive() ? 'danger' : 'normal' ?>">
                         <?= csrf_field() ?>
                         <input type="hidden" name="id" value="<?= $id ?>">
                         <input type="hidden" name="action" value="dispatch">

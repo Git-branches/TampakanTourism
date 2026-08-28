@@ -240,9 +240,18 @@ require __DIR__ . '/../_partials/head.php';
 
         <?php if ($m['username']): ?>
             <hr class="my-4">
-            <form method="post" data-confirm="Revoke sign-in for &lt;?= e(addslashes($m['full_name'])) ?&gt;?
-
-They will lose access immediately. Their submitted reports are kept.">
+            <?php
+            /* Escaped PHP tags again: this asked "Revoke sign-in for <?= …" and
+               showed the source. addslashes went with it — that escapes for a PHP
+               string literal, not for an HTML attribute, and e() is what belongs
+               here. */
+            $revokeAsk = sprintf(
+                "Revoke sign-in for %s?\n\nThey lose access immediately. "
+                . "Their submitted reports are kept.",
+                $m['full_name']
+            );
+            ?>
+            <form method="post" data-confirm="<?= e($revokeAsk) ?>" data-confirm-tone="danger">
                 <?= csrf_field() ?>
                 <input type="hidden" name="action" value="revoke">
                 <button type="submit" class="btn btn-sm btn-outline-danger">

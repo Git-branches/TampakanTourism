@@ -156,7 +156,7 @@ require __DIR__ . '/../_partials/head.php';
                         This cannot be undone — that is the point of it. Type <strong>ANONYMISE</strong>
                         to confirm you intend it.
                     </p>
-                    <form method="post" data-confirm="Permanently clear personal details from &lt;?= (int) $pending['records'] ?&gt; record(s)?">
+                    <form method="post" data-confirm="Permanently clear personal details from <?= n((int) $pending['records']) ?> record(s)? This cannot be undone.">
                         <?= csrf_field() ?>
                         <input type="text" name="confirm" class="form-control mb-2" placeholder="Type ANONYMISE" autocomplete="off" required>
                         <button type="submit" class="btn btn-outline-danger w-100">

@@ -643,10 +643,19 @@ require __DIR__ . '/_partials/head.php';
                             ? n($totalRow['entries']) . ' visitor(s) across ' . n(count($pages)) . ' page(s)'
                             : n(count($documents)) . ' logbook document(s)';
                         ?>
+                        <?php
+                        /* Escaped PHP tags: the manager submitting a month of
+                           figures was shown the source of the summary instead of
+                           the summary. Built above the tag as one string. */
+                        $submitAsk = sprintf(
+                            "Submit this report to the Municipal Tourism Office?\n\n%s. "
+                            . "You will not be able to edit it while they review it.",
+                            $summary
+                        );
+                        ?>
                         <button type="submit" name="action" value="submit" class="btn btn-brand btn-sm"
-                                <?= $hasSomething ? '' : 'disabled' ?> data-confirm="Submit this report to the Municipal Tourism Office?
-
-&lt;?= e($summary) ?&gt;. You will not be able to edit it while they review it.">
+                                <?= $hasSomething ? '' : 'disabled' ?>
+                                data-confirm="<?= e($submitAsk) ?>">
                             <i class="fa-solid fa-paper-plane"></i> Submit Report
                         </button>
                     </div>
