@@ -700,13 +700,16 @@
             } catch (e) { /* folding still works for this visit */ }
         }
 
-        /* Keyed on the page path plus the heading text. Not on a position: panels
+        /* The slug section_head() stamped on the header. Not a position — panels
            get added and reordered, and an index would quietly start folding a
-           different section the next time somebody inserts one above it. */
+           different section the next time somebody inserts one above it — and no
+           longer the heading TEXT either, because the pre-paint script in
+           head.php has to build CSS selectors out of these before the document
+           has a body to search, and a heading cannot go in a selector. */
         function keyOf(panel) {
-            var h = panel.querySelector('.set-head__text h2');
+            var head = panel.querySelector('[data-section]');
 
-            return window.location.pathname + '#' + (h ? (h.textContent || '').trim() : '');
+            return head ? head.getAttribute('data-section') : '';
         }
 
         function fold(panel, shut) {
@@ -727,6 +730,7 @@
                 fold(panel, true);
             }
         });
+
 
         document.addEventListener('click', function (event) {
             var toggle = event.target.closest && event.target.closest('[data-collapse]');
@@ -757,5 +761,106 @@
             if (owner) { fold(owner, false); }
         }
     })();
+
+    /* ---------------------------------------------------------------------
+       Showing a password
+       ---------------------------------------------------------------------
+       The sign-in page has had a reveal button since it was written. Every
+       other password field in the admin had none — four on My Account alone,
+       where somebody is being asked to type a password they cannot check
+       before renaming their own account.
+
+       Built here rather than in the markup so it covers every field at once,
+       including any added later, and so a page with scripting off simply gets
+       the plain field it always had rather than a button that does nothing.
+
+       The sign-in page is skipped: it has its own, inside .auth-input, and two
+       buttons in one box would be worse than none.
+       ------------------------------------------------------------------ */
+    (function () {
+        var fields = document.querySelectorAll('input[type="password"]');
+
+        Array.prototype.forEach.call(fields, function (input) {
+            if (input.closest('.auth-input') || input.closest('.pw-field')) { return; }
+
+            /* Wrapped rather than positioned against its parent: the parent is a
+               grid column that may hold a label and a hint too, and the button
+               has to sit against the INPUT. */
+            var wrap = document.createElement('div');
+
+            wrap.className = 'pw-field';
+            input.parentNode.insertBefore(wrap, input);
+            wrap.appendChild(input);
+
+            var button = document.createElement('button');
+
+            button.type = 'button';
+            button.className = 'pw-field__reveal';
+            button.setAttribute('aria-label', 'Show password');
+            button.innerHTML = '<i class="fa-regular fa-eye" aria-hidden="true"></i>';
+
+            wrap.appendChild(button);
+        });
+
+        document.addEventListener('click', function (event) {
+            var button = event.target.closest && event.target.closest('.pw-field__reveal');
+
+            if (!button) { return; }
+
+            var input = button.parentNode.querySelector('input');
+
+            if (!input) { return; }
+
+            var shown = input.type === 'text';
+
+            /* THE CARET GOES BACK WHERE IT WAS — read BEFORE the type changes,
+               because changing it discards the selection. Somebody halfway
+               through a long password who pressed this to check one character
+               should not be returned to the end of it.
+
+               My first version read input.value.length, which is the end, under
+               a comment claiming it restored the position. The probe put the
+               caret at 6 and got 20 back. */
+            var start = input.selectionStart;
+            var end   = input.selectionEnd;
+
+            input.type = shown ? 'password' : 'text';
+            button.innerHTML = shown
+                ? '<i class="fa-regular fa-eye" aria-hidden="true"></i>'
+                : '<i class="fa-regular fa-eye-slash" aria-hidden="true"></i>';
+            button.setAttribute('aria-label', shown ? 'Show password' : 'Hide password');
+
+            try {
+                input.focus();
+
+                if (start !== null) {
+                    input.setSelectionRange(start, end);
+                }
+            } catch (e) {
+                input.focus();   /* a browser that refuses setSelectionRange here */
+            }
+        });
+    })();
+
+    /* ---------------------------------------------------------------------
+       The pre-paint stand-in comes out
+       ---------------------------------------------------------------------
+       head.php injects a <style> before <body> exists, so a panel belonging to
+       another tab, or a section the officer had folded, is never painted even
+       once. By the time this line runs the real state is on the elements —
+       `hidden` for the tabs, `.is-collapsed` for the sections — and the
+       stand-in has to go, or it would keep overriding every decision made from
+       here on: the error-forcing above, and every later click on a chevron.
+
+       Outside the collapse block on purpose. That block returns early on a page
+       with no foldable sections, and this must run on every page that got a
+       stand-in — otherwise a screen with tabs but no chevrons would keep its
+       panels hidden by a stylesheet nobody could see.
+       ------------------------------------------------------------------ */
+    var preState = document.getElementById('preStateStyle');
+
+    if (preState && preState.parentNode) {
+        preState.parentNode.removeChild(preState);
+    }
 
 })();

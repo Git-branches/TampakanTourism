@@ -29,7 +29,13 @@
       "Bash(echo \"=== EXIT $?\")",
       "Bash(curl -s -o /dev/null -w \"%{http_code} %{size_download}\\\\n\" \"http://localhost/TampakanTourism/index.php\")",
       "Bash(php -r ' *)",
-      "Bash(awk -F: '$1 > 830 && $1 < 880')"
+      "Bash(awk -F: '$1 > 830 && $1 < 880')",
+      "Bash(/c/xampp/php/php.exe -l tests/about-section.php)",
+      "Bash(/c/xampp/php/php.exe -l tests/bootstrap.php)",
+      "Bash(/c/xampp/php/php.exe tests/run.php about)",
+      "Bash(/c/xampp/php/php.exe -l admin/settings/accounts.php)",
+      "Bash(/c/xampp/php/php.exe -l tests/account-username.php)",
+      "Bash(/c/xampp/php/php.exe tests/run.php username)"
     ]
   }
 }

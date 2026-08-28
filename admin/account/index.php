@@ -59,6 +59,51 @@ if (is_post()) {
         redirect(base_url('/admin/account/index.php'));
     }
 
+    // ---- Sign-in name -----------------------------------------------------
+    if ($action === 'username') {
+        $wanted  = strtolower(trim((string) ($_POST['new_username'] ?? '')));
+        $current = (string) ($_POST['username_password'] ?? '');
+        $errors  = [];
+
+        /* THE CURRENT PASSWORD, for the same reason the password change asks for
+           it: the session already proves identity, but an unattended terminal
+           that is still signed in must not be usable to rename the account out
+           from under the person who owns it. A rename is quiet — nothing on
+           screen changes — so it is exactly the change worth making noisy. */
+        if (!password_verify($current, $me['password_hash'])) {
+            $errors['username_password'] = 'That is not your current password.';
+        }
+
+        if ($wanted === $me['username']) {
+            $errors['new_username'] = 'That is already your username.';
+        } else {
+            $problems = AdminRepository::usernameProblems($wanted, $id);
+
+            if ($problems !== []) {
+                $errors['new_username'] = 'The username ' . implode(', and ', $problems) . '.';
+            }
+        }
+
+        if ($errors !== []) {
+            flash_back($errors, ['new_username' => $wanted], 'index.php');
+        }
+
+        $was = (string) $me['username'];
+
+        AdminRepository::changeUsername($id, $wanted);
+
+        /* The session carries its own copy, and Auth reads from there. Left
+           stale, the officer would be signed in as a username that no longer
+           exists until the session expired. */
+        $_SESSION['_admin']['username'] = $wanted;
+
+        ActivityLog::record('account.username', 'admin', $id,
+            'Renamed own sign-in from ' . $was . ' to ' . $wanted);
+
+        Session::flash('success', 'You now sign in as "' . $wanted . '". Your password has not changed.');
+        redirect(base_url('/admin/account/index.php'));
+    }
+
     // ---- Password ---------------------------------------------------------
     if ($action === 'password') {
         $current = (string) ($_POST['current_password'] ?? '');
@@ -166,6 +211,73 @@ require __DIR__ . '/../_partials/head.php';
                     <div class="col-12">
                         <button type="submit" class="btn btn-brand">
                             <i class="fa-solid fa-key"></i> Change Password
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </section>
+
+        <?php /* NEXT TO THE PASSWORD, because it asks for the same proof and
+                 carries the same weight: this is the name you sign in with. */ ?>
+        <section class="panel">
+            <?php section_head('fa-at', 'Sign-in Name',
+                'The username you type on the sign-in page.') ?>
+            <div class="panel__body">
+                <form method="post" class="row g-3" novalidate autocomplete="off">
+                    <?= csrf_field() ?>
+                    <input type="hidden" name="action" value="username">
+
+                    <div class="col-md-6">
+                        <label class="form-label">Current username</label>
+                        <input type="text" class="form-control mono" value="<?= e($me['username']) ?>"
+                               readonly disabled>
+                        <p class="field-hint">
+                            <?php /* Worth saying plainly. Auth::attempt() matches on
+                                     `username = ? OR email = ?`, so an officer who
+                                     forgets what they renamed it to is not locked
+                                     out — their email still signs them in. */ ?>
+                            You can also sign in with your email address,
+                            <strong><?= e($me['email']) ?></strong>, whatever this is set to.
+                        </p>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label for="new_username" class="form-label">New username <span class="req">*</span></label>
+                        <input type="text" id="new_username" name="new_username" required
+                               maxlength="60" autocomplete="username" spellcheck="false"
+                               class="form-control mono <?= has_error('new_username') ? 'is-invalid' : '' ?>"
+                               value="<?= old('new_username') ?>">
+                        <p class="field-hint">
+                            3 to 60 characters, using letters, numbers, and
+                            <code>.</code> <code>_</code> <code>-</code>.
+                            Capitals are saved as lowercase.
+                        </p>
+                        <?php if (has_error('new_username')): ?>
+                            <div class="field-error"><?= e(error_for('new_username')) ?></div>
+                        <?php endif; ?>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label for="username_password" class="form-label">
+                            Your password <span class="req">*</span>
+                        </label>
+                        <input type="password" id="username_password" name="username_password" required
+                               autocomplete="current-password"
+                               class="form-control <?= has_error('username_password') ? 'is-invalid' : '' ?>">
+                        <p class="field-hint">
+                            Asked because a signed-in machine left unattended must not be
+                            enough to rename the account.
+                        </p>
+                        <?php if (has_error('username_password')): ?>
+                            <div class="field-error"><?= e(error_for('username_password')) ?></div>
+                        <?php endif; ?>
+                    </div>
+
+                    <div class="col-12">
+                        <button type="submit" class="btn btn-brand"
+                                data-confirm="Change your sign-in name? You will type the new one next time — your password stays the same."
+                                data-confirm-tone="normal">
+                            <i class="fa-solid fa-at"></i> Change Sign-in Name
                         </button>
                     </div>
                 </form>

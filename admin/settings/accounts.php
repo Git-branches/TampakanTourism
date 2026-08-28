@@ -9,8 +9,13 @@ declare(strict_types=1);
  * office is as bad as an open one.
  *
  *   1. An officer cannot remove their own last route back in.
- *   2. The last active officer cannot be demoted or deactivated.
+ *   2. The last active account cannot be deactivated.
  *   3. Every change is audit-logged with who did it.
+ *
+ * There is one kind of account: every one has full access. The `role` column
+ * and the Auth::require('officer') gates remain, and every account passes them
+ * — the office is one desk, and the screen no longer asks a question whose
+ * answer was always the same.
  */
 
 require_once __DIR__ . '/../../bootstrap.php';
@@ -40,18 +45,24 @@ if (is_post()) {
         $v = new Validator($_POST);
         $v->require('full_name', 'username', 'email', 'password')
           ->length('full_name', 2, 120)
-          ->length('username', 3, 60)
-          ->email('email')
-          ->in('role', ['officer', 'staff']);
+          ->email('email');
 
         $username = strtolower((string) $v->value('username'));
 
-        if (!preg_match('/^[a-z0-9._-]+$/', $username)) {
-            $v->addError('username', 'Use only letters, numbers, dots, hyphens, and underscores.');
+        /* THE SAME RULES THE OFFICER'S OWN RENAME USES.
+           The length, the character set and the uniqueness check were written
+           out here and again on the account screen when renaming was added —
+           two copies of one column's rules, free to drift apart. They live in
+           AdminRepository::usernameProblems() now. */
+        /* Named, not $problems. The password check below reuses that name, and
+           the two are only safe in this order — a reordering would silently
+           report the password's faults against the username. */
+        $usernameProblems = AdminRepository::usernameProblems($username);
+
+        if ($usernameProblems !== []) {
+            $v->addError('username', 'The username ' . implode(', and ', $usernameProblems) . '.');
         }
-        if (AdminRepository::usernameTaken($username)) {
-            $v->addError('username', 'That username is already taken.');
-        }
+
         if (AdminRepository::emailTaken((string) $v->value('email'))) {
             $v->addError('email', 'That email address is already registered.');
         }
@@ -65,16 +76,27 @@ if (is_post()) {
             flash_back($v->errors(), $_POST, 'accounts.php');
         }
 
+        /* EVERY ACCOUNT IS A TOURISM OFFICER.
+         *
+         * The Tampakan Tourism Office is one desk. There is no second tier of
+         * user to be, and a screen that asks which of two kinds of person you
+         * are creating — when the answer is always the same — is a question
+         * with one right answer, which is not a question.
+         *
+         * The `role` column and the Auth::require('officer') gates STAY. They
+         * cost nothing while every account passes them, and they are what a
+         * future limited account would be built on. What is gone is the choice
+         * being put to somebody who has only ever had one option. */
         $id = AdminRepository::create([
             'full_name' => (string) $v->value('full_name'),
             'username'  => $username,
             'email'     => (string) $v->value('email'),
             'password'  => (string) $_POST['password'],
-            'role'      => (string) $v->value('role', 'staff'),
+            'role'      => 'officer',
         ]);
 
         ActivityLog::record('account.create', 'admin', $id,
-            'Created ' . $v->value('role', 'staff') . ' account "' . $username . '"');
+            'Created account "' . $username . '"');
         Session::flash('success', 'Account created. Ask them to change the password at their first sign-in.');
         redirect(base_url('/admin/settings/accounts.php'));
     }
@@ -86,27 +108,11 @@ if (is_post()) {
         redirect(base_url('/admin/settings/accounts.php'));
     }
 
-    // ---- Role change ------------------------------------------------------
-    if ($action === 'role') {
-        $role = (string) ($_POST['role'] ?? '');
-
-        if (!in_array($role, ['officer', 'staff'], true)) {
-            Session::flash('danger', 'Unrecognised role.');
-            redirect(base_url('/admin/settings/accounts.php'));
-        }
-
-        // Demoting the last officer would leave nobody able to create accounts,
-        // change settings, or void a record — a locked office.
-        if ($role === 'staff' && $account['role'] === 'officer' && AdminRepository::activeOfficerCount() <= 1) {
-            Session::flash('danger', 'This is the only active Tourism Officer. Promote someone else first.');
-            redirect(base_url('/admin/settings/accounts.php'));
-        }
-
-        AdminRepository::setRole($target, $role);
-        ActivityLog::record('account.role', 'admin', $target,
-            'Changed ' . $account['username'] . ' to ' . $role);
-        Session::flash('success', $account['full_name'] . ' is now ' . ($role === 'officer' ? 'a Tourism Officer' : 'Tourism Staff') . '.');
-    }
+    /* The "Make Staff / Make Officer" action used to live here. Every account
+       is created as an officer now, so there is nothing to switch between and
+       the handler was a route the interface could no longer reach — dead code
+       that still accepted a POST. AdminRepository::setRole() is left in place:
+       it is one line, and it is what a future limited account would need. */
 
     // ---- Activate / deactivate --------------------------------------------
     if ($action === 'active') {
@@ -117,8 +123,13 @@ if (is_post()) {
             redirect(base_url('/admin/settings/accounts.php'));
         }
 
-        if (!$activate && $account['role'] === 'officer' && AdminRepository::activeOfficerCount() <= 1) {
-            Session::flash('danger', 'This is the only active Tourism Officer. Promote someone else first.');
+        /* "Promote someone else first" was the advice here, and there is no
+           promoting any more — it told the officer to do something the screen
+           had stopped offering. The achievable instruction is to make another
+           account, which is on this page. */
+        if (!$activate && AdminRepository::activeOfficerCount() <= 1) {
+            Session::flash('danger', 'This is the only account that can sign in. '
+                . 'Create another one before deactivating this.');
             redirect(base_url('/admin/settings/accounts.php'));
         }
 
@@ -165,14 +176,19 @@ $officers   = AdminRepository::activeOfficerCount();
 
 /* Counted over the WHOLE list, not the page window. A tally that changes when
    you turn the page is a tally nobody can act on — the roster learned this. */
-$tally = ['total' => count($all), 'officers' => 0, 'staff' => 0, 'inactive' => 0];
+/* Officers and staff were counted separately here. With one kind of account
+   that was a card reading "Tourism Staff 0" beside a card reading the total —
+   two numbers that could never disagree. These four can. */
+$tally = ['total' => count($all), 'active' => 0, 'inactive' => 0, 'stale' => 0];
 
 foreach ($all as $row) {
-    if ((int) $row['is_active'] !== 1) {
-        $tally['inactive']++;
-    }
+    ((int) $row['is_active'] === 1) ? $tally['active']++ : $tally['inactive']++;
 
-    ($row['role'] === 'officer') ? $tally['officers']++ : $tally['staff']++;
+    /* An account still on the password the installer printed to a terminal.
+       On a one-desk office that is the number worth watching. */
+    if ($row['password_changed_at'] === null) {
+        $tally['stale']++;
+    }
 }
 
 /* The create form reopens over the list when it is rejected, rather than
@@ -202,13 +218,11 @@ require __DIR__ . '/../_partials/head.php';
 <div class="stat-grid">
     <?php foreach ([
         ['fa-users',         'blue',  $tally['total'],    'Accounts'],
-        ['fa-user-shield',   'green', $tally['officers'], $tally['officers'] === 1 ? 'Tourism Officer' : 'Tourism Officers'],
-        /* No ternary: "Tourism Staff" is a mass noun and reads correctly at
-           nought, one and five. It had one anyway with the same string in both
-           branches — a line that looks like a bug even though it is harmless.
-           "Tourism Officer" does need one, and has it. */
-        ['fa-user',          'teal',  $tally['staff'],    'Tourism Staff'],
-        ['fa-user-slash',    'amber', $tally['inactive'], 'Deactivated'],
+        ['fa-user-check',    'green', $tally['active'],   'Can sign in'],
+        ['fa-user-slash',    'teal',  $tally['inactive'], 'Deactivated'],
+        /* The one worth acting on: an account still carrying the password the
+           installer printed to a terminal. */
+        ['fa-key',           'amber', $tally['stale'],    'Installer password'],
     ] as [$icon, $tone, $value, $label]): ?>
         <div class="stat-card stat-card--<?= e($tone) ?>">
             <div class="stat-card__icon"><i class="fa-solid <?= e($icon) ?>"></i></div>
@@ -247,7 +261,7 @@ require __DIR__ . '/../_partials/head.php';
     <div class="panel__body">
         <div class="table-responsive">
             <table class="table table-hover align-middle mb-0">
-                <thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Last sign-in</th><th>Password</th><th>Status</th><th></th></tr></thead>
+                <thead><tr><th>Name</th><th>Username</th><th>Last sign-in</th><th>Password</th><th>Status</th><th></th></tr></thead>
                 <tbody>
                 <?php foreach ($accounts as $a):
                     $isSelf   = (int) $a['id'] === (int) Auth::id();
@@ -258,11 +272,6 @@ require __DIR__ . '/../_partials/head.php';
                             <span class="cell-sub"><?= e($a['email']) ?></span>
                         </td>
                         <td class="mono small"><?= e($a['username']) ?></td>
-                        <td>
-                            <span class="pill pill--<?= $a['role'] === 'officer' ? 'ok' : 'manual' ?>">
-                                <?= $a['role'] === 'officer' ? 'Officer' : 'Staff' ?>
-                            </span>
-                        </td>
                         <td class="small"><?= $a['last_login_at'] ? e(format_date($a['last_login_at'], 'M j, g:i A')) : 'Never' ?></td>
                         <td class="small">
                             <?php if ($a['password_changed_at'] === null): ?>
@@ -291,24 +300,11 @@ require __DIR__ . '/../_partials/head.php';
                                 <?php endif; ?>
 
                                 <?php if (!$isSelf): ?>
-                                    <?php /* The question names the person and says what changes.
-                                             "Change this role?" is a question about a row; an
-                                             officer with six rows on screen needs to know which
-                                             one they are about to promote. */ ?>
-                                    <form method="post"
-                                          data-confirm="<?= $a['role'] === 'officer'
-                                              ? 'Make ' . e($a['full_name']) . ' Tourism Staff? They lose access to settings, accounts and voiding records.'
-                                              : 'Make ' . e($a['full_name']) . ' a Tourism Officer? They gain full access, including this page.' ?>"
-                                          data-confirm-tone="normal">
-                                        <?= csrf_field() ?>
-                                        <input type="hidden" name="id" value="<?= (int) $a['id'] ?>">
-                                        <input type="hidden" name="action" value="role">
-                                        <input type="hidden" name="role" value="<?= $a['role'] === 'officer' ? 'staff' : 'officer' ?>">
-                                        <button class="btn btn-sm btn-outline-secondary">
-                                            <?= $a['role'] === 'officer' ? 'Make Staff' : 'Make Officer' ?>
-                                        </button>
-                                    </form>
-
+                                    <?php /* "Make Staff" / "Make Officer" stood here. With every
+                                             account carrying full access there is nothing to
+                                             switch between, and a button that promotes somebody
+                                             to the rank they already hold is a button that
+                                             teaches the officer to distrust the screen. */ ?>
                                     <?php
                                     /* THE PHP TAGS HERE WERE HTML-ESCAPED — `&lt;?=` and `?&gt;`
                                        — so this never ran. The officer clicked Deactivate and
@@ -352,8 +348,9 @@ require __DIR__ . '/../_partials/head.php';
             </table>
         </div>
         <p class="report-note">
-            <?= n($officers) ?> active Tourism Officer<?= $officers === 1 ? '' : 's' ?>.
-            The last one cannot be demoted or deactivated — a locked office is as damaging as an open one.
+            <?= n($officers) ?> account<?= $officers === 1 ? '' : 's' ?> can sign in.
+            Everyone here has full access, and the last one cannot be deactivated &mdash;
+            a locked office is as damaging as an open one.
         </p>
     </div>
 </section>
@@ -401,16 +398,28 @@ require __DIR__ . '/../_partials/head.php';
                 <?php if (has_error('email')): ?><div class="field-error"><?= e(error_for('email')) ?></div><?php endif; ?>
             </div>
 
-            <div class="col-md-4">
-                <label for="role" class="form-label">Role <span class="req">*</span></label>
-                <select id="role" name="role" class="form-select">
-                    <option value="staff">Tourism Staff — daily operations</option>
-                    <option value="officer">Tourism Officer — full access</option>
-                </select>
-                <p class="field-hint">Staff cannot void records, rotate QR codes, or change settings.</p>
+            <?php /* The Role selector used to sit here, offering "Tourism Staff" or
+                     "Tourism Officer". This office is one desk: the answer was
+                     always Officer, and a question with one right answer is not a
+                     question. Every account is created with full access, and the
+                     line below says so rather than leaving it to be discovered. */ ?>
+            <div class="col-12">
+                <?php /* The sentence is wrapped in one <span>. .form-note is a flex
+                         container, and a flex container turns every inline child
+                         into its own flex item — so the bare <strong> was laid out
+                         as a column beside the words around it. Two children: the
+                         icon, and the text. */ ?>
+                <p class="form-note">
+                    <i class="fa-solid fa-shield-halved" aria-hidden="true"></i>
+                    <span>
+                        Everyone who signs in has <strong>full access</strong> &mdash; settings,
+                        records, accounts, and this page. Give the password privately and ask
+                        them to change it at their first sign-in.
+                    </span>
+                </p>
             </div>
 
-            <div class="col-md-4">
+            <div class="col-md-6">
                 <label for="password" class="form-label">Initial password <span class="req">*</span></label>
                 <input type="text" id="password" name="password" required
                        class="form-control <?= has_error('password') ? 'is-invalid' : '' ?>">

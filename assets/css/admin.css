@@ -4526,3 +4526,76 @@ details[open] > .tgq-more .tgq-more__chev { transform: rotate(90deg); }
 @media (max-width: 575.98px) {
     .topbar__me { padding: .25rem; margin: -.25rem; gap: 0; }
 }
+
+/* The About panel keeps its own Save, because the bar fixed to the foot of the
+   screen belongs to the settings form and this panel is a separate one — it
+   carries two file fields, and the settings form deliberately has no enctype. */
+.about-save {
+    display: flex;
+    align-items: center;
+    gap: .8rem;
+    flex-wrap: wrap;
+    margin-top: 1.1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--line-soft);
+}
+
+/* A statement inside a form that is not attached to any one field — the note on
+   the create-account sheet saying every account gets full access. Not
+   .field-hint: that sits under the control it explains, and this explains the
+   form. */
+.form-note {
+    display: flex;
+    align-items: flex-start;
+    gap: .5rem;
+    margin: 0;
+    padding: .7rem .85rem;
+    border-radius: var(--radius-sm);
+    background: var(--canvas);
+    border: 1px solid var(--line);
+    font-size: .8rem;
+    line-height: 1.55;
+    color: var(--ink-2);
+}
+
+.form-note i { color: var(--green); margin-top: .18rem; }
+
+/* ---- Show password -------------------------------------------------------
+   The reveal button admin.js adds to every password field outside the sign-in
+   page. The wrapper is created by the script, so these rules only ever apply
+   where the button actually exists.
+   ------------------------------------------------------------------------ */
+.pw-field { position: relative; display: block; }
+
+/* Room for the button, so a long password does not run underneath it. */
+.pw-field .form-control { padding-right: 2.6rem; }
+
+.pw-field__reveal {
+    position: absolute;
+    top: 0;
+    right: 0;
+    height: 100%;
+    width: 2.5rem;
+    display: grid;
+    place-items: center;
+    border: 0;
+    background: none;
+    color: var(--ink-3);
+    font-size: .85rem;
+    cursor: pointer;
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    transition: color .15s var(--ease);
+}
+
+.pw-field__reveal:hover { color: var(--green); }
+
+.pw-field__reveal:focus-visible {
+    outline: 2px solid var(--green);
+    outline-offset: -2px;
+    color: var(--green);
+}
+
+/* Bootstrap paints .is-invalid with its own icon at the right edge; the two
+   would sit on top of each other. The button wins — the field is already
+   outlined red and carries a message underneath. */
+.pw-field .form-control.is-invalid { background-image: none; }

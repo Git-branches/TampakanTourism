@@ -110,6 +110,59 @@ final class AdminRepository
         );
     }
 
+    /**
+     * The characters a username may hold, and why.
+     *
+     * Lowercase only, because Auth::attempt() matches with `username = ?` and
+     * MySQL's collation would let "Officer" sign in as "officer" here while a
+     * case-sensitive column elsewhere would not. One spelling, decided at the
+     * point of entry, rather than a rule that depends on a collation setting.
+     */
+    public const USERNAME_PATTERN = '/^[a-z0-9._-]+$/';
+
+    /**
+     * Anything wrong with a proposed username, as sentences.
+     *
+     * Shared by the create form and by an officer renaming their own account,
+     * so the two cannot drift into different rules for the same column.
+     *
+     * @return array<int, string>
+     */
+    public static function usernameProblems(string $username, ?int $ignoreId = null): array
+    {
+        $problems = [];
+        $length   = mb_strlen($username);
+
+        if ($length < 3) {
+            $problems[] = 'must be at least 3 characters';
+        } elseif ($length > 60) {
+            $problems[] = 'must be 60 characters or fewer';
+        }
+
+        if ($username !== '' && !preg_match(self::USERNAME_PATTERN, $username)) {
+            $problems[] = 'may use only lowercase letters, numbers, and . _ -';
+        }
+
+        if ($username !== '' && self::usernameTaken($username, $ignoreId)) {
+            $problems[] = 'is already taken by another account';
+        }
+
+        return $problems;
+    }
+
+    /**
+     * Renames the account somebody signs in with.
+     *
+     * Nothing else moves: the id is what every other table references, so a
+     * rename cannot orphan a report, an audit entry or an uploaded file. The
+     * caller is responsible for proving the person knows the current password
+     * and for refreshing the session copy.
+     */
+    public static function changeUsername(int $id, string $username): void
+    {
+        Database::run('UPDATE admins SET username = ? WHERE id = ?', [$username, $id]);
+    }
+
     public static function setRole(int $id, string $role): void
     {
         Database::run('UPDATE admins SET role = ? WHERE id = ?', [$role, $id]);

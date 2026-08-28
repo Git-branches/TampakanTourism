@@ -37,8 +37,20 @@ if (!function_exists('section_head')) {
         string $badge = '',
         string $tone = 'qr'
     ): void {
+        /* A STABLE SLUG, BECAUSE THE PRE-PAINT SCRIPT HAS NO DOM TO SEARCH.
+         *
+         * Which sections are folded is remembered in localStorage, and the head
+         * script has to turn that list into CSS selectors before <body> exists —
+         * so the key has to be something a selector can hold. It used to be the
+         * heading text, which cannot go in one.
+         *
+         * Derived from the title rather than a hand-written id, so a section
+         * added later cannot forget to have one. Entities are decoded first:
+         * "Local Culture &amp; Heritage" must not become "local-culture-amp-". */
+        $slug = html_entity_decode(strip_tags($title), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $slug = strtolower(trim((string) preg_replace('/[^a-z0-9]+/i', '-', $slug), '-'));
         ?>
-        <header class="panel__head set-head">
+        <header class="panel__head set-head" data-section="<?= e($slug) ?>">
             <span class="set-head__icon"><i class="fa-solid <?= e($icon) ?>"></i></span>
 
             <div class="set-head__text">

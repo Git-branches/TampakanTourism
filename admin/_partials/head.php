@@ -144,11 +144,72 @@ $nav = [
 ?>
 <script>
 (function () {
+    var root = document.documentElement;
+
     try {
         if (localStorage.getItem('toursync.sidebar.rail') === '1') {
-            document.documentElement.classList.add('is-rail');
+            root.classList.add('is-rail');
         }
     } catch (e) { /* private mode: the sidebar simply opens expanded */ }
+
+    /* THE TABBED PANELS AND THE FOLDED SECTIONS, ALSO BEFORE THE FIRST PAINT.
+     *
+     * Same fault as the sidebar above, found the same way — by a person watching
+     * the screen. Settings has nine panels across five tabs; which ones show was
+     * decided by a script at the FOOT of the page, so the browser painted all
+     * nine, including every folded body, and only then hid seven of them.
+     *
+     * On a first visit the script usually wins the race, because the stylesheet
+     * is still downloading and there is nothing to paint yet. On a REFRESH the
+     * CSS is cached, the first paint comes almost immediately, and the script
+     * loses — which is why this only ever showed up when reloading.
+     *
+     * A race is not something to win faster. This removes it: the rules are in
+     * the document before <body> exists, so there is no moment at which the
+     * hidden panels have ever been visible.
+     *
+     * The `js` class is what makes it safe with JavaScript off. Nothing here
+     * runs, the class is never added, no rule matches, and the page is the long
+     * scrolling form it has always been for a browser without scripting.
+     * admin.js removes this style once it has set the real state. */
+    root.classList.add('js');
+
+    var css = '.js [data-settab]{display:none}';
+
+    /* The fragment is readable here and never reaches the server, which is why
+       the tab cannot simply be rendered server-side. Anchored and letters-only:
+       this string is about to be written into a selector. */
+    var tab = (window.location.hash || '').replace('#', '');
+
+    if (!/^[a-z]+$/.test(tab)) {
+        tab = 'office';
+    }
+
+    css += '.js [data-settab="' + tab + '"]{display:block}';
+
+    try {
+        var folded = JSON.parse(localStorage.getItem('toursync.folded') || '[]');
+
+        if (Object.prototype.toString.call(folded) === '[object Array]') {
+            for (var i = 0; i < folded.length; i++) {
+                var key = String(folded[i]);
+
+                /* Same reason as above: only a slug goes into a selector. */
+                if (!/^[a-z0-9-]+$/.test(key)) {
+                    continue;
+                }
+
+                css += '.js [data-section="' + key + '"] + .panel__body{display:none}'
+                     + '.js [data-section="' + key + '"] .set-head__toggle i{transform:rotate(180deg)}';
+            }
+        }
+    } catch (e) { /* storage unavailable: every section simply starts open */ }
+
+    var style = document.createElement('style');
+
+    style.id = 'preStateStyle';
+    style.appendChild(document.createTextNode(css));
+    document.head.appendChild(style);
 })();
 </script>
 </head>
