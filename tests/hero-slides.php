@@ -78,7 +78,7 @@ $id   = (int) $made['id'];
 $path = trim((string) $made['image_path']);
 
 check('image_path was written', $path !== '', true);
-check('the stored file is on disk', is_file(dirname(APP_PATH) . '/' . $path), true);
+check('the stored file is on disk', file_on_disk($path), true);
 
 echo "\n--- the file is served ---\n";
 
@@ -130,8 +130,8 @@ check('the update was accepted', $r['code'], 302);
 $second = trim((string) Hero::find($id)['image_path']);
 
 check('the stored path changed', $second !== $first, true);
-check('the new file is on disk', is_file(dirname(APP_PATH) . '/' . $second), true);
-check('the replaced file was deleted', is_file(dirname(APP_PATH) . '/' . $first), false);
+check('the new file is on disk', file_on_disk($second), true);
+check('the replaced file was deleted', file_on_disk($first), false);
 
 echo "\n--- a draft stays off the public site ---\n";
 
@@ -171,7 +171,7 @@ echo "\n--- clean up ---\n";
 Hero::delete($id);
 
 check('the probe slide is gone', Database::first("SELECT id FROM hero_slides WHERE title = 'ZZ Hero Probe'"), null);
-check('its file went with it', is_file(dirname(APP_PATH) . '/' . $second), false);
+check('its file went with it', file_on_disk($second), false);
 check('the roster is back to its original size', Hero::countAll(), $before);
 
 test_finish();

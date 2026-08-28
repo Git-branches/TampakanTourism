@@ -109,6 +109,60 @@ function test_sign_in_officer(): array
 }
 
 /**
+ * Writes a signed-in DESTINATION MANAGER session and returns [session id, csrf].
+ *
+ * The arrival workflow spans two roles: a manager submits the month's figures
+ * and an officer approves them. Testing only one half would leave the join
+ * between them — the part that actually breaks — unexercised.
+ *
+ * @return array{0: string, 1: string, 2: int}  session id, token, destination id
+ */
+function test_sign_in_manager(): array
+{
+    $m = \App\Core\Database::first(
+        'SELECT m.*, d.name AS destination_name
+           FROM destination_managers m
+           JOIN destinations d ON d.id = m.destination_id
+          ORDER BY m.id LIMIT 1'
+    );
+
+    if ($m === null) {
+        return ['', '', 0];
+    }
+
+    $sid   = bin2hex(random_bytes(16));
+    $token = bin2hex(random_bytes(32));
+    $keep  = $_SESSION ?? [];
+
+    $_SESSION = [
+        '_manager' => [
+            'id'             => (int) $m['id'],
+            'full_name'      => (string) $m['full_name'],
+            'username'       => (string) $m['username'],
+            'destination_id' => (int) $m['destination_id'],
+            'destination'    => (string) $m['destination_name'],
+        ],
+        '_manager_seen'  => time(),
+        '_manager_start' => time(),
+        '_csrf_token'    => $token,
+    ];
+
+    $encoded  = session_encode();
+    $_SESSION = $keep;
+
+    $file = rtrim(session_save_path(), '\\/') . DIRECTORY_SEPARATOR . 'sess_' . $sid;
+    file_put_contents($file, $encoded);
+
+    register_shutdown_function(static function () use ($file): void {
+        if (is_file($file)) {
+            @unlink($file);
+        }
+    });
+
+    return [$sid, $token, (int) $m['destination_id']];
+}
+
+/**
  * POSTs to a page as that signed-in session, optionally with one file.
  *
  * @param array<string, mixed> $fields
@@ -138,6 +192,84 @@ function test_post(string $path, string $sid, array $fields, ?string $file = nul
     return ['code' => $code, 'body' => $body];
 }
 
+/**
+ * Walks a public form the way a visitor does: load the page, keep the session
+ * cookie, read the CSRF token out of the markup, and post with both.
+ *
+ * The public endpoints call Csrf::verify(), and a token belongs to a session —
+ * so a POST assembled from nothing is refused with a 403, correctly. Faking a
+ * token would be testing a hole rather than the form.
+ *
+ * @param array<string, mixed> $fields
+ * @return array{code: int, body: string, token: string}
+ */
+function test_public_form(string $pageUrl, string $postUrl, array $fields): array
+{
+    $jar = tempnam(sys_get_temp_dir(), 'toursync-jar');
+
+    register_shutdown_function(static function () use ($jar): void {
+        if (is_file($jar)) {
+            @unlink($jar);
+        }
+    });
+
+    /* 1. The page, which starts a session and prints a token. */
+    $ch = curl_init(test_base_url() . '/' . ltrim($pageUrl, '/'));
+
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_COOKIEJAR      => $jar,
+        CURLOPT_COOKIEFILE     => $jar,
+        CURLOPT_TIMEOUT        => 30,
+    ]);
+
+    $html = (string) curl_exec($ch);
+    curl_close($ch);
+
+    $token = '';
+
+    if (preg_match('/name="_token"\s+value="([^"]+)"/', $html, $m)
+        || preg_match('/value="([^"]+)"\s+name="_token"/', $html, $m)) {
+        $token = $m[1];
+    }
+
+    /* 2. The post, carrying the same cookie and that token. */
+    $ch = curl_init(test_base_url() . '/' . ltrim($postUrl, '/'));
+
+    curl_setopt_array($ch, [
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => array_merge($fields, ['_token' => $token]),
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => false,
+        CURLOPT_COOKIEJAR      => $jar,
+        CURLOPT_COOKIEFILE     => $jar,
+        CURLOPT_TIMEOUT        => 30,
+    ]);
+
+    $body = (string) curl_exec($ch);
+    $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    return ['code' => $code, 'body' => $body, 'token' => $token];
+}
+
+/** GETs a page as a signed-in session — the officer's or the manager's. */
+function test_get_as(string $sid, string $path): string
+{
+    $ch = curl_init(test_base_url() . '/' . ltrim($path, '/'));
+
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_COOKIE         => session_name() . '=' . $sid,
+        CURLOPT_TIMEOUT        => 30,
+    ]);
+
+    $body = (string) curl_exec($ch);
+    curl_close($ch);
+
+    return $body;
+}
+
 /** GETs a page as an anonymous visitor. */
 function test_get(string $path): string
 {
@@ -164,6 +296,40 @@ function test_make_png(string $path, string $label = 'TEST', int $w = 1920, int 
     imagedestroy($im);
 
     return $path;
+}
+
+/**
+ * Reads one setting straight from the database.
+ *
+ * NOT setting(). That helper loads every row once into a `static` and keeps it
+ * for the life of the process — correct for a page render, useless to a test
+ * that posts a change and then asks whether it landed: it would keep answering
+ * with the values from before the POST and the suite would report a passing
+ * save that never happened.
+ */
+function setting_fresh(string $key): string
+{
+    return (string) (\App\Core\Database::scalar(
+        'SELECT setting_value FROM settings WHERE setting_key = ?', [$key]
+    ) ?? '');
+}
+
+/**
+ * Whether a stored file is on disk RIGHT NOW.
+ *
+ * NOT a bare is_file(). PHP caches stat results per process, and these suites
+ * ask the question across a process boundary: the file is created and deleted
+ * by Apache, and checked here. A path this process has already looked at keeps
+ * answering with what it saw the first time — which reported a file as still
+ * present after the web server had removed it, and failed a passing test.
+ */
+function file_on_disk(string $relative): bool
+{
+    $absolute = dirname(APP_PATH) . '/' . ltrim($relative, '/');
+
+    clearstatcache(true, $absolute);
+
+    return is_file($absolute);
 }
 
 /* ---- Assertions ---------------------------------------------------------- */
