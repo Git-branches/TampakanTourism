@@ -835,3 +835,48 @@ a { color: var(--lb-green-dark); }
     display: block;
     object-fit: contain;
 }
+
+/* ---- Heritage items ------------------------------------------------------
+   A photograph, a heading and a paragraph per item, under the destination's
+   heritage prose. Read on a phone held at the site, so the picture goes above
+   the words rather than beside them — a 40% column of text next to a 60% image
+   is unreadable at 390px, and this page has no wider audience.
+   ------------------------------------------------------------------------ */
+.lb-heritage {
+    list-style: none;
+    margin: 1.1rem 0 0;
+    padding: 0;
+    display: grid;
+    gap: 1.1rem;
+}
+
+.lb-heritage__item {
+    display: grid;
+    gap: .6rem;
+    padding-top: 1.1rem;
+    border-top: 1px solid var(--lb-line, rgba(0, 0, 0, .08));
+}
+
+.lb-heritage__item:first-child { padding-top: 0; border-top: 0; }
+
+.lb-heritage__img {
+    width: 100%;
+    max-height: 260px;
+    object-fit: cover;
+    border-radius: 10px;
+    display: block;
+}
+
+.lb-heritage__text h3 { margin: 0 0 .3rem; }
+.lb-heritage__text p  { margin: 0; }
+
+/* Wide enough for two columns and the picture stops being the whole screen. */
+@media (min-width: 720px) {
+    .lb-heritage__item {
+        grid-template-columns: minmax(0, 260px) minmax(0, 1fr);
+        gap: 1.1rem;
+        align-items: start;
+    }
+
+    .lb-heritage__img { max-height: 200px; }
+}

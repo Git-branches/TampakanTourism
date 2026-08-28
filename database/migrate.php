@@ -2078,4 +2078,113 @@ if ($tableExists($pdo, 'hero_slides')) {
         $carried, $carried === 1 ? '' : 's');
 }
 
+// =============================================================================
+//  "ABOUT THE MUNICIPAL TOURISM OFFICE" — the office describing itself
+// -----------------------------------------------------------------------------
+//  The section was hard-coded in index.php: the office's own mission and vision
+//  statements, its founding year, and two stock photographs of somewhere else.
+//  Those are the sentences most likely to be revised by the people they belong
+//  to, and they were the ones only a developer could change.
+//
+//  SETTINGS ROWS, NOT A TABLE — unlike the hero. The hero is a LIST whose length
+//  the office controls, which is why it earned hero_slides. This is one block
+//  with a fixed shape: exactly one mission, one vision, one badge. A table would
+//  add a row count nobody will ever change and a query to every page load.
+//
+//  Seeded with EXACTLY the words already on the page, so running this changes
+//  nothing until somebody deliberately edits a field.
+// =============================================================================
+$aboutSeed = [
+    'about_eyebrow'       => 'Who We Are',
+    'about_title'         => 'The Municipal',
+    'about_title_em'      => 'Tourism Office',
+    'about_lead'          => 'The Municipal Tourism Office of Tampakan develops, promotes, and safeguards '
+                           . 'the tourism assets of the municipality. We accredit local guides and homestays, '
+                           . 'maintain destination standards, coordinate the annual festival calendar, and '
+                           . 'work hand in hand with barangay councils and indigenous communities so that '
+                           . 'tourism benefits the people who call Tampakan home.',
+    'about_badge_value'   => '25 Years',
+    'about_badge_label'   => 'Serving visitors since 2001',
+    'about_mission_title' => 'Our Mission',
+    'about_mission_text'  => 'To promote Tampakan as a premier highland eco-cultural destination through '
+                           . 'sustainable, community-based tourism that protects our environment, honours '
+                           . 'our indigenous heritage, and creates dignified livelihoods for every barangay.',
+    'about_vision_title'  => 'Our Vision',
+    'about_vision_text'   => 'A globally recognised, warmly hospitable, and ecologically responsible '
+                           . 'Tampakan — where every visitor leaves inspired and every resident shares in '
+                           . 'the prosperity that tourism brings.',
+
+    /* Blank means "fall back to the stock photograph", the same convention the
+       hero uses, so the page keeps working until the office uploads its own. */
+    'about_image_main'    => '',
+    'about_image_small'   => '',
+];
+
+$stmt = $pdo->prepare(
+    'INSERT INTO settings (setting_key, setting_value) VALUES (?, ?)
+     ON DUPLICATE KEY UPDATE setting_key = setting_key'
+);
+
+$seeded = 0;
+
+foreach ($aboutSeed as $key => $value) {
+    $stmt->execute([$key, $value]);
+    $seeded += $stmt->rowCount() > 0 ? 1 : 0;
+}
+
+printf("  ok    about section seeded (%d of %d rows new)\n", $seeded, count($aboutSeed));
+
+// =============================================================================
+//  DESTINATION HERITAGE — the pictures behind the words on the QR page
+// -----------------------------------------------------------------------------
+//  A scanned QR code already showed `destinations.cultural_heritage`: one block
+//  of prose about the place. What it could not show was a PICTURE of any of it —
+//  the weaving, the burial jar, the ancestral marker — so the section a visitor
+//  reads while standing in front of the thing was the one section with nothing
+//  to look at.
+//
+//  A ROW PER ITEM, and its own table rather than a `kind` column on
+//  destination_photos. Three queries in DestinationRepository pick a
+//  destination's cover photograph with
+//  `SELECT file_path FROM destination_photos ... LIMIT 1`, and a shared table
+//  would let a heritage image become a destination's cover on the public list.
+//  Every one of those would have to learn to filter, and the one missed would
+//  fail silently and look deliberate.
+//
+//  Nothing is seeded. This is content only the office can write, about their own
+//  municipality, and inventing it would be putting words in their mouth.
+// =============================================================================
+if ($tableExists($pdo, 'destination_heritage')) {
+    echo "  skip  destination_heritage — already present\n";
+} else {
+    $pdo->exec("
+        CREATE TABLE destination_heritage (
+            id             INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+            destination_id INT UNSIGNED NOT NULL,
+
+            -- Blank is allowed: an item may be words with no photograph yet, and
+            -- the QR page simply renders it without one rather than showing a
+            -- gap where a picture should be.
+            image_path VARCHAR(255) NOT NULL DEFAULT '',
+
+            title VARCHAR(160)  NOT NULL DEFAULT '',
+            body  VARCHAR(1000) NOT NULL DEFAULT '',
+
+            sort_order SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+            KEY idx_heritage_dest (destination_id, sort_order),
+
+            -- The destination is the only reason an item exists. Archiving a
+            -- destination keeps them; deleting one takes them with it.
+            CONSTRAINT fk_heritage_dest FOREIGN KEY (destination_id)
+                REFERENCES destinations (id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    ");
+
+    echo "  ok    destination_heritage created\n";
+}
+
 echo str_repeat('=', 60) . "\n  Migrations complete.\n\n";

@@ -305,8 +305,19 @@ $hasDirections = $d['latitude'] !== null && $d['longitude'] !== null;
     <?php
     $heritage = trim((string) ($d['cultural_heritage'] ?? ''));
     $history  = trim((string) ($d['history'] ?? ''));
+
+    /* THE PICTURES BEHIND THE WORDS.
+     *
+     * This section used to be prose alone: a visitor standing in front of the
+     * weaving read about the weaving and had nothing to look at. Each item is a
+     * photograph, a heading and a paragraph, curated per destination in
+     * admin/destinations/heritage.php.
+     *
+     * publicFor() drops any item with no words — a picture with nothing said
+     * about it is a photograph in the wrong section. */
+    $heritageItems = \App\Repositories\HeritageRepository::publicFor((int) $d['id']);
     ?>
-    <?php if ($heritage !== '' || $history !== ''): ?>
+    <?php if ($heritage !== '' || $history !== '' || $heritageItems !== []): ?>
         <section class="lb-card lb-card--heritage">
             <h2 class="lb-h2"><i class="fa-solid fa-landmark-dome"></i> Cultural Heritage</h2>
 
@@ -317,6 +328,34 @@ $hasDirections = $d['latitude'] !== null && $d['longitude'] !== null;
             <?php if ($history !== ''): ?>
                 <h3 class="lb-h3">History</h3>
                 <p><?= nl2br(e($history)) ?></p>
+            <?php endif; ?>
+
+            <?php if ($heritageItems !== []): ?>
+                <ul class="lb-heritage">
+                    <?php foreach ($heritageItems as $item): ?>
+                        <?php $photo = uploaded_url((string) $item['image_path']); ?>
+                        <li class="lb-heritage__item">
+                            <?php if ($photo !== null): ?>
+                                <?php /* alt is the heading, not "heritage photo": a
+                                         screen reader should hear what the picture is
+                                         of, and the heading is the only description
+                                         the office actually wrote for it. */ ?>
+                                <img class="lb-heritage__img" src="<?= e($photo) ?>"
+                                     alt="<?= e((string) $item['title']) ?>" loading="lazy">
+                            <?php endif; ?>
+
+                            <div class="lb-heritage__text">
+                                <?php if (trim((string) $item['title']) !== ''): ?>
+                                    <h3 class="lb-h3"><?= e((string) $item['title']) ?></h3>
+                                <?php endif; ?>
+
+                                <?php if (trim((string) $item['body']) !== ''): ?>
+                                    <p><?= nl2br(e((string) $item['body'])) ?></p>
+                                <?php endif; ?>
+                            </div>
+                        </li>
+                    <?php endforeach; ?>
+                </ul>
             <?php endif; ?>
 
             <p class="lb-muted lb-heritage__note">

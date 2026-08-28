@@ -34,6 +34,10 @@ $result     = DestinationRepository::paginate($filters, (int) ($_GET['page'] ?? 
 $pager      = Paginator::adopt($result);
 $categories = CategoryRepository::all();
 
+/* One query for the whole page rather than one per row — twenty destinations
+   should not mean twenty round trips to draw a badge. */
+$heritageCounts = \App\Repositories\HeritageRepository::countsByDestination();
+
 /* NOT $d. The table below walks the list with `foreach ($result['rows'] as $d)`,
    and the dialog is rendered after it — so a variable called $d here would hold
    the last destination on the page by the time the form read it, and the
@@ -206,6 +210,16 @@ require __DIR__ . '/../_partials/head.php';
                        class="btn btn-sm btn-outline-secondary" title="Directions">
                         <i class="fa-solid fa-diamond-turn-right" aria-hidden="true"></i>
                         <span class="btn-label">Routes</span>
+                    </a>
+                    <?php /* The pictures and words that appear under this
+                             destination's heritage text on its QR page. */ ?>
+                    <a href="heritage.php?id=<?= (int) $d['id'] ?>"
+                       class="btn btn-sm btn-outline-secondary" title="Cultural heritage items">
+                        <i class="fa-solid fa-landmark-dome" aria-hidden="true"></i>
+                        <span class="btn-label">Heritage</span>
+                        <?php if (($heritageCounts[(int) $d['id']] ?? 0) > 0): ?>
+                            <span class="pill pill--qr"><?= n($heritageCounts[(int) $d['id']]) ?></span>
+                        <?php endif; ?>
                     </a>
                     <?php if ($d['status'] === 'active'): ?>
                         <a href="<?= e(base_url('/destination.php?slug=' . $d['slug'])) ?>"
