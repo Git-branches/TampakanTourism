@@ -231,6 +231,112 @@ if (is_post()) {
         redirect($back);
     }
 
+    /* THE "ABOUT THE OFFICE" BLOCK, ON THE SAME TERMS AS THE HERO.
+     *
+     * Its own action, handled before the settings loop and ending in a redirect,
+     * for the same reason: that loop writes `$_POST[$key] ?? ''` across every key
+     * in $editable, so a request carrying only this panel's fields would blank
+     * the office name, the hotlines and the retention window.
+     *
+     * The values are settings rows rather than a table — one block of a fixed
+     * shape, not a list — but they are deliberately NOT in $editable, because
+     * they are saved by this panel's own button and must not be touched by the
+     * page-wide Save. */
+    if ($action === 'about_save') {
+        $back = base_url('/admin/settings/index.php') . '#public';
+
+        /* The words. Trimmed and clipped to something a layout can hold; the
+           lengths are the column's, not an opinion about writing. */
+        $fields = [
+            'about_eyebrow'       => 60,
+            'about_title'         => 80,
+            'about_title_em'      => 80,
+            'about_lead'          => 900,
+            'about_badge_value'   => 30,
+            'about_badge_label'   => 80,
+            'about_mission_title' => 60,
+            'about_mission_text'  => 700,
+            'about_vision_title'  => 60,
+            'about_vision_text'   => 700,
+        ];
+
+        $changed = [];
+
+        foreach ($fields as $key => $max) {
+            $value = trim((string) ($_POST[$key] ?? ''));
+
+            /* mb_substr, not substr: this copy carries en dashes and the odd
+               ñ, and cutting a multi-byte character in half stores a broken
+               sequence that MySQL rejects — a save that fails silently. */
+            if (mb_strlen($value) > $max) {
+                $value = mb_substr($value, 0, $max);
+            }
+
+            if ((string) setting($key, '') !== $value) {
+                $changed[$key] = $value;
+            }
+        }
+
+        foreach ($changed as $key => $value) {
+            Database::run(
+                'INSERT INTO settings (setting_key, setting_value) VALUES (?, ?)
+                 ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)',
+                [$key, $value]
+            );
+        }
+
+        /* The two photographs, each replacing the file it supersedes only AFTER
+           the new one is safely on disk and the row points at it. */
+        foreach (['about_image_main' => 'main', 'about_image_small' => 'small'] as $key => $field) {
+            $file = 'image_' . $field;
+
+            if (($_FILES[$file]['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
+                $uploader = new Uploader();
+                $stored   = $uploader->store($_FILES[$file], 'banners');
+
+                if ($stored === null) {
+                    Session::flash('danger', ucfirst($field) . ' photograph: '
+                        . ($uploader->firstError() ?? 'that image could not be saved.'));
+                    redirect($back);
+                }
+
+                $previous = trim((string) (setting($key, '') ?? ''));
+
+                Database::run(
+                    'INSERT INTO settings (setting_key, setting_value) VALUES (?, ?)
+                     ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)',
+                    [$key, $stored]
+                );
+
+                if ($previous !== '' && $previous !== $stored) {
+                    Uploader::delete($previous);
+                }
+
+                $changed[$key] = $stored;
+            } elseif (!empty($_POST['remove_' . $field])) {
+                $previous = trim((string) (setting($key, '') ?? ''));
+
+                Database::run("UPDATE settings SET setting_value = '' WHERE setting_key = ?", [$key]);
+
+                if ($previous !== '') {
+                    Uploader::delete($previous);
+                }
+
+                $changed[$key] = '';
+            }
+        }
+
+        if ($changed !== []) {
+            ActivityLog::record('settings.about', 'settings', null,
+                'Updated the About section: ' . implode(', ', array_keys($changed)));
+            Session::flash('success', 'The About section was saved.');
+        } else {
+            Session::flash('info', 'Nothing changed in the About section.');
+        }
+
+        redirect($back);
+    }
+
     $v = new Validator($_POST);
     $changes = [];
 
@@ -768,6 +874,149 @@ require __DIR__ . '/../_partials/head.php';
                         the arrows under a slide to move it.
                     </p>
                 <?php endif; ?>
+            </div>
+        </section>
+
+        <?php
+        /* "ABOUT THE OFFICE" — the section where the office describes itself.
+         *
+         * Outside the settings form and carrying its own Save, exactly like the
+         * hero: it has two file fields, and the page-wide form deliberately has
+         * no enctype since the hero's uploads moved out of it.
+         *
+         * Settings rows rather than a table, because this is one block of a
+         * fixed shape. The hero earned a table by being a LIST the office can
+         * lengthen; there will only ever be one mission and one vision. */
+        $aboutMain  = uploaded_url((string) (setting('about_image_main', '') ?? ''));
+        $aboutSmall = uploaded_url((string) (setting('about_image_small', '') ?? ''));
+
+        /* Two fields rather than asking an officer to type a <span> for the
+           coloured half of the heading. The public page joins them. */
+        $aboutText = static fn(string $k): string => (string) (setting($k, '') ?? '');
+        ?>
+        <section class="panel" data-settab="public" id="aboutPanel">
+            <?php section_head('fa-building-columns', 'About the Office',
+                'The block on the homepage where the office introduces itself.',
+                $aboutMain === null && $aboutSmall === null ? 'stock photos' : '',
+                'flag') ?>
+
+            <div class="panel__body">
+                <form method="post" enctype="multipart/form-data" novalidate>
+                    <?= csrf_field() ?>
+                    <input type="hidden" name="action" value="about_save">
+
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label" for="about_eyebrow">Eyebrow</label>
+                            <input type="text" class="form-control" id="about_eyebrow"
+                                   name="about_eyebrow" maxlength="60"
+                                   value="<?= e($aboutText('about_eyebrow')) ?>">
+                            <p class="field-hint">The small line above the heading.</p>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label" for="about_title">Heading</label>
+                            <input type="text" class="form-control" id="about_title"
+                                   name="about_title" maxlength="80"
+                                   value="<?= e($aboutText('about_title')) ?>">
+                            <p class="field-hint">Shown in dark text.</p>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label" for="about_title_em">Heading, coloured half</label>
+                            <input type="text" class="form-control" id="about_title_em"
+                                   name="about_title_em" maxlength="80"
+                                   value="<?= e($aboutText('about_title_em')) ?>">
+                            <p class="field-hint">Continues the heading in green. Leave empty for none.</p>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label" for="about_lead">Introduction</label>
+                            <textarea class="form-control" id="about_lead" name="about_lead"
+                                      rows="4" maxlength="900"><?= e($aboutText('about_lead')) ?></textarea>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label" for="about_badge_value">Badge</label>
+                            <input type="text" class="form-control" id="about_badge_value"
+                                   name="about_badge_value" maxlength="30"
+                                   value="<?= e($aboutText('about_badge_value')) ?>">
+                            <p class="field-hint">The large line on the card over the photograph.</p>
+                        </div>
+
+                        <div class="col-md-8">
+                            <label class="form-label" for="about_badge_label">Badge caption</label>
+                            <input type="text" class="form-control" id="about_badge_label"
+                                   name="about_badge_label" maxlength="80"
+                                   value="<?= e($aboutText('about_badge_label')) ?>">
+                            <p class="field-hint">Leave both blank and the card is not drawn at all.</p>
+                        </div>
+
+                        <?php foreach ([
+                            ['mission', 'Mission', 'fa-bullseye'],
+                            ['vision',  'Vision',  'fa-eye'],
+                        ] as [$part, $label, $icon]): ?>
+                            <div class="col-md-6">
+                                <label class="form-label" for="about_<?= $part ?>_title">
+                                    <i class="fa-solid <?= e($icon) ?>"></i> <?= e($label) ?> heading
+                                </label>
+                                <input type="text" class="form-control" id="about_<?= $part ?>_title"
+                                       name="about_<?= $part ?>_title" maxlength="60"
+                                       value="<?= e($aboutText('about_' . $part . '_title')) ?>">
+
+                                <label class="form-label mt-2" for="about_<?= $part ?>_text">
+                                    <?= e($label) ?> statement
+                                </label>
+                                <textarea class="form-control" id="about_<?= $part ?>_text"
+                                          name="about_<?= $part ?>_text" rows="4"
+                                          maxlength="700"><?= e($aboutText('about_' . $part . '_text')) ?></textarea>
+                            </div>
+                        <?php endforeach; ?>
+
+                        <?php /* Two photographs: a tall one and the smaller one that
+                                 overlaps its corner. Same convention as the hero —
+                                 leave a slot empty and the stock picture stands in. */ ?>
+                        <?php foreach ([
+                            ['main',  'Main photograph', 'Tall, portrait. 900 &times; 1100 works well.', $aboutMain],
+                            ['small', 'Inset photograph', 'The smaller one overlapping its corner.',     $aboutSmall],
+                        ] as [$slot, $label, $hint, $current]): ?>
+                            <div class="col-md-6">
+                                <label class="form-label" for="about_img_<?= $slot ?>"><?= e($label) ?></label>
+                                <input type="file" class="form-control" id="about_img_<?= $slot ?>"
+                                       name="image_<?= $slot ?>" accept="image/jpeg,image/png,image/webp">
+                                <p class="field-hint">
+                                    <?= $hint ?>
+                                    JPG, PNG or WebP up to <?= n(Uploader::maxMegabytes()) ?>&nbsp;MB.
+                                    <?= $current === null
+                                        ? 'None yet, so a stock photograph is shown.'
+                                        : 'Leave empty to keep the one already saved.' ?>
+                                </p>
+
+                                <?php if ($current !== null): ?>
+                                    <img class="hero-sheet__thumb" src="<?= e($current) ?>"
+                                         alt="Current <?= e(strtolower($label)) ?>">
+                                    <div class="form-check mt-2">
+                                        <input class="form-check-input" type="checkbox" value="1"
+                                               id="about_rm_<?= $slot ?>" name="remove_<?= $slot ?>">
+                                        <label class="form-check-label" for="about_rm_<?= $slot ?>">
+                                            Remove it and go back to the stock photograph
+                                        </label>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+
+                    <?php /* Its own Save, said out loud — the bar at the foot of the
+                             screen belongs to the settings form and does not reach
+                             this one. */ ?>
+                    <div class="about-save">
+                        <button type="submit" class="btn btn-brand">
+                            <i class="fa-solid fa-floppy-disk"></i> Save the About section
+                        </button>
+                        <span class="cell-sub">Saved on its own, not by the button at the bottom.</span>
+                    </div>
+                </form>
             </div>
         </section>
 

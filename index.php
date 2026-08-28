@@ -54,7 +54,7 @@ $site = [
     'municipality'=> 'Municipality of Tampakan',
     'province'    => 'South Cotabato, Philippines',
     'tagline'     => 'Discover the Beauty of Tampakan',
-    'description' => 'Official tourism portal of the Municipality of Tampakan, South Cotabato â€” explore highland destinations, festivals, eco-tourism trails, and travel guides.',
+    'description' => 'Official tourism portal of the Municipality of Tampakan, South Cotabato — explore highland destinations, festivals, eco-tourism trails, and travel guides.',
     'url'         => 'https://tourism.tampakan.gov.ph',
     'admin_url'   => 'admin/login.php',   // Handled by a separate module.
     'lat'         => 6.4333,              // Tampakan municipal hall (approx.)
@@ -272,12 +272,12 @@ $destCount = count(array_filter(
 ));
 
 /* -----------------------------------------------------------------------------
- | Why visit â€” value propositions
+ | Why visit — value propositions
  * -------------------------------------------------------------------------- */
 $reasons = [
     ['icon' => 'fa-leaf',              'title' => 'Nature',        'text' => 'Highland forests, cloud-wrapped ridges, and cold mountain springs kept green year-round.'],
     ['icon' => 'fa-person-hiking',     'title' => 'Adventure',     'text' => 'Trekking circuits, waterfall trails, camping decks, and ridge rides for every skill level.'],
-    ['icon' => 'fa-drum',              'title' => 'Culture',       'text' => 'Living B&rsquo;laan traditions â€” weaving, beadwork, music, and festivals held all year.'],
+    ['icon' => 'fa-drum',              'title' => 'Culture',       'text' => 'Living B&rsquo;laan traditions — weaving, beadwork, music, and festivals held all year.'],
     ['icon' => 'fa-utensils',          'title' => 'Local Cuisine', 'text' => 'Farm-fresh highland produce, native delicacies, and celebrated single-origin coffee.'],
     ['icon' => 'fa-hand-holding-heart','title' => 'Hospitality',   'text' => 'A community that welcomes every visitor as a guest of the whole municipality.'],
     ['icon' => 'fa-seedling',          'title' => 'Eco Tourism',   'text' => 'Community-managed sites, reforestation programs, and low-impact visitor practices.'],
@@ -513,7 +513,7 @@ $travelGuide = [
     [
         'icon'  => 'fa-shield-heart', 'title' => 'Safety Tips',
         'text'  => 'A few simple habits keep every highland trip trouble-free.',
-        'items' => ['Register at the visitor desk before trekking', 'Hire accredited local guides', 'Pack layers â€” nights drop below 18Â°C'],
+        'items' => ['Register at the visitor desk before trekking', 'Hire accredited local guides', 'Pack layers — nights drop below 18Â°C'],
     ],
     [
         'icon'  => 'fa-cloud-sun', 'title' => 'Best Time to Visit',
@@ -532,7 +532,7 @@ $contact = [
     'email'      => 'tourism@tampakan.gov.ph',
     'facebook'   => 'https://www.facebook.com/',
     'fb_label'   => 'facebook.com/TampakanTourism',
-    'hours'      => 'Monday to Friday, 8:00 AM â€“ 5:00 PM',
+    'hours'      => 'Monday to Friday, 8:00 AM – 5:00 PM',
     'hours_note' => 'Closed on weekends and national holidays',
 ];
 
@@ -603,7 +603,7 @@ $currentYear = date('Y');
 <body id="top">
 
 <!-- =========================================================================
-     PRELOADER â€” removed by script.js once the window has loaded
+     PRELOADER — removed by script.js once the window has loaded
      ====================================================================== -->
 <div id="preloader" class="preloader" aria-hidden="true">
     <div class="preloader__inner">
@@ -621,7 +621,7 @@ $currentYear = date('Y');
 <a href="#destinations" class="skip-link">Skip to main content</a>
 
 <!-- =========================================================================
-     NAVIGATION â€” transparent over the hero, solid once scrolled (script.js)
+     NAVIGATION — transparent over the hero, solid once scrolled (script.js)
      ====================================================================== -->
 <?php
 /* The homepage uses the same navigation as every other page, in its
@@ -774,7 +774,7 @@ require __DIR__ . '/app/views/partials/public-nav.php';
 </section>
 
 <!-- =========================================================================
-     2 Â· DESTINATIONS  â€”  the full catalogue, searchable and filterable
+     2 Â· DESTINATIONS  —  the full catalogue, searchable and filterable
      ====================================================================== -->
 <section id="destinations" class="section section--light">
     <div class="container">
@@ -952,7 +952,7 @@ require __DIR__ . '/app/views/partials/public-nav.php';
 </section>
 
 <!-- =========================================================================
-     5 Â· INTERACTIVE TOURIST MAP PREVIEW (Leaflet â€” no API key required)
+     5 Â· INTERACTIVE TOURIST MAP PREVIEW (Leaflet — no API key required)
      ====================================================================== -->
 <?php if ($weather !== null): ?>
 <!-- =========================================================================
@@ -1097,7 +1097,7 @@ require __DIR__ . '/app/views/partials/public-nav.php';
 </section>
 
 <!-- =========================================================================
-     7 Ã‚Â· PHOTO GALLERY (CSS masonry + custom lightbox)
+     7 · PHOTO GALLERY (CSS masonry + custom lightbox)
      ====================================================================== -->
 <section id="gallery" class="section section--tint">
     <div class="container">
@@ -1127,7 +1127,7 @@ require __DIR__ . '/app/views/partials/public-nav.php';
 </section>
 
 <!-- =========================================================================
-     8 Ã‚Â· VISITOR TESTIMONIALS
+     8 · VISITOR TESTIMONIALS
      ====================================================================== -->
 <?php if ($testimonials !== []): ?>
 <section id="testimonials" class="section section--light">
@@ -1186,7 +1186,7 @@ require __DIR__ . '/app/views/partials/public-nav.php';
 <?php endif; ?>
 
 <!-- =========================================================================
-     9 Ã‚Â· TOURISM HIGHLIGHTS Ã¢â‚¬â€ animated counters
+     9 · TOURISM HIGHLIGHTS — animated counters
      ====================================================================== -->
 <section id="highlights" class="stats-section" aria-label="Tourism highlights">
     <div class="stats-section__overlay"></div>
@@ -1214,7 +1214,7 @@ require __DIR__ . '/app/views/partials/public-nav.php';
 </section>
 
 <!-- =========================================================================
-     10 Ã‚Â· TRAVEL GUIDE
+     10 · TRAVEL GUIDE
      ====================================================================== -->
 <section id="travel-guide" class="section section--light">
     <div class="container">
@@ -1247,62 +1247,101 @@ require __DIR__ . '/app/views/partials/public-nav.php';
 </section>
 
 <!-- =========================================================================
-     11 Ã‚Â· ABOUT THE MUNICIPAL TOURISM OFFICE
+     11 · ABOUT THE MUNICIPAL TOURISM OFFICE
      ====================================================================== -->
 <section id="about" class="section section--tint">
     <div class="container">
         <div class="row align-items-center g-5">
 
+            <?php
+            /* EVERY WORD AND BOTH PHOTOGRAPHS COME FROM SETTINGS.
+             *
+             * This was hard-coded: the office's own mission and vision, its
+             * founding year, and two stock photographs of somewhere that is not
+             * Tampakan. Those are the sentences most likely to be revised by the
+             * people they belong to, and they were the ones only a developer
+             * could change. Settings › Public site › About the Office.
+             *
+             * The stock IDs remain as the last fallback, so an office that has
+             * uploaded nothing still gets a finished page. */
+            $ab = static fn(string $k, string $fallback = ''): string
+                => trim((string) (setting($k, '') ?? '')) ?: $fallback;
+
+            $aboutMain  = uploaded_url((string) (setting('about_image_main', '') ?? ''))
+                       ?? img('1426604966848-d7adac402bff', 900, 1100);
+            $aboutSmall = uploaded_url((string) (setting('about_image_small', '') ?? ''))
+                       ?? img('1518495973542-4542c06a5843', 800, 700);
+
+            $badgeValue = $ab('about_badge_value');
+            $badgeLabel = $ab('about_badge_label');
+            $titleEm    = $ab('about_title_em');
+            ?>
+
             <div class="col-lg-6">
                 <div class="about__gallery">
-                    <img src="<?= e(img('1426604966848-d7adac402bff', 900, 1100)) ?>"
-                         alt="Highland valley of Tampakan" class="about__img about__img--tall" loading="lazy">
-                    <img src="<?= e(img('1518495973542-4542c06a5843', 800, 700)) ?>"
-                         alt="Forest canopy inside the municipal reserve" class="about__img about__img--small" loading="lazy">
-                    <div class="about__badge">
-                        <i class="fa-solid fa-award"></i>
-                        <strong>25 Years</strong>
-                        <span>Serving visitors since 2001</span>
-                    </div>
+                    <img src="<?= e($aboutMain) ?>" alt="The municipality of Tampakan"
+                         class="about__img about__img--tall" loading="lazy">
+                    <img src="<?= e($aboutSmall) ?>" alt=""
+                         class="about__img about__img--small" loading="lazy">
+
+                    <?php /* Both fields blank means the office does not want the card,
+                             rather than an empty white box floating over the photo. */ ?>
+                    <?php if ($badgeValue !== '' || $badgeLabel !== ''): ?>
+                        <div class="about__badge">
+                            <i class="fa-solid fa-award"></i>
+                            <strong><?= e($badgeValue) ?></strong>
+                            <span><?= e($badgeLabel) ?></span>
+                        </div>
+                    <?php endif; ?>
                 </div>
             </div>
 
             <div class="col-lg-6">
-                <span class="eyebrow"><i class="fa-solid fa-building-columns"></i> Who We Are</span>
-                <h2 class="section-title">The Municipal <span class="text-grad">Tourism Office</span></h2>
-                <p class="about__lead">
-                    The Municipal Tourism Office of Tampakan develops, promotes, and safeguards the tourism assets
-                    of the municipality. We accredit local guides and homestays, maintain destination standards,
-                    coordinate the annual festival calendar, and work hand in hand with barangay councils and
-                    indigenous communities so that tourism benefits the people who call Tampakan home.
-                </p>
+                <?php if ($ab('about_eyebrow') !== ''): ?>
+                    <span class="eyebrow">
+                        <i class="fa-solid fa-building-columns"></i> <?= e($ab('about_eyebrow')) ?>
+                    </span>
+                <?php endif; ?>
 
-                <div class="mv-card mv-card--mission">
-                    <span class="mv-card__icon"><i class="fa-solid fa-bullseye"></i></span>
-                    <div>
-                        <h3>Our Mission</h3>
-                        <p>To promote Tampakan as a premier highland eco-cultural destination through sustainable,
-                           community-based tourism that protects our environment, honours our indigenous heritage,
-                           and creates dignified livelihoods for every barangay.</p>
-                    </div>
-                </div>
+                <?php /* Two fields joined here rather than one field holding a <span>.
+                         An officer should not have to type markup to colour half a
+                         heading, and a field that accepts markup is a field that can
+                         break the page from the settings screen. */ ?>
+                <h2 class="section-title">
+                    <?= e($ab('about_title')) ?><?php if ($titleEm !== ''): ?>
+                        <span class="text-grad"><?= e($titleEm) ?></span>
+                    <?php endif; ?>
+                </h2>
 
-                <div class="mv-card mv-card--vision">
-                    <span class="mv-card__icon"><i class="fa-regular fa-eye"></i></span>
-                    <div>
-                        <h3>Our Vision</h3>
-                        <p>A globally recognised, warmly hospitable, and ecologically responsible Tampakan Ã¢â‚¬â€ where
-                           every visitor leaves inspired and every resident shares in the prosperity that tourism
-                           brings.</p>
-                    </div>
-                </div>
+                <?php if ($ab('about_lead') !== ''): ?>
+                    <p class="about__lead"><?= nl2br(e($ab('about_lead'))) ?></p>
+                <?php endif; ?>
+
+                <?php foreach ([
+                    ['mission', 'fa-solid fa-bullseye'],
+                    ['vision',  'fa-regular fa-eye'],
+                ] as [$part, $icon]): ?>
+                    <?php
+                    $mvTitle = $ab('about_' . $part . '_title');
+                    $mvText  = $ab('about_' . $part . '_text');
+                    ?>
+                    <?php if ($mvTitle !== '' || $mvText !== ''): ?>
+                        <div class="mv-card mv-card--<?= $part ?>">
+                            <span class="mv-card__icon"><i class="<?= e($icon) ?>"></i></span>
+                            <div>
+                                <h3><?= e($mvTitle) ?></h3>
+                                <p><?= nl2br(e($mvText)) ?></p>
+                            </div>
+                        </div>
+                    <?php endif; ?>
+                <?php endforeach; ?>
             </div>
         </div>
     </div>
 </section>
 
 <!-- =========================================================================
-     12 Ã‚Â· CONTACT
+     12 · CONTACT
      ====================================================================== -->
 <section id="contact" class="section section--light">
     <div class="container">
@@ -1345,7 +1384,7 @@ require __DIR__ . '/app/views/partials/public-nav.php';
                     </li>
                 </ul>
 
-                <!-- Embedded Google Map (keyless embed Ã¢â‚¬â€ no API key required) -->
+                <!-- Embedded Google Map (keyless embed — no API key required) -->
                 <div class="contact-map">
                     <iframe
                         src="https://www.google.com/maps?q=Tampakan,%20South%20Cotabato,%20Philippines&z=13&output=embed"
@@ -1355,7 +1394,7 @@ require __DIR__ . '/app/views/partials/public-nav.php';
                 </div>
             </div>
 
-            <!-- Contact form Ã¢â‚¬â€ client-side only; wire to a mailer/controller later -->
+            <!-- Contact form — client-side only; wire to a mailer/controller later -->
             <div class="col-lg-7">
                 <div class="contact-form-card">
                     <h3 class="contact-form-card__title">Send Us a Message</h3>
@@ -1466,7 +1505,7 @@ require __DIR__ . '/app/views/partials/public-nav.php';
 </main>
 
 <!-- =========================================================================
-     13 Ã‚Â· FOOTER
+     13 · FOOTER
      ====================================================================== -->
 <footer class="footer">
     <div class="footer__top">
@@ -1550,7 +1589,7 @@ require __DIR__ . '/app/views/partials/public-nav.php';
 </a>
 
 <!-- =========================================================================
-     LIGHTBOX Ã¢â‚¬â€ driven by script.js
+     LIGHTBOX — driven by script.js
      ====================================================================== -->
 <?php require __DIR__ . '/app/views/partials/lightbox.php'; ?>
 
@@ -1568,7 +1607,7 @@ require __DIR__ . '/app/views/partials/public-nav.php';
                 <p>The Municipal Tourism Office of Tampakan respects your privacy and processes personal data in
                    accordance with Republic Act No. 10173, the Data Privacy Act of 2012.</p>
                 <h6>Information We Collect</h6>
-                <p>We collect only the details you voluntarily submit through our contact form Ã¢â‚¬â€ your name, email
+                <p>We collect only the details you voluntarily submit through our contact form — your name, email
                    address, optional phone number, and the content of your message.</p>
                 <h6>How We Use It</h6>
                 <p>Your information is used solely to respond to your inquiry, coordinate tour or guide bookings,
