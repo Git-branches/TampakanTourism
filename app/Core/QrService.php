@@ -121,6 +121,95 @@ final class QrService
     }
 
     /**
+     * The address this machine is reachable at from the office WiFi, or '' if
+     * it has none.
+     *
+     * For the rehearsal, which is a real stage of this project and not an
+     * afterthought: the system is demonstrated at the tourism office on a
+     * laptop running XAMPP, months before anything is launched. On that laptop
+     * "localhost" means the laptop, so a code carrying it opens the phone of
+     * whoever scans it and the demonstration fails in front of the office.
+     *
+     * The laptop's LAN address works perfectly for every phone on the same
+     * WiFi, which is exactly the room the presentation happens in.
+     *
+     * gethostbyname() on the machine's own name, rather than SERVER_ADDR: the
+     * officer is browsing on localhost, so SERVER_ADDR answers ::1 and would
+     * suggest the very address that does not work.
+     */
+    public static function lanAddress(): string
+    {
+        static $found = null;
+
+        if ($found !== null) {
+            return $found;
+        }
+
+        $host = gethostname();
+        $ip   = $host !== false ? gethostbyname($host) : '';
+
+        /* gethostbyname returns its argument unchanged when it cannot resolve,
+           so a hostname coming back means no address was found. */
+        $isIpv4 = filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false;
+
+        return $found = ($isIpv4 && !str_starts_with($ip, '127.')) ? $ip : '';
+    }
+
+    /** That address with the application's own path, ready to paste. */
+    public static function rehearsalUrl(): string
+    {
+        $ip = self::lanAddress();
+
+        if ($ip === '') {
+            return '';
+        }
+
+        $base = base_url('/');
+        $host = (string) parse_url($base, PHP_URL_HOST);
+
+        if ($host === '') {
+            return '';
+        }
+
+        /* Only the host is swapped. The path matters — the application lives at
+           /TampakanTourism on XAMPP and at the document root on cPanel, and
+           guessing wrong produces a code that 404s. */
+        return rtrim(str_replace('://' . $host, '://' . $ip, $base), '/');
+    }
+
+    /**
+     * The rehearsal address that has silently stopped being this machine.
+     *
+     * A LAN address is handed out by the office router and it changes: set on
+     * Tuesday at home, the laptop arrives at the office on Thursday holding a
+     * different one. Nothing announces this. Every code still renders, still
+     * looks correct, and opens nothing — and the officer finds out with a
+     * phone in their hand in front of the room.
+     *
+     * Only fires for a private address, because a real domain is supposed to
+     * differ from whatever the laptop's IP happens to be.
+     */
+    public static function drift(): string
+    {
+        $configured = (string) parse_url(self::publicBase(), PHP_URL_HOST);
+        $actual     = self::lanAddress();
+
+        if ($configured === '' || $actual === '' || $configured === $actual) {
+            return '';
+        }
+
+        $isPrivate = preg_match('/^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/', $configured) === 1;
+
+        if (!$isPrivate) {
+            return '';
+        }
+
+        return 'These codes point at "' . $configured . '", but this computer is now "' . $actual . '". '
+             . 'The address changed — every code on this page currently opens nothing. '
+             . 'Update the printed signage address in Settings before demonstrating or printing.';
+    }
+
+    /**
      * Issues a fresh token, invalidating every printed sign for this
      * destination.
      *

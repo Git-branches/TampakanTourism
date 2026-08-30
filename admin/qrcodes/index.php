@@ -79,6 +79,29 @@ require __DIR__ . '/../_partials/head.php';
             <?= e(QrService::unpublishableReason()) ?>
             Set the public website address in
             <a href="<?= e(base_url('/admin/settings/index.php')) ?>" class="alert-link">Settings</a> first.
+
+            <?php if (($rehearsal = QrService::rehearsalUrl()) !== ''): ?>
+                <?php /* Demonstrating at the office on this laptop is a real
+                         stage of this project, so the way through is named here
+                         rather than left for the officer to work out. */ ?>
+                <hr>
+                <p class="mb-0">
+                    Only showing the system to the office? This computer is reachable
+                    on this network at <code><?= e($rehearsal) ?></code> &mdash;
+                    set that as the address and a phone on the same WiFi can scan these codes.
+                </p>
+            <?php endif; ?>
+        </div>
+    <?php elseif (($qrDrift = QrService::drift()) !== ''): ?>
+        <?php /* THE SILENT ONE. A rehearsal address is handed out by the router
+                 and changes without saying so; every code here still renders
+                 perfectly and opens nothing. This is louder than the LAN
+                 caution below because the officer cannot see it any other
+                 way. */ ?>
+        <div class="alert alert-danger">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            <strong>The address these codes carry is out of date.</strong>
+            <?= e($qrDrift) ?>
         </div>
     <?php elseif (($qrWarning = QrService::warning()) !== ''): ?>
         <!-- A caution, not a gate. Printing on a LAN address is exactly what a
@@ -138,6 +161,30 @@ require __DIR__ . '/../_partials/head.php';
                             <i class="fa-solid fa-print"></i> Poster
                         </button>
                     <?php endif; ?>
+                    <?php
+                    /* A poster is printed FROM this system. A signmaker is not:
+                       a tarpaulin shop wants a file emailed to them, and until
+                       now the only way to give them one was a screenshot of a
+                       150px preview.
+
+                       Drawn at 1200px by the same library that draws the
+                       preview, so the token still never leaves this machine.
+                       Gated with the poster because it is the same artefact —
+                       a file carrying a dead address is worse than no file,
+                       since it comes back as a tarpaulin. */
+                    ?>
+                    <?php if ($signageReady): ?>
+                        <button type="button" class="btn btn-sm btn-outline-secondary"
+                                data-qr-download="<?= e(QrService::url($d['qr_token'])) ?>"
+                                data-qr-name="<?= e($d['slug']) ?>-qr-v<?= (int) $d['qr_version'] ?>">
+                            <i class="fa-solid fa-download"></i> PNG
+                        </button>
+                    <?php else: ?>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" disabled
+                                title="Set the public website address in Settings before downloading">
+                            <i class="fa-solid fa-download"></i> PNG
+                        </button>
+                    <?php endif; ?>
                     <a href="<?= e(QrService::url($d['qr_token'])) ?>" target="_blank" rel="noopener"
                        class="btn btn-sm btn-outline-secondary">
                         <i class="fa-solid fa-arrow-up-right-from-square"></i> Test
@@ -177,6 +224,50 @@ document.querySelectorAll("[data-qr]").forEach(function (el) {
         width: 150,
         height: 150,
         correctLevel: QRCode.CorrectLevel.H   // survives rain damage and scuffing
+    });
+});
+
+/* Handing the office an actual file.
+   ---------------------------------------------------------------------------
+   Drawn fresh at 1200px rather than scaled up from the 150px preview: a QR code
+   enlarged by the browser gets soft edges, and a soft edge on a tarpaulin two
+   metres away is the difference between a scan and a shrug. Error correction
+   stays at H, the level that survives a scuffed, rained-on sign.
+
+   The canvas is never added to the page. It is drawn, read, and dropped.
+
+   toBlob rather than toDataURL — a 1200px code is a ~40KB data: URI, and some
+   browsers refuse to navigate to one that size, which fails as a download that
+   simply never happens. */
+document.querySelectorAll("[data-qr-download]").forEach(function (button) {
+    button.addEventListener("click", function () {
+        var box = document.createElement("div");
+
+        new QRCode(box, {
+            text: button.dataset.qrDownload,
+            width: 1200,
+            height: 1200,
+            correctLevel: QRCode.CorrectLevel.H
+        });
+
+        var canvas = box.querySelector("canvas");
+
+        if (!canvas || !canvas.toBlob) { return; }
+
+        canvas.toBlob(function (blob) {
+            var url  = URL.createObjectURL(blob);
+            var link = document.createElement("a");
+
+            link.href     = url;
+            link.download = button.dataset.qrName + ".png";
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+
+            /* Revoked on a delay: Firefox cancels an in-flight download when the
+               object URL is released in the same tick as the click. */
+            window.setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
+        }, "image/png");
     });
 });
 </script>';

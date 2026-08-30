@@ -638,6 +638,35 @@ require __DIR__ . '/../_partials/head.php';
                             <?= e(App\Core\QrService::unpublishableReason()) ?>
                         <?php endif; ?>
                     </p>
+
+                    <?php
+                    /* THE REHEARSAL.
+                       The office is shown this system on a laptop long before
+                       anything is launched. On that laptop "localhost" is the
+                       laptop, so a scanned code opens the phone doing the
+                       scanning and the demonstration dies in the room.
+
+                       This machine's WiFi address works for every phone on the
+                       same network, which is the whole audience. Offered rather
+                       than applied: only the officer knows whether they are
+                       rehearsing or setting up the real thing. */
+                    $rehearsal = App\Core\QrService::rehearsalUrl();
+                    ?>
+                    <?php if ($rehearsal !== '' && $rehearsal !== App\Core\QrService::publicBase()): ?>
+                        <div class="form-note mt-3">
+                            <span>
+                                <strong>Presenting from this computer?</strong>
+                                It is reachable on this network at
+                                <code><?= e($rehearsal) ?></code>.
+                                A phone on the same WiFi can open codes pointing there &mdash;
+                                good for a demonstration, never for a sign in the field.
+                                <button type="button" class="btn btn-sm btn-outline-secondary ms-2"
+                                        data-fill="public_url" data-fill-value="<?= e($rehearsal) ?>">
+                                    <i class="fa-solid fa-arrow-up" aria-hidden="true"></i> Use this
+                                </button>
+                            </span>
+                        </div>
+                    <?php endif; ?>
                 </div>
             </section>
 
