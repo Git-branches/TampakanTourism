@@ -415,6 +415,28 @@ if (!function_exists('is_post')) {
     }
 }
 
+if (!function_exists('is_modal_request')) {
+    /**
+     * Whether this page was asked for as a fragment to drop into a dialog.
+     *
+     * A page that says yes skips the sidebar, the topbar and the footer, and
+     * renders only its own body. Nothing else changes: the same Auth::require()
+     * runs, the same handler processes the same POST, and the same redirect
+     * follows. Without the flag the page is exactly what it has always been,
+     * which is why every existing link to it still works.
+     *
+     * It exists because X-Frame-Options is DENY, so a dialog cannot iframe an
+     * admin page — the tour guide ID card hit this and solved it by extracting
+     * a partial. That works for one card. It does not work for a form whose
+     * fields carry fixed ids: rendering it once per row would put twelve
+     * elements called id="name" on one page and break every <label for> on it.
+     */
+    function is_modal_request(): bool
+    {
+        return ($_GET['modal'] ?? '') === '1';
+    }
+}
+
 if (!function_exists('json_response')) {
     /** Ends the request with a JSON body. Used by every endpoint in /api. */
     function json_response(array $payload, int $status = 200): void

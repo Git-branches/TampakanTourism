@@ -121,7 +121,9 @@ $pageTitle    = 'Directions';
 $pageIcon     = 'fa-diamond-turn-right';
 $pageSubtitle = $d['name'];
 
-require __DIR__ . '/../_partials/head.php';
+/* Skips the shell when this page was asked for as a dialog fragment.
+   Additive: without ?modal=1 nothing here changes at all. */
+if (!is_modal_request()) { require __DIR__ . '/../_partials/head.php'; }
 ?>
 
 <div class="d-flex gap-2 flex-wrap mb-3">
@@ -328,4 +330,4 @@ require __DIR__ . '/../_partials/head.php';
     </div>
 </section>
 
-<?php require __DIR__ . '/../_partials/foot.php'; ?>
+<?php if (!is_modal_request()) { require __DIR__ . '/../_partials/foot.php'; } ?>

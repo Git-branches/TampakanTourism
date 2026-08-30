@@ -69,7 +69,9 @@ if (is_post()) {
 
 $photos = DestinationRepository::photos($id);
 
-require __DIR__ . '/../_partials/head.php';
+/* Skips the shell when this page was asked for as a dialog fragment.
+   Additive: without ?modal=1 nothing here changes at all. */
+if (!is_modal_request()) { require __DIR__ . '/../_partials/head.php'; }
 ?>
 
 <div class="record-bar">
@@ -160,4 +162,4 @@ require __DIR__ . '/../_partials/head.php';
     </div>
 </section>
 
-<?php require __DIR__ . '/../_partials/foot.php'; ?>
+<?php if (!is_modal_request()) { require __DIR__ . '/../_partials/foot.php'; } ?>

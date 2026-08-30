@@ -678,24 +678,13 @@ a { text-decoration: none; }
     -webkit-box-orient: vertical;
     overflow: hidden;
 }
-.dest-tile__stats {
-    display: flex;
-    gap: .9rem;
-    font-size: .74rem;
-    color: var(--ink-3);
-    padding-top: .6rem;
-    border-top: 1px solid var(--line-soft);
-}
-.dest-tile__stats i { margin-right: .2rem; opacity: .7; }
-
-.dest-tile__actions {
-    display: flex;
-    gap: .4rem;
-    padding: .7rem 1rem;
-    background: #FAFCFA;
-    border-top: 1px solid var(--line-soft);
-}
-.dest-tile__actions .btn { font-size: .77rem; }
+/* The first .dest-tile__stats and .dest-tile__actions used to be here — a flex
+   row of bare figures and a flex row of buttons. Both were superseded twice
+   over, and the last of the three definitions is the one that applied. Three
+   sets of rules for two elements is how a change stops taking effect for no
+   visible reason, so the dead ones are gone rather than left to be read as
+   still meaning something. The live rules are in the DESTINATION TILE block at
+   the end of this file. */
 
 /* The pager lives with the rest of the house vocabulary further down, where it
    is styled for the shared partial that renders it. This copy assumed a bare row
@@ -2690,35 +2679,19 @@ a { text-decoration: none; }
    same line rather than floating at the height its own text happened to reach. */
 .dest-tile__body { flex: 1 1 auto; }
 
-.dest-tile__actions {
-    display: grid;
-    grid-auto-flow: column;
-    grid-auto-columns: 1fr;      /* four equal buttons, always */
-    gap: .35rem;
-    padding: .7rem .8rem;
-    background: #FAFCFA;
-    border-top: 1px solid var(--line-soft);
-}
+/* THE FOUR-EQUAL-BUTTONS FOOTER USED TO BE HERE, and it is worth saying what
+   went wrong with it rather than only deleting it.
 
-.dest-tile__actions .btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: .35rem;
-    min-width: 0;
-    height: 34px;
-    padding-inline: .4rem;
-    font-size: .76rem;
-    white-space: nowrap;         /* a label may not wrap under its icon */
-    overflow: hidden;
-}
+   It gave every action the same width, then hid all the labels below 1400px
+   because they would not fit — leaving five unlabelled icons and a title
+   attribute nobody hovers. The `gap: 0` in that media query would also have
+   jammed the icon against the text of the new primary button at every width a
+   person actually uses.
 
-/* Below this the four labels cannot fit at a readable size, so they go and the
-   title attribute carries them instead. */
-@media (max-width: 1400px) {
-    .dest-tile__actions .btn-label { display: none; }
-    .dest-tile__actions .btn { gap: 0; }
-}
+   The replacement does not divide the row equally: one primary takes what is
+   left after Edit and the menu, so its words always fit. See the DESTINATION
+   TILE block at the end of this file. `.btn-label` is gone from the markup
+   entirely, so the rule that hid it had nothing left to act on. */
 
 
 /* -----------------------------------------------------------------------------
@@ -3669,6 +3642,51 @@ a { text-decoration: none; }
     .sheet--wide { width: 100vw; max-width: 100vw; }
 }
 
+/* ---- A whole page inside the dialog --------------------------------------
+   Every other sheet holds a .sheet__form, and THAT is the flex column doing
+   the scrolling — .sheet itself is only overflow:hidden. #destPageModal has no
+   such wrapper: it is a head and a body holding whatever Edit, Photos, Route
+   or Heritage rendered. Without this the body would be clipped at the dialog's
+   max-height with no way to scroll to the Save button.
+
+   Wider than .sheet--wide because the content was laid out for the admin's
+   main column, not for a five-field form.
+   ------------------------------------------------------------------------ */
+#destPageModal {
+    width: min(1040px, calc(100vw - 2rem));
+    display: flex;
+    flex-direction: column;
+}
+
+/* The display:flex above overrides the display:none a closed <dialog> gets from
+   the browser, which would leave the thing on screen at all times. This puts it
+   back for the closed state, and outranks it: [open] adds specificity. */
+#destPageModal:not([open]) { display: none; }
+
+#destPageModal .sheet__body { min-height: 0; }
+
+/* The fetched page opens with its own record-bar of links; inside the dialog
+   they would leave it, which is the one thing the dialog exists to avoid. */
+#destPageModal .record-bar { display: none; }
+
+/* Injected pages bring their own .panel, which would draw a second card inside
+   the dialog's own frame. */
+#destPageModal .panel {
+    border: 0;
+    box-shadow: none;
+    background: none;
+    margin: 0;
+}
+
+#destPageModal .panel + .panel { margin-top: 1.15rem; border-top: 1px solid var(--line-soft); }
+#destPageModal .panel__body { padding: 0; }
+#destPageModal .set-head,
+#destPageModal .panel__head { padding-left: 0; padding-right: 0; }
+
+@media (max-width: 575.98px) {
+    #destPageModal { width: 100vw; max-width: 100vw; }
+}
+
 
 /* =============================================================================
    THE BELL
@@ -4599,3 +4617,155 @@ details[open] > .tgq-more .tgq-more__chev { transform: rotate(90deg); }
    would sit on top of each other. The button wins — the field is already
    outlined red and carries a message underneath. */
 .pw-field .form-control.is-invalid { background-image: none; }
+
+
+/* =============================================================================
+   DESTINATION TILE — the stats row and the action footer
+   =============================================================================
+   The tile already existed. What changed is that its numbers say what they are
+   and its five equal buttons became one primary, one secondary and a menu.
+   ========================================================================== */
+
+/* ---- The three figures under the description -----------------------------
+   Was three icons and three bare values. The mockup that asked for this card
+   read the first as "Reviews" and the third as "Set Gallery"; they are recorded
+   visitors and whether the destination has map coordinates. Somebody studying
+   the screen closely enough to redraw it guessed wrong twice, which is the
+   whole argument for the labels.
+   ------------------------------------------------------------------------ */
+.dest-tile__stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: .5rem;
+    padding-top: .85rem;
+    margin-top: .85rem;
+    border-top: 1px solid var(--line-soft);
+}
+
+.dest-tile__stats span {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-rows: auto auto;
+    column-gap: .45rem;
+    align-items: center;
+    min-width: 0;
+}
+
+/* The icon spans both rows, so the number and its word sit against it as one
+   block rather than drifting apart at narrow widths. */
+.dest-tile__stats i {
+    grid-row: 1 / 3;
+    color: var(--ink-3);
+    font-size: .9rem;
+}
+
+.dest-tile__stats strong {
+    font-size: .95rem;
+    font-weight: 600;
+    color: var(--ink-1);
+    line-height: 1.1;
+}
+
+.dest-tile__stats small {
+    font-size: .7rem;
+    color: var(--ink-3);
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+/* A destination with no coordinates is missing from the map, which is worth
+   noticing rather than reading as a neutral "None". */
+.dest-tile__stats .is-missing i,
+.dest-tile__stats .is-missing strong { color: var(--amber); }
+
+/* ---- The action footer ---------------------------------------------------
+   One primary that fills the row, then Edit, then the menu. Grid rather than
+   flex so the two small controls keep their size and the primary takes what is
+   left — with five flexed buttons the labels were the first thing to go.
+   ------------------------------------------------------------------------ */
+.dest-tile__actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: .4rem;
+    align-items: center;
+    padding: .8rem .95rem;
+    border-top: 1px solid var(--line-soft);
+}
+
+.dest-tile__go {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: .45rem;
+    min-width: 0;
+}
+
+/* The arrow is the only part that may be dropped: it is decoration, and the
+   words beside it already say where the button goes. */
+.dest-tile__go .fa-arrow-right { margin-left: .1rem; font-size: .78rem; }
+
+.dest-tile__actions .is-disabled {
+    opacity: .6;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+/* ---- The overflow menu ---------------------------------------------------
+   Opens upward: the tile sits in a grid and a panel dropping downward would be
+   clipped by the card below it on the last row of the page.
+   ------------------------------------------------------------------------ */
+.card-menu { position: relative; }
+
+.card-menu__panel {
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + .35rem);
+    z-index: 30;
+    min-width: 190px;
+    padding: .3rem;
+    display: grid;
+    gap: .1rem;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 12px 30px -12px rgba(16, 34, 20, .35);
+}
+
+.card-menu__panel a {
+    display: grid;
+    grid-template-columns: 18px 1fr auto;
+    align-items: center;
+    gap: .55rem;
+    padding: .5rem .6rem;
+    border-radius: 6px;
+    font-size: .84rem;
+    color: var(--ink-1);
+    text-decoration: none;
+}
+
+.card-menu__panel a:hover,
+.card-menu__panel a:focus-visible {
+    background: var(--canvas);
+    color: var(--green);
+    outline: none;
+}
+
+.card-menu__panel i { color: var(--ink-3); font-size: .85rem; }
+.card-menu__panel a:hover i { color: var(--green); }
+
+.card-menu__count {
+    font-size: .72rem;
+    font-weight: 600;
+    color: var(--ink-3);
+    background: var(--canvas);
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    padding: .05rem .4rem;
+}
+
+/* On a phone the tile is full width, so the primary can have the row to itself
+   and the other two sit under it rather than squeezing its label out. */
+@media (max-width: 575.98px) {
+    .dest-tile__actions { grid-template-columns: 1fr auto; }
+    .dest-tile__go { grid-column: 1 / -1; }
+}

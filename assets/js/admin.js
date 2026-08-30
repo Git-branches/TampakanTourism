@@ -763,6 +763,71 @@
     })();
 
     /* ---------------------------------------------------------------------
+       The overflow menu on a card
+       ---------------------------------------------------------------------
+       A destination tile has five things you can do to it and room for two.
+       The other three live behind a "…" button, where they can be spelled out
+       instead of reduced to an unlabelled icon.
+
+       Delegated, so a card added later works without registering anything, and
+       written once here rather than per screen.
+       ------------------------------------------------------------------ */
+    (function () {
+        function closeAll(except) {
+            document.querySelectorAll('.card-menu__panel').forEach(function (panel) {
+                if (panel === except) { return; }
+
+                panel.hidden = true;
+
+                var owner = document.querySelector('[data-card-menu="' + panel.id + '"]');
+
+                if (owner) { owner.setAttribute('aria-expanded', 'false'); }
+            });
+        }
+
+        document.addEventListener('click', function (event) {
+            var toggle = event.target.closest && event.target.closest('[data-card-menu]');
+
+            if (toggle) {
+                var panel = document.getElementById(toggle.getAttribute('data-card-menu'));
+
+                if (!panel) { return; }
+
+                var open = panel.hidden;
+
+                /* One at a time: two open menus overlapping each other is a
+                   guess about which one a click belongs to. */
+                closeAll(open ? panel : null);
+
+                panel.hidden = !open;
+                toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+
+                return;
+            }
+
+            /* A click anywhere else closes them — including on a link inside a
+               menu, which is fine because the page is about to change. */
+            closeAll(null);
+        });
+
+        document.addEventListener('keydown', function (event) {
+            if (event.key !== 'Escape') { return; }
+
+            var open = document.querySelector('.card-menu__panel:not([hidden])');
+
+            if (!open) { return; }
+
+            var owner = document.querySelector('[data-card-menu="' + open.id + '"]');
+
+            closeAll(null);
+
+            /* Focus goes back to the button that opened it, or Escape leaves
+               somebody tabbing from the top of the page again. */
+            if (owner) { owner.focus(); }
+        });
+    })();
+
+    /* ---------------------------------------------------------------------
        Showing a password
        ---------------------------------------------------------------------
        The sign-in page has had a reveal button since it was written. Every
@@ -862,5 +927,175 @@
     if (preState && preState.parentNode) {
         preState.parentNode.removeChild(preState);
     }
+
+    /* ---------------------------------------------------------------------
+       A suggested value typed into a field for you
+       ---------------------------------------------------------------------
+       Used by the printed-signage address, where the thing to type is this
+       machine's WiFi address — something an officer would otherwise have to
+       find with ipconfig, and mistype.
+
+       It fills the box and stops. Saving stays a deliberate press of Save, the
+       same as every other setting on the screen.
+       ------------------------------------------------------------------ */
+    document.addEventListener('click', function (event) {
+        var button = event.target.closest && event.target.closest('[data-fill]');
+
+        if (!button) { return; }
+
+        var field = document.getElementById(button.getAttribute('data-fill'));
+
+        if (!field) { return; }
+
+        field.value = button.getAttribute('data-fill-value') || '';
+        field.focus();
+
+        /* So anything watching the field — validation, a dirty-form guard —
+           sees this the same way it sees typing. */
+        field.dispatchEvent(new Event('input',  { bubbles: true }));
+        field.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    /* ---------------------------------------------------------------------
+       A whole page opened inside a dialog
+       ---------------------------------------------------------------------
+       The destinations list keeps everything else in a sheet, so leaving the
+       list to edit a destination, add a photograph, draw a route or write a
+       heritage item was the one place the screen still went somewhere else and
+       came back.
+
+       A link marked data-modal-page is fetched with ?modal=1 — which is all it
+       takes for those pages to render their body and skip the shell — and put
+       into #destPageModal. The link keeps its href, so this only intercepts a
+       plain left click: Ctrl-click, middle-click and "open in new tab" go to
+       the full page exactly as before, and so does this whole feature with
+       JavaScript off.
+       ------------------------------------------------------------------ */
+    (function () {
+        var modal = document.getElementById('destPageModal');
+        var body  = document.getElementById('destPageModalBody');
+        var title = document.getElementById('destPageModalTitle');
+
+        if (!modal || !body || !title || !modal.showModal || !window.fetch) { return; }
+
+        /* Bumped on every open. A slow first fetch that lands after the officer
+           has already opened something else must not overwrite it. */
+        var turn = 0;
+
+        function fragmentUrl(href) {
+            return href + (href.indexOf('?') === -1 ? '?' : '&') + 'modal=1';
+        }
+
+        /* innerHTML never runs a <script>, and two of these pages need theirs:
+           the coordinate picker on Edit and the drag-reorder on Heritage. Each
+           tag is replaced with a fresh one, in order, and a src has to finish
+           before the next runs — the inline picker is useless if Leaflet has
+           not defined L yet. */
+        function runScripts(scripts, done) {
+            if (scripts.length === 0) { done(); return; }
+
+            var old  = scripts.shift();
+            var copy = document.createElement('script');
+
+            Array.prototype.forEach.call(old.attributes, function (attr) {
+                copy.setAttribute(attr.name, attr.value);
+            });
+
+            if (old.src) {
+                /* Either outcome continues: a CDN that cannot be reached should
+                   leave the form usable without its map, not half-loaded. */
+                copy.onload = copy.onerror = function () { runScripts(scripts, done); };
+                old.parentNode.replaceChild(copy, old);
+                return;
+            }
+
+            copy.textContent = old.textContent;
+            old.parentNode.replaceChild(copy, old);
+            runScripts(scripts, done);
+        }
+
+        /* Every form on those four pages omits action, which means "post to the
+           page I am on". Injected here, that page is the list — the post would
+           go to index.php and nothing would be saved. Naming the source URL puts
+           it back where it has always gone, so the handler runs, redirects and
+           flashes exactly as it does today. */
+        function pointFormsAt(url) {
+            Array.prototype.forEach.call(body.querySelectorAll('form'), function (form) {
+                if (!form.getAttribute('action')) { form.setAttribute('action', url); }
+            });
+        }
+
+        function load(href, label) {
+            var mine = ++turn;
+
+            title.innerHTML = '<i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> Loading…';
+            body.innerHTML  = '';
+            modal.showModal();
+
+            fetch(fragmentUrl(href), {
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'fetch' }
+            }).then(function (response) {
+                if (!response.ok) { throw new Error('HTTP ' + response.status); }
+
+                return response.text();
+            }).then(function (html) {
+                if (mine !== turn) { return; }
+
+                body.innerHTML = html;
+                title.textContent = label || 'Destination';
+                pointFormsAt(href);
+
+                runScripts(Array.prototype.slice.call(body.querySelectorAll('script')), function () {
+                    if (mine !== turn) { return; }
+
+                    /* What tells a Leaflet map built in a closed dialog to
+                       measure itself again. Same event the sheets already
+                       fire, so _form.php needed no change to listen for it. */
+                    modal.dispatchEvent(new CustomEvent('sheet:open', { bubbles: true }));
+                });
+            }).catch(function () {
+                if (mine !== turn) { return; }
+
+                title.textContent = 'Could not open that';
+                body.innerHTML = '<p class="text-muted">This did not load. '
+                    + '<a href="' + href.replace(/"/g, '&quot;') + '">Open the full page instead</a>.</p>';
+            });
+        }
+
+        document.addEventListener('click', function (event) {
+            if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+                return;
+            }
+
+            var link = event.target.closest && event.target.closest('a[data-modal-page]');
+
+            if (!link || link.target === '_blank') { return; }
+
+            event.preventDefault();
+
+            /* These links live in the card's overflow menu, which would
+               otherwise stay open behind the dialog. */
+            var panel = link.closest('.card-menu__panel');
+
+            if (panel) {
+                panel.hidden = true;
+
+                var owner = document.querySelector('[data-card-menu="' + panel.id + '"]');
+
+                if (owner) { owner.setAttribute('aria-expanded', 'false'); }
+            }
+
+            load(link.getAttribute('href'), link.getAttribute('data-modal-title') || link.textContent.trim());
+        });
+
+        /* Emptied on close so the ids borrowed from _form.php stop colliding
+           with the Add sheet's copy, and so a map is not left running behind a
+           dialog nobody can see. */
+        modal.addEventListener('close', function () {
+            turn++;
+            body.innerHTML = '';
+        });
+    })();
 
 })();

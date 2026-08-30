@@ -171,12 +171,35 @@ require __DIR__ . '/../_partials/head.php';
                         <?= e($d['short_description'] ?: 'No short description yet.') ?>
                     </p>
 
+                    <?php
+                    /* THE NUMBERS SAY WHAT THEY ARE NOW.
+                     *
+                     * This row was three icons and three bare values — a person
+                     * glyph, a picture glyph, and the word "Set". The mockup that
+                     * asked for this card read them as "Reviews" and "Set Gallery".
+                     * Both readings are wrong: the first is recorded visitors and
+                     * the third is whether the destination has map coordinates.
+                     *
+                     * That is the argument for labelling them. Somebody looking
+                     * carefully enough to redraw the screen still guessed wrong
+                     * twice, and they had the whole page in front of them. */
+                    $hasPin = $d['latitude'] !== null && $d['longitude'] !== null;
+                    ?>
                     <div class="dest-tile__stats">
-                        <span title="Recorded visitors"><i class="fa-solid fa-users"></i> <?= n($d['visitors']) ?></span>
-                        <span title="Photos"><i class="fa-solid fa-image"></i> <?= n($d['photo_count']) ?></span>
-                        <span title="Map coordinates">
-                            <i class="fa-solid fa-map-pin"></i>
-                            <?= ($d['latitude'] !== null && $d['longitude'] !== null) ? 'Set' : 'Not set' ?>
+                        <span>
+                            <i class="fa-solid fa-users" aria-hidden="true"></i>
+                            <strong><?= n($d['visitors']) ?></strong>
+                            <small>Visitors</small>
+                        </span>
+                        <span>
+                            <i class="fa-solid fa-image" aria-hidden="true"></i>
+                            <strong><?= n($d['photo_count']) ?></strong>
+                            <small>Photos</small>
+                        </span>
+                        <span class="<?= $hasPin ? '' : 'is-missing' ?>">
+                            <i class="fa-solid fa-map-pin" aria-hidden="true"></i>
+                            <strong><?= $hasPin ? 'Set' : 'None' ?></strong>
+                            <small>Map pin</small>
                         </span>
                     </div>
                 </div>
@@ -195,48 +218,82 @@ require __DIR__ . '/../_partials/head.php';
                  * Every title= is set whether or not the label is showing, so
                  * the meaning survives at the widths where the text does not. */
                 ?>
+                <?php
+                /* ONE PRIMARY, ONE SECONDARY, AND THE REST BEHIND A MENU.
+                 *
+                 * There were five equal buttons in a 268px column. They did not
+                 * fit, so CSS dropped every label and left five unlabelled icons
+                 * — a pen, two pictures, a signpost and a little building — and
+                 * the officer had to hover each one to find out what it was.
+                 *
+                 * Trying to fit five labels was the wrong problem. Only two of
+                 * the five are used often: opening the public page to check it,
+                 * and editing. Those keep their words. Photos, Route and
+                 * Heritage go behind a menu, where they can be spelled out and
+                 * carry their counts.
+                 *
+                 * The heart in the mockup is not here. On a public card it means
+                 * "save this place"; on the office's own list it would mean
+                 * nothing that "Featured" does not already say. */
+                $canView = $d['status'] === 'active';
+                ?>
                 <div class="dest-tile__actions">
-                    <a href="edit.php?id=<?= (int) $d['id'] ?>"
-                       class="btn btn-sm btn-outline-secondary" title="Edit details">
-                        <i class="fa-solid fa-pen" aria-hidden="true"></i>
-                        <span class="btn-label">Edit</span>
-                    </a>
-                    <a href="photos.php?id=<?= (int) $d['id'] ?>"
-                       class="btn btn-sm btn-outline-secondary" title="Photos">
-                        <i class="fa-solid fa-images" aria-hidden="true"></i>
-                        <span class="btn-label">Photos</span>
-                    </a>
-                    <a href="routes.php?id=<?= (int) $d['id'] ?>"
-                       class="btn btn-sm btn-outline-secondary" title="Directions">
-                        <i class="fa-solid fa-diamond-turn-right" aria-hidden="true"></i>
-                        <span class="btn-label">Routes</span>
-                    </a>
-                    <?php /* The pictures and words that appear under this
-                             destination's heritage text on its QR page. */ ?>
-                    <a href="heritage.php?id=<?= (int) $d['id'] ?>"
-                       class="btn btn-sm btn-outline-secondary" title="Cultural heritage items">
-                        <i class="fa-solid fa-landmark-dome" aria-hidden="true"></i>
-                        <span class="btn-label">Heritage</span>
-                        <?php if (($heritageCounts[(int) $d['id']] ?? 0) > 0): ?>
-                            <span class="pill pill--qr"><?= n($heritageCounts[(int) $d['id']]) ?></span>
-                        <?php endif; ?>
-                    </a>
-                    <?php if ($d['status'] === 'active'): ?>
+                    <?php if ($canView): ?>
                         <a href="<?= e(base_url('/destination.php?slug=' . $d['slug'])) ?>"
-                           target="_blank" rel="noopener"
-                           class="btn btn-sm btn-outline-secondary" title="Open the public page in a new tab">
-                            <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i>
-                            <span class="btn-label">View</span>
+                           target="_blank" rel="noopener" class="btn btn-sm btn-brand dest-tile__go">
+                            <i class="fa-solid fa-eye" aria-hidden="true"></i>
+                            View Destination
+                            <i class="fa-solid fa-arrow-right" aria-hidden="true"></i>
                         </a>
                     <?php else: ?>
-                        <?php /* Archived: the public page 404s, so the slot is held
-                                 rather than left to stretch the other three. */ ?>
-                        <span class="btn btn-sm btn-outline-secondary is-disabled"
-                              aria-disabled="true" title="Archived — no public page">
+                        <?php /* Archived pages 404. The slot is held rather than
+                                 left to stretch the other two, and it says why. */ ?>
+                        <span class="btn btn-sm btn-outline-secondary is-disabled dest-tile__go"
+                              aria-disabled="true" title="Archived — this has no public page">
                             <i class="fa-solid fa-eye-slash" aria-hidden="true"></i>
-                            <span class="btn-label">Hidden</span>
+                            Not public
                         </span>
                     <?php endif; ?>
+
+                    <?php /* Still a real href. The script intercepts a plain click and
+                             opens the dialog; a middle-click, Ctrl-click or "open in
+                             new tab" falls through to the page it always went to. */ ?>
+                    <a href="edit.php?id=<?= (int) $d['id'] ?>" class="btn btn-sm btn-outline-secondary"
+                       data-modal-page data-modal-title="Edit <?= e($d['name']) ?>">
+                        <i class="fa-solid fa-pen" aria-hidden="true"></i> Edit
+                    </a>
+
+                    <?php $menuId = 'destMenu' . (int) $d['id']; ?>
+                    <div class="card-menu">
+                        <button type="button" class="btn btn-sm btn-outline-secondary card-menu__toggle"
+                                data-card-menu="<?= e($menuId) ?>"
+                                aria-haspopup="true" aria-expanded="false"
+                                aria-label="More for <?= e($d['name']) ?>">
+                            <i class="fa-solid fa-ellipsis" aria-hidden="true"></i>
+                        </button>
+
+                        <div class="card-menu__panel" id="<?= e($menuId) ?>" hidden>
+                            <a href="photos.php?id=<?= (int) $d['id'] ?>"
+                               data-modal-page data-modal-title="Photos &mdash; <?= e($d['name']) ?>">
+                                <i class="fa-solid fa-images" aria-hidden="true"></i>
+                                Photos
+                                <span class="card-menu__count"><?= n($d['photo_count']) ?></span>
+                            </a>
+                            <a href="routes.php?id=<?= (int) $d['id'] ?>"
+                               data-modal-page data-modal-title="Route &mdash; <?= e($d['name']) ?>">
+                                <i class="fa-solid fa-diamond-turn-right" aria-hidden="true"></i>
+                                Route
+                            </a>
+                            <a href="heritage.php?id=<?= (int) $d['id'] ?>"
+                               data-modal-page data-modal-title="Heritage &mdash; <?= e($d['name']) ?>">
+                                <i class="fa-solid fa-landmark-dome" aria-hidden="true"></i>
+                                Heritage
+                                <?php if (($heritageCounts[(int) $d['id']] ?? 0) > 0): ?>
+                                    <span class="card-menu__count"><?= n($heritageCounts[(int) $d['id']]) ?></span>
+                                <?php endif; ?>
+                            </a>
+                        </div>
+                    </div>
                 </div>
             </article>
         <?php endforeach; ?>
@@ -250,6 +307,43 @@ require __DIR__ . '/../_partials/head.php';
          use, so a field added there appears here without anyone remembering to.
          Rendered last, which is why the values are held in $sheetDestination
          until now — the table above walks the list in $d. */ ?>
+<?php
+/* ONE DIALOG, FILLED WHEN IT OPENS.
+ *
+ * Edit, Photos, Route and Heritage now open here instead of navigating away.
+ * The dialog is empty until a button is pressed; then it fetches that page with
+ * ?modal=1, which makes the page render its own body and skip the shell.
+ *
+ * WHY FETCH RATHER THAN RENDER THEM INLINE. The house pattern elsewhere is to
+ * extract a partial and include it — that is what the tour guide ID card does,
+ * because X-Frame-Options is DENY and a dialog cannot iframe an admin page. It
+ * works there because there is one card. It does not work here: _form.php gives
+ * its fields fixed ids, so rendering it once per destination would put twelve
+ * elements called id="name" on one page and break every <label for> on it.
+ * Fixing that would mean rewriting a form that works.
+ *
+ * Nothing about those four pages changed except that they skip the shell when
+ * asked to. Every existing link to them still opens the full page.
+ *
+ * WHY THIS SITS ABOVE THE ADD SHEET. Edit's fragment is _form.php, and the Add
+ * sheet below is the same _form.php — so while Edit is open the page really does
+ * hold two elements called id="pickerMap", id="latitude", id="name". The
+ * injected script calls document.getElementById, which answers with whichever
+ * comes FIRST in the document; being above the Add sheet is what makes that the
+ * Edit copy. The script clears this body on close, so the duplicates exist only
+ * while the dialog is open and the Add sheet is shut. */
+?>
+<dialog class="sheet sheet--wide" id="destPageModal">
+    <header class="sheet__head">
+        <h2 id="destPageModalTitle"><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> Loading&hellip;</h2>
+        <button type="button" class="sheet__close" data-dialog-close aria-label="Close">
+            <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+        </button>
+    </header>
+
+    <div class="sheet__body" id="destPageModalBody"></div>
+</dialog>
+
 <dialog class="sheet sheet--wide" id="addDestination"<?= $sheetOpen ? ' data-open' : '' ?>>
     <?php $inSheet = true; $d = $sheetDestination; require __DIR__ . '/_form.php'; ?>
 </dialog>
