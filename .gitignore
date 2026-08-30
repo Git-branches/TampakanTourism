@@ -44,6 +44,12 @@ storage/logbooks/*
 storage/imports/*
 !storage/imports/.gitkeep
 
+# What database/seed-demo.php wrote on THIS machine, by table and row id. It is
+# the record of one laptop's demonstration data and means nothing on another —
+# committing it would offer a --undo that deletes rows belonging to somebody
+# else's numbering.
+storage/demo-seed.json
+
 # Database dumps. A backup taken from production carries every visitor record
 # the system has ever held — names, contact numbers, and the admin password
 # hashes. database/schema.sql is the exception and stays tracked: it is pure
