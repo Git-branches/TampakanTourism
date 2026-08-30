@@ -224,12 +224,45 @@ printf("    %d months of history, %d month(s) of data, %d recommendation(s)\n",
    silent, it names the method and refuses. */
 check('the forecast names its method', array_key_exists('method', $cast), true);
 check('and states its limitation', array_key_exists('limitation', $cast), true);
-check('and says how much history it has',
-    array_key_exists('months_of_data', $cast) && array_key_exists('months_needed', $cast), true);
-check('with too little data it does not pretend',
-    (int) ($cast['months_of_data'] ?? 0) < (int) ($cast['months_needed'] ?? 12)
-        ? array_key_exists('reason', $cast)
-        : true, true);
+/* THE FORECAST HAS TWO SHAPES AND THIS ONCE ONLY KNEW ONE.
+   With no arrivals in the database it always took the refusal branch, so the
+   assertions below were written against that branch alone and passed for
+   months without the productive path ever running. The moment sample data was
+   loaded, `months_needed` stopped being returned — correctly, because there is
+   now enough history — and this suite failed on working code.
+
+   Both branches are checked now, and which one is being exercised is printed,
+   so a run against an empty database and a run against a seeded one are
+   distinguishable in the output rather than looking identical. */
+if (empty($cast['available'])) {
+    echo "    (refusing to forecast — not enough history)\n";
+
+    check('it says how much history it has',
+        array_key_exists('months_of_data', $cast) && array_key_exists('months_needed', $cast), true);
+    check('and does not pretend', array_key_exists('reason', $cast), true);
+    check('and offers no number', array_key_exists('estimate', $cast), false);
+} else {
+    printf("    (forecasting %s: %s visitors, range %s-%s, confidence %s)\n",
+        (string) ($cast['target_month'] ?? '?'),
+        number_format((float) ($cast['estimate'] ?? 0)),
+        number_format((float) ($cast['range_low'] ?? 0)),
+        number_format((float) ($cast['range_high'] ?? 0)),
+        (string) ($cast['confidence'] ?? '?'));
+
+    check('it produces a number',        is_numeric($cast['estimate'] ?? null), true);
+    check('with a range around it',
+        isset($cast['range_low'], $cast['range_high'])
+        && $cast['range_low'] <= $cast['estimate']
+        && $cast['estimate']  <= $cast['range_high'], true);
+    check('it names the month forecast', !empty($cast['target_month']), true);
+    check('and states its confidence',
+        in_array($cast['confidence'] ?? '', ['low', 'moderate', 'high'], true), true);
+
+    /* One year of history cannot support a seasonal claim, and the system is
+       supposed to say so rather than imply two years of pattern. */
+    check('confidence is not overstated on one year of data',
+        Insights::monthsOfData() >= 24 || ($cast['confidence'] ?? '') !== 'high', true);
+}
 
 echo "\n--- the AI endpoint: guarded, and NOT called ---\n";
 

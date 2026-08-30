@@ -32,15 +32,43 @@ final class ReportBuilder
      *
      * @return array{start:string, end:string, label:string}
      */
+    /**
+     * A date this class can hand to strtotime(), or the fallback.
+     *
+     * strtotime() answers `false` for anything it cannot read, and PHP 8's
+     * date() throws a TypeError when given it. Every period below is built out
+     * of numbers taken straight from the query string, so `?month=13` became
+     * "2026-13-01", became false, and became a white screen on the reports
+     * page — as did a mistyped `?date=`. Neither is exotic: a month is chosen
+     * from a dropdown, but the URL it produces is editable, bookmarkable, and
+     * gets pasted into chat messages.
+     */
+    private static function validDate(mixed $value, string $fallback): string
+    {
+        $value = trim((string) $value);
+
+        if ($value === '') {
+            return $fallback;
+        }
+
+        $stamp = strtotime($value);
+
+        return $stamp === false ? $fallback : date('Y-m-d', $stamp);
+    }
+
     public static function resolvePeriod(string $type, array $params): array
     {
-        $year    = (int) ($params['year']  ?? date('Y'));
-        $month   = (int) ($params['month'] ?? date('n'));
-        $quarter = (int) ($params['quarter'] ?? ceil((int) date('n') / 3));
+        /* Clamped rather than rejected. An officer who lands here with a bad
+           number wants a report, not an error page — they get the nearest
+           period that exists, with its name printed at the top so it is
+           obvious which one they are looking at. */
+        $year    = min(2100, max(2000, (int) ($params['year']  ?? date('Y'))));
+        $month   = min(12,   max(1,    (int) ($params['month'] ?? date('n'))));
+        $quarter = min(4,    max(1,    (int) ($params['quarter'] ?? ceil((int) date('n') / 3))));
 
         switch ($type) {
             case 'daily':
-                $date = $params['date'] ?? date('Y-m-d');
+                $date = self::validDate($params['date'] ?? '', date('Y-m-d'));
                 return ['start' => $date, 'end' => $date, 'label' => format_date($date, 'F j, Y')];
 
             case 'monthly':
@@ -65,8 +93,15 @@ final class ReportBuilder
                 ];
 
             default: // custom
-                $start = $params['start'] ?? date('Y-m-01');
-                $end   = $params['end']   ?? date('Y-m-d');
+                $start = self::validDate($params['start'] ?? '', date('Y-m-01'));
+                $end   = self::validDate($params['end']   ?? '', date('Y-m-d'));
+
+                /* A range typed backwards produced a report of nothing and no
+                   hint as to why. Read the way it was plainly meant. */
+                if ($end < $start) {
+                    [$start, $end] = [$end, $start];
+                }
+
                 return [
                     'start' => $start,
                     'end'   => $end,
