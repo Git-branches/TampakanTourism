@@ -1139,3 +1139,226 @@
         init();
     }
 })();
+
+
+
+/* =============================================================================
+   12. THE RAIL — arrows, dots, and the turn between pages
+   =============================================================================
+   Drives any element marked data-rail. The strip itself is CSS: a grid that
+   scrolls sideways and snaps. This moves it a page at a time, keeps the arrows
+   honest about whether there is anywhere left to go, draws one dot per page,
+   and marks a card as arrived so it can settle into place.
+
+   THREE THINGS IT HAS TO GET RIGHT.
+
+   The filter. Destinations and Announcements both have chips and a search box,
+   and both work by setting `hidden` on the cards that no longer match — code
+   this must not disturb. So it watches for that attribute changing rather than
+   being told. Filter down to two results and the dots and arrows put
+   themselves away; clear the filter and they come back.
+
+   The page count. Dots are per PAGE, not per card: ten destinations at five a
+   page is two dots. Per-card dots would be eleven grey specks saying nothing.
+
+   The last page. Scrolling by a full container width lands between snap points
+   when the last page is short, so every move is clamped to the scrollable
+   maximum and the browser's own snapping finishes the job.
+   ========================================================================== */
+
+(function () {
+    'use strict';
+
+    var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    function init() {
+        var rails = document.querySelectorAll('[data-rail]');
+
+        if (rails.length === 0) { return; }
+
+        Array.prototype.forEach.call(rails, function (rail) {
+            var id   = rail.id;
+            var prev = document.querySelector('[data-rail-prev="' + id + '"]');
+            var next = document.querySelector('[data-rail-next="' + id + '"]');
+            var dots = document.getElementById(rail.getAttribute('data-rail-dots') || '');
+
+            /* A card's width plus one gap, read from the DOM rather than from
+               the breakpoint — so the five/four/three counts live in one place,
+               the stylesheet, and cannot drift out of step with this. */
+            function step() {
+                var card = rail.querySelector(':scope > *:not([hidden])');
+
+                if (!card) { return rail.clientWidth || 1; }
+
+                var gap = parseFloat(getComputedStyle(rail).columnGap) || 0;
+
+                return card.getBoundingClientRect().width + gap;
+            }
+
+            function cards() {
+                return rail.querySelectorAll(':scope > *:not([hidden])');
+            }
+
+            function perPage() {
+                return Math.max(1, Math.round(rail.clientWidth / step()));
+            }
+
+            function pageCount() {
+                return Math.max(1, Math.ceil(cards().length / perPage()));
+            }
+
+            function currentPage() {
+                var span = perPage() * step();
+
+                return Math.min(pageCount() - 1, Math.round(rail.scrollLeft / span));
+            }
+
+            function maxScroll() {
+                return rail.scrollWidth - rail.clientWidth;
+            }
+
+            function goTo(page) {
+                rail.scrollLeft = Math.max(0,
+                    Math.min(maxScroll(), page * perPage() * step()));
+            }
+
+            function move(direction) {
+                rail.scrollLeft = Math.max(0, Math.min(
+                    maxScroll(), rail.scrollLeft + direction * perPage() * step()));
+            }
+
+            /* ---- the dots ------------------------------------------------ */
+
+            var drawnFor = -1;
+
+            function drawDots() {
+                if (!dots) { return; }
+
+                var pages = pageCount();
+
+                /* Rebuilt only when the number changes. A filter that removes
+                   one card of ten changes nothing here, and replacing the dots
+                   on every scroll event would restart their transition. */
+                if (pages === drawnFor) { return; }
+
+                drawnFor = pages;
+                dots.textContent = '';
+
+                if (pages < 2) {
+                    dots.hidden = true;
+                    return;
+                }
+
+                dots.hidden = false;
+
+                for (var i = 0; i < pages; i++) {
+                    (function (page) {
+                        var dot = document.createElement('button');
+
+                        dot.type = 'button';
+                        dot.className = 'rail-dot';
+                        dot.setAttribute('role', 'tab');
+                        dot.setAttribute('aria-label', 'Page ' + (page + 1) + ' of ' + pages);
+                        dot.addEventListener('click', function () { goTo(page); });
+
+                        dots.appendChild(dot);
+                    })(i);
+                }
+            }
+
+            function markDots() {
+                if (!dots || dots.hidden) { return; }
+
+                var here = currentPage();
+
+                Array.prototype.forEach.call(dots.children, function (dot, i) {
+                    dot.classList.toggle('is-active', i === here);
+                    dot.setAttribute('aria-selected', i === here ? 'true' : 'false');
+                });
+            }
+
+            /* ---- the turn -------------------------------------------------
+               A card is "in" once it is genuinely inside the strip's own box.
+               Measured rather than watched with IntersectionObserver: the
+               scroller is the root here and its own left edge is what moves, so
+               reading the rectangles directly is both shorter and exactly right
+               during a smooth scroll.
+               -------------------------------------------------------------- */
+
+            function settle() {
+                if (reduced) { return; }
+
+                var box = rail.getBoundingClientRect();
+
+                Array.prototype.forEach.call(cards(), function (card) {
+                    var r = card.getBoundingClientRect();
+
+                    card.classList.toggle('is-in',
+                        r.right > box.left + 8 && r.left < box.right - 8);
+                });
+            }
+
+            /* ---- keeping everything honest --------------------------------- */
+
+            function update() {
+                var scrolls = maxScroll() > 1;
+
+                if (prev) { prev.hidden = !scrolls; }
+                if (next) { next.hidden = !scrolls; }
+
+                if (!scrolls) {
+                    if (dots) { dots.hidden = true; drawnFor = -1; }
+                    settle();
+                    return;
+                }
+
+                /* A few pixels of tolerance, not one. Snap settles the strip
+                   against a card's edge rather than the container's, and the
+                   rail carries a little side padding so a shadow is not
+                   clipped — so "at the start" measured 2, and Previous stayed
+                   lit at the start of the strip with nowhere to go. */
+                if (prev) { prev.disabled = rail.scrollLeft <= 4; }
+                if (next) { next.disabled = rail.scrollLeft >= maxScroll() - 4; }
+
+                drawDots();
+                markDots();
+                settle();
+            }
+
+            if (prev) { prev.addEventListener('click', function () { move(-1); }); }
+            if (next) { next.addEventListener('click', function () { move(1); }); }
+
+            /* Fires throughout a smooth scroll, so the arrows, the dots and the
+               settling all resolve as the strip travels rather than after it. */
+            rail.addEventListener('scroll', update, { passive: true });
+
+            window.addEventListener('resize', function () { drawnFor = -1; update(); });
+
+            /* The chips and the search box set `hidden` on the cards. Watching
+               for it means the filters needed no change at all — and a filter
+               that leaves one page has to put the arrows and dots away, or Next
+               scrolls a strip that no longer has a second page. */
+            new MutationObserver(function () {
+                rail.scrollLeft = 0;
+                drawnFor = -1;
+                update();
+            }).observe(rail, {
+                attributes: true,
+                attributeFilter: ['hidden'],
+                subtree: true,
+            });
+
+            /* Photographs land after this runs and can change the row height, so
+               a late layout must not leave the arrows describing the old one. */
+            window.addEventListener('load', function () { drawnFor = -1; update(); });
+
+            update();
+        });
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+    } else {
+        init();
+    }
+})();

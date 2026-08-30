@@ -852,9 +852,26 @@ require __DIR__ . '/app/views/partials/public-nav.php';
             </p>
         </div>
 
-        <div class="row g-4" id="destGrid">
+        <?php /* Was `row g-4`: three across, and a new row for every three more
+                 destinations. The section is a fixed height now however many
+                 there are. The col-* classes are gone with it — inside the
+                 strip they would set a width that fights its own track.
+
+                 The arrows sit on the edges of the strip rather than in a bar
+                 above it, and the dots below say which page this is. Both are
+                 hidden until the script has counted the cards: with less than
+                 a page of them there is nowhere to go, and with JavaScript off
+                 the strip is swiped or scrolled instead. */ ?>
+        <div class="rail-wrap">
+            <button type="button" class="rail-nav rail-nav--prev" data-rail-prev="destGrid"
+                    aria-label="Previous destinations" hidden>
+                <i class="fa-solid fa-chevron-left" aria-hidden="true"></i>
+            </button>
+
+            <div class="rail" id="destGrid" data-rail data-rail-dots="destRailDots"
+                 tabindex="0" role="group" aria-label="Destinations">
             <?php foreach ($destinations as $d): ?>
-                <div class="col-lg-4 col-md-6 dest-item"
+                <div class="dest-item"
                      data-dest-category="<?= e($d['categorySlug']) ?>"
                      data-dest-haystack="<?= e($d['haystack']) ?>"
                      <?= $destShows($d, $categorySlug, $search) ? '' : 'hidden' ?>>
@@ -883,7 +900,17 @@ require __DIR__ . '/app/views/partials/public-nav.php';
                     </article>
                 </div>
             <?php endforeach; ?>
+            </div>
+
+            <button type="button" class="rail-nav rail-nav--next" data-rail-next="destGrid"
+                    aria-label="More destinations" hidden>
+                <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
+            </button>
         </div>
+
+        <?php /* Filled by the script: one dot per page, not per card. */ ?>
+        <div class="rail-dots" id="destRailDots" role="tablist"
+             aria-label="Destination pages" hidden></div>
     </div>
 </section>
 
@@ -1073,15 +1100,29 @@ require __DIR__ . '/app/views/partials/public-nav.php';
             </p>
         </div>
 
-        <div class="row g-4" id="newsGrid">
+        <div class="rail-wrap">
+            <button type="button" class="rail-nav rail-nav--prev" data-rail-prev="newsGrid"
+                    aria-label="Previous announcements" hidden>
+                <i class="fa-solid fa-chevron-left" aria-hidden="true"></i>
+            </button>
+
+            <div class="rail" id="newsGrid" data-rail data-rail-dots="newsRailDots"
+                 tabindex="0" role="group" aria-label="Announcements">
             <?php foreach ($news as $n): ?>
-            <div class="col-lg-4 col-md-6 news-item" data-news-type="<?= e($n['type']) ?>"
+            <div class="news-item" data-news-type="<?= e($n['type']) ?>"
                  <?= $newsShows($n['type'], $newsType) ? '' : 'hidden' ?>>
                 <article class="news-card">
                     <div class="news-card__media">
                         <img src="<?= e($n['image']) ?>" alt="<?= e($n['title']) ?>"
                              loading="lazy" width="900" height="600">
-                        <span class="news-card__tag news-card__tag--<?= e(strtolower($n['tag'])) ?>"><?= e($n['tag']) ?></span>
+                        <?php /* The TYPE, not the label. This was
+                                 strtolower($n['tag']) — the human label — so
+                                 "Tourism Advisory" became
+                                 class="news-card__tag--tourism advisory", which
+                                 the browser reads as TWO class names and matches
+                                 neither. Every tag on this page has been an
+                                 unbacked white word on a photograph. */ ?>
+                        <span class="news-card__tag news-card__tag--<?= e($n['type']) ?>"><?= e($n['tag']) ?></span>
                     </div>
                     <div class="news-card__body">
                         <p class="news-card__date"><i class="fa-regular fa-calendar"></i> <?= e($n['date']) ?></p>
@@ -1092,7 +1133,16 @@ require __DIR__ . '/app/views/partials/public-nav.php';
                 </article>
             </div>
             <?php endforeach; ?>
+            </div>
+
+            <button type="button" class="rail-nav rail-nav--next" data-rail-next="newsGrid"
+                    aria-label="More announcements" hidden>
+                <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
+            </button>
         </div>
+
+        <div class="rail-dots" id="newsRailDots" role="tablist"
+             aria-label="Announcement pages" hidden></div>
     </div>
 </section>
 
