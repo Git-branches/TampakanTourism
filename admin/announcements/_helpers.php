@@ -61,3 +61,44 @@ function collect_announcement_input(Validator $v): array
         'expires_at'     => $toDateTime((string) $v->value('expires_at', '')),
     ];
 }
+
+/**
+ * Attaches the card picture, after the announcement itself has been saved.
+ *
+ * Deliberately separate from collect_announcement_input(): an upload can fail
+ * on its own — a file above post_max_size, a format GD will not decode — and it
+ * must not take an edit to the words down with it. The words are already saved
+ * by the time this runs, so the worst case is a saved announcement with a
+ * message about the picture.
+ *
+ * Stored through Uploader, which re-encodes through GD: anything smuggled into
+ * an image's metadata does not survive, and the file is named randomly rather
+ * than from whatever the browser sent.
+ */
+function store_announcement_banner(int $id): void
+{
+    $sent = ($_FILES['banner']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE;
+
+    if ($sent) {
+        $uploader = new \App\Core\Uploader();
+        $stored   = $uploader->store($_FILES['banner'], 'banners');
+
+        if ($stored === null) {
+            \App\Core\Session::flash('warning',
+                'The announcement was saved, but the picture was not: '
+                . ($uploader->firstError() ?? 'it could not be read as an image.'));
+
+            return;
+        }
+
+        \App\Repositories\AnnouncementRepository::setBanner($id, $stored);
+
+        return;
+    }
+
+    /* Only when nothing new was sent — otherwise ticking "remove" and choosing
+       a replacement in the same save would throw the replacement away. */
+    if (!empty($_POST['remove_banner'])) {
+        \App\Repositories\AnnouncementRepository::clearBanner($id);
+    }
+}

@@ -287,14 +287,37 @@ $reasons = [
  | Upcoming events  —  LIVE from published announcements of type "event".
  |
  | Past events drop off on their own; nobody has to remember to remove them.
+ |
+ | Three was the number that fitted one row of the old grid. The section is a
+ | strip now — five on screen, the rest behind the arrows — so the limit is what
+ | the office might reasonably have on at once rather than what fitted a row.
+ | Anything past this is genuinely more than a season's programme.
  * -------------------------------------------------------------------------- */
 $events = [];
 
-foreach (AnnouncementRepository::upcomingEvents(3) as $row) {
+/* WHICH KIND OF EVENT IS BEING SHOWN.
+ *
+ * Its own parameter, not shared with the news filter: both sections are on one
+ * page, and a single ?type= would have narrowed them together — choosing
+ * Festival would have emptied Latest News, which holds no festivals by design.
+ *
+ * A value from the other section's vocabulary is dropped rather than obeyed. */
+$eventType = (string) ($_GET['event'] ?? '');
+
+if ($eventType !== '' && !isset(AnnouncementRepository::EVENT_TYPES[$eventType])) {
+    $eventType = '';
+}
+
+/** The mirror of the script at the foot of this page. Both must agree. */
+$eventShows = static fn (string $type, string $filter): bool => $filter === '' || $type === $filter;
+
+foreach (AnnouncementRepository::upcomingEvents(15) as $row) {
     $when = $row['event_date'] ? strtotime($row['event_date']) : strtotime($row['created_at']);
 
     $events[] = [
         'slug'     => $row['slug'],
+        'type'     => $row['type'],
+        'kind'     => AnnouncementRepository::EVENT_TYPES[$row['type']] ?? 'Event',
         'title'    => $row['title'],
         // Machine-readable date for the <time datetime> attribute. The day,
         // month, and year below are for people; this one is for search
@@ -342,7 +365,7 @@ $newsType = (string) ($_GET['type'] ?? '');
 /* An unrecognised ?type= is treated as no filter rather than as a filter that
    matches nothing — a stale or hand-edited link should show the feed, not an
    empty section with a "no results" panel. */
-if ($newsType !== '' && !isset(AnnouncementRepository::TYPES[$newsType])) {
+if ($newsType !== '' && !isset(AnnouncementRepository::NEWS_TYPES[$newsType])) {
     $newsType = '';
 }
 
@@ -355,7 +378,10 @@ if ($newsType !== '' && !isset(AnnouncementRepository::TYPES[$newsType])) {
  * but a class change.
  *
  * The limit rises with the scope: 30 was per type, this is across all six. */
-$newsRows = AnnouncementRepository::publicFeed(null, 60);
+/* NOT publicFeed(): that returns everything published, events included, and
+ this section is the one that must not repeat what Upcoming Events already
+ shows. latestNews() excludes every event type. */
+$newsRows = AnnouncementRepository::latestNews(60);
 
 $news = [];
 
@@ -381,8 +407,15 @@ foreach ($newsRows as $row) {
  * "All" hides events because they already have their own dated section above,
  * and a notice appearing twice on one page reads as two notices. Choosing the
  * Tourism Event chip is an explicit request for them, so there they stay. */
+/* The exception is gone, and so is the reason for it. This read
+   `$type !== 'event'` from when an event was one type among the notices and
+   had to be hidden from the "All" view by hand. Events are their own section
+   with their own five kinds now, and latestNews() excludes every one of them
+   before the page sees a row — so there is nothing here to make an exception
+   for, and leaving the old rule in would name a type this list can no longer
+   contain. Its mirror in the script at the foot says the same. */
 $newsShows = static fn(string $type, string $filter): bool
-    => $filter === '' ? $type !== 'event' : $type === $filter;
+    => $filter === '' || $type === $filter;
 
 $newsCount = count(array_filter(
     $news,
@@ -487,7 +520,7 @@ $liveArrivals     = (int) Database::scalar(
 $stats = [
     ['icon' => 'fa-map-location-dot', 'value' => $liveDestinations, 'suffix' => '', 'label' => 'Tourist Destinations'],
     ['icon' => 'fa-users',            'value' => $liveArrivals,     'suffix' => '', 'label' => 'Recorded Arrivals'],
-    ['icon' => 'fa-calendar-star',    'value' => 16,                'suffix' => '', 'label' => 'Tourism Events'],
+    ['icon' => 'fa-calendar-day',    'value' => 16,                'suffix' => '', 'label' => 'Tourism Events'],
     ['icon' => 'fa-award',            'value' => 25,                'suffix' => '', 'label' => 'Years Promoting Tourism'],
 ];
 
@@ -952,9 +985,77 @@ require __DIR__ . '/app/views/partials/public-nav.php';
             <p class="section-sub">Festivals, fairs, and cultural celebrations hosted across the municipality.</p>
         </div>
 
-        <div class="row g-4">
+        <?php
+        /* The same filter the news section has, over the event vocabulary.
+           Real links to ?event=…#events, so it works with no JavaScript at all
+           and a filtered view has an address that can be shared. The script at
+           the foot upgrades them: it shows and hides the cards already on the
+           page and rewrites the URL without navigating — so the video, the
+           strips and the map are never rebuilt. */
+        $eventCounts = [];
+
+        foreach ($events as $ev) {
+            $eventCounts[$ev['type']] = ($eventCounts[$ev['type']] ?? 0) + 1;
+        }
+
+        $eventShown = count(array_filter($events,
+            static fn (array $ev): bool => $eventShows($ev['type'], $eventType)));
+        ?>
+        <?php if (count($events) > 1): ?>
+            <div class="chip-row chip-row--center" id="eventChips">
+                <a href="<?= e(events_url()) ?>" data-event-filter=""
+                   class="chip <?= $eventType === '' ? 'is-active' : '' ?>">All</a>
+
+                <?php foreach (AnnouncementRepository::EVENT_TYPES as $value => $label): ?>
+                    <?php /* Only the kinds actually on the page. A chip that can
+                             only ever say "nothing here" is a dead end. */ ?>
+                    <?php if (!isset($eventCounts[$value])) { continue; } ?>
+                    <a href="<?= e(events_url(['event' => $value])) ?>"
+                       data-event-filter="<?= e($value) ?>"
+                       class="chip <?= $eventType === $value ? 'is-active' : '' ?>">
+                        <i class="fa-solid <?= e(AnnouncementRepository::TYPE_STYLE[$value]['icon']) ?>"></i>
+                        <?= e($label) ?>
+                        <em><?= n($eventCounts[$value]) ?></em>
+                    </a>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
+
+        <p class="explore-count" id="eventCount" <?= $eventType === '' ? 'hidden' : '' ?>>
+            <span id="eventCountText"><?php if ($eventType !== ''): ?><?=
+                n($eventShown) ?> <?= $eventShown === 1 ? 'event' : 'events'
+                ?> under <?= e(AnnouncementRepository::EVENT_TYPES[$eventType]) ?>.<?php endif; ?></span>
+            <a href="<?= e(events_url()) ?>" data-event-filter="">Clear filter</a>
+        </p>
+
+        <div class="empty-public" id="eventEmpty" <?= $eventShown > 0 ? 'hidden' : '' ?>>
+            <i class="fa-solid fa-calendar-day"></i>
+            <h3 id="eventEmptyTitle"><?= $eventType !== ''
+                ? 'Nothing under ' . e(AnnouncementRepository::EVENT_TYPES[$eventType])
+                : 'No events scheduled at the moment' ?></h3>
+            <p>
+                <span id="eventEmptyText"><?= $eventType !== ''
+                    ? 'No event of this kind is coming up.'
+                    : 'When the Tourism Office schedules a festival, a fair or a community activity, it appears here.' ?></span>
+                <a href="<?= e(events_url()) ?>" data-event-filter=""
+                   id="eventEmptyClear" <?= $eventType === '' ? 'hidden' : '' ?>>See everything</a>
+            </p>
+        </div>
+
+        <?php /* Same strip as Destinations and Announcements: five across, the
+                 rest behind the arrows, and a section that stays one row tall
+                 however many events the office publishes. */ ?>
+        <div class="rail-wrap">
+            <button type="button" class="rail-nav rail-nav--prev" data-rail-prev="eventGrid"
+                    aria-label="Previous events" hidden>
+                <i class="fa-solid fa-chevron-left" aria-hidden="true"></i>
+            </button>
+
+            <div class="rail" id="eventGrid" data-rail data-rail-dots="eventRailDots"
+                 tabindex="0" role="group" aria-label="Upcoming events">
             <?php foreach ($events as $i => $ev): ?>
-            <div class="col-lg-4 col-md-6">
+            <div class="event-item" data-event-type="<?= e($ev['type']) ?>"
+                 <?= $eventShows($ev['type'], $eventType) ? '' : 'hidden' ?>>
                 <article class="event-card">
                     <div class="event-card__media">
                         <img src="<?= e($ev['image']) ?>" alt="<?= e(strip_tags($ev['title'])) ?> event banner"
@@ -969,12 +1070,21 @@ require __DIR__ . '/app/views/partials/public-nav.php';
                         <h3 class="event-card__title"><?= $ev['title'] ?></h3>
                         <p class="event-card__meta"><i class="fa-solid fa-location-dot"></i> <?= e($ev['location']) ?></p>
                         <p class="event-card__text"><?= $ev['excerpt'] ?></p>
-                        <a href="<?= e(base_url('/announcement.php?slug=' . $ev['slug'])) ?>" class="btn btn-soft w-100">Learn More <i class="fa-solid fa-arrow-right-long"></i></a>
+                        <a href="<?= e(base_url('/events.php?slug=' . $ev['slug'])) ?>" class="btn btn-soft w-100">Learn More <i class="fa-solid fa-arrow-right-long"></i></a>
                     </div>
                 </article>
             </div>
             <?php endforeach; ?>
+            </div>
+
+            <button type="button" class="rail-nav rail-nav--next" data-rail-next="eventGrid"
+                    aria-label="More events" hidden>
+                <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
+            </button>
         </div>
+
+        <div class="rail-dots" id="eventRailDots" role="tablist"
+             aria-label="Event pages" hidden></div>
     </div>
 </section>
 
@@ -1066,7 +1176,7 @@ require __DIR__ . '/app/views/partials/public-nav.php';
             <a href="<?= e(announcements_url()) ?>" data-news-filter=""
                class="chip <?= $newsType === '' ? 'is-active' : '' ?>">All</a>
 
-            <?php foreach (AnnouncementRepository::TYPES as $value => $label): ?>
+            <?php foreach (AnnouncementRepository::NEWS_TYPES as $value => $label): ?>
                 <a href="<?= e(announcements_url(['type' => $value])) ?>"
                    data-news-filter="<?= e($value) ?>"
                    class="chip <?= $newsType === $value ? 'is-active' : '' ?>">
@@ -1082,14 +1192,14 @@ require __DIR__ . '/app/views/partials/public-nav.php';
         <p class="explore-count" id="newsCount" <?= $newsType === '' || $newsCount === 0 ? 'hidden' : '' ?>>
             <span id="newsCountText"><?php if ($newsType !== '' && $newsCount > 0): ?><?=
                 n($newsCount) ?> <?= $newsCount === 1 ? 'notice' : 'notices'
-                ?> filed under <?= e(AnnouncementRepository::TYPES[$newsType]) ?>.<?php endif; ?></span>
+                ?> filed under <?= e(AnnouncementRepository::NEWS_TYPES[$newsType]) ?>.<?php endif; ?></span>
             <a href="<?= e(announcements_url()) ?>" data-news-filter="">Clear filter</a>
         </p>
 
         <div class="empty-public" id="newsEmpty" <?= $newsCount > 0 ? 'hidden' : '' ?>>
             <i class="fa-solid fa-bullhorn"></i>
             <h3 id="newsEmptyTitle"><?= $newsType !== ''
-                ? 'Nothing filed under ' . e(AnnouncementRepository::TYPES[$newsType])
+                ? 'Nothing filed under ' . e(AnnouncementRepository::NEWS_TYPES[$newsType])
                 : 'No announcements at the moment' ?></h3>
             <p>
                 <span id="newsEmptyText"><?= $newsType !== ''
@@ -1858,6 +1968,116 @@ require __DIR__ . '/app/views/partials/public-nav.php';
 })();
 </script>
 
+
+<!-- =========================================================================
+     UPCOMING EVENTS — filter by kind of event
+     -------------------------------------------------------------------------
+     The twin of the news filter above, over the event vocabulary, and separate
+     from it on purpose: both sections are on this one page, so a shared ?type=
+     would narrow them together — choosing Festival would empty Latest News,
+     which holds no festivals by design.
+
+     The chips are real links to ?event=…#events, so the filter works with no
+     JavaScript at all and every filtered view has an address that can be shared
+     or bookmarked. Here the click is intercepted, the cards already in the DOM
+     are shown or hidden, and history.replaceState rewrites the address. Nothing
+     navigates, so the video, the strips and the map are never rebuilt.
+
+     THE STRIP HAS TO BE TOLD. The rail watches for `hidden` changing on its own
+     children and redraws its arrows and dots from that, so filtering to two
+     events puts them away by itself — the two features needed no knowledge of
+     each other.
+     ====================================================================== -->
+<script>
+(function () {
+    const chips = document.getElementById('eventChips');
+    const grid  = document.getElementById('eventGrid');
+
+    if (!grid) return;
+
+    const items      = Array.from(grid.querySelectorAll('.event-item'));
+    const countBox   = document.getElementById('eventCount');
+    const countText  = document.getElementById('eventCountText');
+    const empty      = document.getElementById('eventEmpty');
+    const emptyTitle = document.getElementById('eventEmptyTitle');
+    const emptyText  = document.getElementById('eventEmptyText');
+    const emptyClear = document.getElementById('eventEmptyClear');
+
+    /* Labels live in PHP; this is the only copy that crosses over, and it is
+       generated from the same constant rather than typed out again. */
+    const KINDS = <?= json_encode(AnnouncementRepository::EVENT_TYPES, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
+
+    /* The mirror of $eventShows in the PHP above. If one changes, change both. */
+    const shows = (type, filter) => filter === '' || type === filter;
+
+    function apply(filter, push) {
+        let shown = 0;
+
+        items.forEach(item => {
+            const visible = shows(item.dataset.eventType, filter);
+            item.hidden = !visible;
+            if (visible) shown++;
+        });
+
+        if (chips) {
+            chips.querySelectorAll('[data-event-filter]').forEach(chip => {
+                chip.classList.toggle('is-active', chip.dataset.eventFilter === filter);
+            });
+        }
+
+        if (countBox) {
+            countBox.hidden = (filter === '' || shown === 0);
+
+            if (!countBox.hidden) {
+                countText.textContent = shown + (shown === 1 ? ' event' : ' events')
+                    + ' under ' + KINDS[filter] + '.';
+            }
+        }
+
+        if (empty) {
+            empty.hidden = shown > 0;
+
+            if (!empty.hidden) {
+                emptyTitle.textContent = filter === ''
+                    ? 'No events scheduled at the moment'
+                    : 'Nothing under ' + KINDS[filter];
+                emptyText.textContent = filter === ''
+                    ? 'When the Tourism Office schedules a festival, a fair or a community activity, it appears here.'
+                    : 'No event of this kind is coming up.';
+                emptyClear.hidden = filter === '';
+            }
+        }
+
+        /* The address stays shareable without a navigation. replaceState rather
+           than pushState: a filter is not a place, and filling the Back button
+           with six of them is how people end up unable to leave the page. */
+        if (push) {
+            const url = new URL(window.location.href);
+
+            if (filter === '') { url.searchParams.delete('event'); }
+            else               { url.searchParams.set('event', filter); }
+
+            url.hash = 'events';
+            window.history.replaceState({}, '', url);
+        }
+    }
+
+    document.addEventListener('click', function (event) {
+        const link = event.target.closest('[data-event-filter]');
+
+        if (!link) return;
+
+        event.preventDefault();
+        apply(link.dataset.eventFilter, true);
+
+        /* The section, not the top of the page: the visitor was reading here. */
+        const section = document.getElementById('events');
+
+        if (section) { section.scrollIntoView({ block: 'start', behavior: 'smooth' }); }
+    });
+})();
+</script>
+
 <!-- =============================================================================
      Announcement filter — in place, without reloading the page.
      -----------------------------------------------------------------------------
@@ -1889,10 +2109,12 @@ require __DIR__ . '/app/views/partials/public-nav.php';
        generated from the same constant rather than typed out again. */
     const LABELS = <?= json_encode(AnnouncementRepository::TYPES, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
 
-    /* The mirror of $newsShows in the PHP above. If one changes, change both:
-       "All" hides events because they have their own section; a chosen type
-       shows only itself. */
-    const shows = (type, filter) => filter === '' ? type !== 'event' : type === filter;
+    /* The mirror of $newsShows in the PHP above. If one changes, change both.
+       This used to read `type !== 'event'` for the All case, from when an
+       event was one type among the notices. There are five event kinds now and
+       latestNews() excludes every one of them server-side, so no event ever
+       reaches this grid — the exception had nothing left to except. */
+    const shows = (type, filter) => filter === '' || type === filter;
 
     function apply(filter, push) {
         let shown = 0;

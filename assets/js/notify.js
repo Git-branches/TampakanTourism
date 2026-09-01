@@ -62,6 +62,52 @@
         }
     };
 
+    /**
+     * Where SweetAlert should draw itself.
+     *
+     * A <dialog> opened with showModal() lives in the browser's TOP LAYER,
+     * which sits above every z-index on the page — there is no number that
+     * beats it. So a SweetAlert rendered into <body>, as it is by default,
+     * draws BEHIND an open dialog.
+     *
+     * That is what "the delete message overlays the modal" was: the
+     * confirmation for removing a heritage item was there, correct, and
+     * completely unreachable behind the dialog it was asked from. The officer
+     * saw a menu that had stopped responding.
+     *
+     * SweetAlert2's `target` option says which element to render into, so
+     * rendering into the open dialog puts the confirmation in the top layer
+     * with it. Decided here, once, rather than at each of the call sites —
+     * every confirm, alert and toast in the system passes through this file.
+     */
+    function topLayerTarget() {
+        var dialogs = document.querySelectorAll('dialog[open]');
+
+        /* The last one, not the first: dialogs stack, and the one being asked
+           about is the most recently opened. */
+        for (var i = dialogs.length - 1; i >= 0; i--) {
+            /* Only a MODAL dialog is in the top layer. A non-modal one opened
+               with show() is an ordinary element, and targeting into it would
+               trap the confirmation inside a box that does not cover the page. */
+            if (dialogs[i].matches(':modal')) { return dialogs[i]; }
+        }
+
+        return null;
+    }
+
+    /** BASE plus a target, when something is covering the page. */
+    function inFront(options) {
+        var host = null;
+
+        try {
+            host = topLayerTarget();
+        } catch (e) {
+            host = null;   /* :modal is unsupported on older engines */
+        }
+
+        return host ? merge(options, { target: host }) : options;
+    }
+
     function merge() {
         var out = {}, i, k;
         for (i = 0; i < arguments.length; i++) {
@@ -108,7 +154,7 @@
             return;
         }
 
-        window.Swal.fire(merge(BASE, {
+        window.Swal.fire(inFront(merge(BASE, {
             toast:             true,
             position:          'top-end',
             icon:              icon,
@@ -123,7 +169,7 @@
                 el.addEventListener('mouseenter', window.Swal.stopTimer);
                 el.addEventListener('mouseleave', window.Swal.resumeTimer);
             }
-        }));
+        })));
     }
 
     /* ---------------------------------------------------------------------
@@ -135,13 +181,13 @@
             return Promise.resolve({ isConfirmed: true });
         }
 
-        return window.Swal.fire(merge(BASE, {
+        return window.Swal.fire(inFront(merge(BASE, {
             icon:              icon,
             title:             title,
             text:              text || '',
             confirmButtonText: 'OK',
             confirmButtonColor: icon === 'error' ? RED : GREEN
-        }, extra || {}));
+        }, extra || {})));
     }
 
     /* ---------------------------------------------------------------------
@@ -162,7 +208,7 @@
             return;
         }
 
-        window.Swal.fire(merge(BASE, {
+        window.Swal.fire(inFront(merge(BASE, {
             icon:               danger ? 'warning' : 'question',
             title:              title,
             text:               text,
@@ -173,7 +219,7 @@
             customClass: {
                 confirmButton: 'btn btn-sm ' + (danger ? 'btn-danger' : 'btn-brand')
             }
-        })).then(function (r) {
+        }))).then(function (r) {
             if (r && r.isConfirmed) { onOk(); }
         });
     }
@@ -206,7 +252,7 @@
             return;
         }
 
-        window.Swal.fire(merge(BASE, {
+        window.Swal.fire(inFront(merge(BASE, {
             icon:              o.icon || 'question',
             title:             o.title || '',
             html:              o.text || '',
@@ -219,7 +265,7 @@
             cancelButtonText:  'Cancel',
             confirmButtonColor: GREEN,
             inputValidator:    o.validate || null
-        })).then(function (r) {
+        }))).then(function (r) {
             if (r && r.isConfirmed) { onOk(r.value); }
         });
     }

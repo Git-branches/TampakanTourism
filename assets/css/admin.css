@@ -540,7 +540,16 @@ a { text-decoration: none; }
    RESPONSIVE
    ========================================================================== */
 @media (max-width: 1100px) {
-    .panel-row { grid-template-columns: 1fr; }
+    /* minmax(0, …) and not 1fr. A bare 1fr means minmax(auto, 1fr), and auto
+       floors the track at the content's minimum width — so at 320px the
+       dashboard's stacked column measured 339px inside a 298px row and pushed
+       the whole page sideways. The panels themselves need min-width: 0 for the
+       same reason: a grid item's default min-width is auto, and a panel that
+       refuses to go below its contents' width makes the track's floor moot. */
+    .panel-row { grid-template-columns: minmax(0, 1fr); }
+    .panel-row > *,
+    .panel-stack,
+    .panel-stack > .panel { min-width: 0; }
 }
 
 @media (max-width: 991.98px) {
@@ -552,11 +561,57 @@ a { text-decoration: none; }
 
 @media (max-width: 575.98px) {
     .admin-content { padding: 1.1rem .9rem 1.6rem; }
-    .topbar { padding: 0 .9rem; }
+
+    /* THE BAR HAS A FIXED HEIGHT, AND THE TITLES DO NOT FIT INSIDE IT.
+     *
+     * .topbar is height:var(--topbar-h) with align-items:center. On a phone the
+     * subtitles are long — "Centralized Tourist Arrival Logbook Submission and
+     * Monitoring", "One row per person who signed a paper logbook…" — so they
+     * wrap to two and three lines inside a box that will not grow, and the
+     * overflow lands on top of the heading and the page below it.
+     *
+     * min-height instead of height lets the bar take the room it needs, which
+     * is what "the top navigation bar overlaps" was. */
+    .topbar {
+        padding: .55rem .9rem;
+        height: auto;
+        min-height: var(--topbar-h);
+        align-items: flex-start;
+        gap: .6rem;
+    }
+
     .topbar__who { display: none; }
-    .topbar__title h1 { font-size: 1rem; }
+    .topbar__title { padding-top: .1rem; }
+    .topbar__title h1 { font-size: 1rem; align-items: flex-start; }
+
+    /* The subtitle explains the screen once and is read once. On a phone it is
+       three lines of the six the screen has, so it is trimmed to two rather
+       than pushed off or allowed to shove the content down. */
+    .topbar__title p {
+        font-size: .74rem;
+        line-height: 1.35;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+
+    /* Sticky and auto-height together: the toggle and the bell must stay level
+       with the heading rather than drifting down beside a three-line subtitle. */
+    .topbar__toggle,
+    .topbar__user { align-self: flex-start; margin-top: .15rem; }
+
     .stat-card { padding: .9rem 1rem; }
     .stat-card__value { font-size: 1.45rem; }
+}
+
+/* Narrower still. A 320px screen is a real phone, not a corner case: the title
+   was already being clipped rather than wrapped at that width. */
+@media (max-width: 359.98px) {
+    .topbar { padding: .5rem .7rem; }
+    .topbar__title h1 { font-size: .95rem; }
+    .topbar__title p { -webkit-line-clamp: 1; }
+    .admin-content { padding: .9rem .7rem 1.4rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1138,17 +1193,46 @@ a { text-decoration: none; }
 /* =============================================================================
    PHASE 4 — ANNOUNCEMENTS AND SMS (ADMIN)
    ========================================================================== */
-.announce-list { display: grid; gap: .7rem; }
+/* An explicit minmax(0, …) rather than the implicit column a bare grid makes.
+   The implicit one is auto-sized, which floors at the widest card's min-content
+   — 324px on a 320px screen — and no amount of fixing the card itself helps
+   while the track it sits in refuses to be narrower. min-width: 0 down the
+   chain is the other half: every one of these is a grid item, and a grid item
+   defaults to min-width: auto. */
+.announce-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: .7rem; }
+.announce, .announce__body, .announce__top { min-width: 0; }
 .announce {
     display: grid;
-    grid-template-columns: 52px 1fr;
+    /* A third column for the row's own actions. They used to be nowhere: an
+       officer changing a status opened the notice first, from a screen already
+       showing the status. */
+    /* minmax(0, …) on the middle track: a bare 1fr will not shrink below the
+       longest unbreakable run in the summary, which on a 320px screen pushed
+       every notice card 15px off the right edge of the page. */
+    grid-template-columns: 52px minmax(0, 1fr) auto;
     gap: 1rem;
+    align-items: start;
     background: var(--surface);
     border: 1px solid var(--line);
     border-radius: var(--radius);
     padding: 1rem 1.2rem;
     box-shadow: var(--shadow-sm);
 }
+
+/* The card picture where the notice has one, in the slot the type icon
+   otherwise fills — so the officer can see which notices will look alike on
+   the homepage without opening any of them. */
+.announce__thumb {
+    width: 52px;
+    height: 52px;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    background: var(--canvas);
+}
+
+.announce__thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.announce__actions { position: relative; }
 .announce__icon {
     width: 42px; height: 42px;
     border-radius: var(--radius-sm);
@@ -3523,7 +3607,21 @@ a { text-decoration: none; }
 
 .sheet {
     width: min(680px, calc(100vw - 2rem));
+
+    /* 100vh ON A PHONE IS THE VIEWPORT WITH THE BROWSER CHROME HIDDEN — the
+       largest it can ever be. While the URL bar is showing, the area you can
+       actually see is 60–120px shorter, so a dialog sized to 100vh hangs off
+       the bottom of the screen and takes its Save button with it.
+       dvh is that area as it really is, and it follows the bar as it slides.
+       Both lines on purpose: the second wins where it is understood, and an
+       engine that has never heard of dvh keeps the first rather than losing
+       the cap altogether.
+       Invisible in a desktop browser and in headless testing, where there is
+       no chrome and the two are the same number — which is why this survived
+       until somebody opened it on a real phone. */
     max-height: calc(100vh - 3rem);
+    max-height: calc(100dvh - 3rem);
+
     padding: 0;
     border: 0;
     border-radius: var(--radius);
@@ -3539,6 +3637,7 @@ a { text-decoration: none; }
     display: flex;
     flex-direction: column;
     max-height: calc(100vh - 3rem);
+    max-height: calc(100dvh - 3rem);
 }
 
 .sheet__head {
@@ -3599,8 +3698,21 @@ a { text-decoration: none; }
     .video-grid { grid-template-columns: 1fr; }
     .page-actions .btn { width: 100%; }
 
-    .sheet { width: 100vw; max-width: 100vw; max-height: 100vh; border-radius: 0; }
-    .sheet__form { max-height: 100vh; }
+    /* Full screen on a phone, and the height is the SEEN height. At 100vh the
+       sheet was as tall as the screen WITHOUT its URL bar, so its foot —
+       Cancel and Save — sat below the fold with nothing able to scroll it into
+       view. That is the "the modal covers my whole screen and I cannot see the
+       content" report: the content was there, under the browser's own bar. */
+    .sheet {
+        width: 100vw;
+        max-width: 100vw;
+        border-radius: 0;
+        max-height: 100vh;
+        max-height: 100dvh;
+        height: 100dvh;
+    }
+
+    .sheet__form { max-height: 100vh; max-height: 100dvh; height: 100%; }
     .sheet__foot { flex-direction: column-reverse; }
     .sheet__foot .btn { width: 100%; }
 }
@@ -3644,7 +3756,7 @@ a { text-decoration: none; }
 
 /* ---- A whole page inside the dialog --------------------------------------
    Every other sheet holds a .sheet__form, and THAT is the flex column doing
-   the scrolling — .sheet itself is only overflow:hidden. #destPageModal has no
+   the scrolling — .sheet itself is only overflow:hidden. #pageModal has no
    such wrapper: it is a head and a body holding whatever Edit, Photos, Route
    or Heritage rendered. Without this the body would be clipped at the dialog's
    max-height with no way to scroll to the Save button.
@@ -3652,7 +3764,7 @@ a { text-decoration: none; }
    Wider than .sheet--wide because the content was laid out for the admin's
    main column, not for a five-field form.
    ------------------------------------------------------------------------ */
-#destPageModal {
+#pageModal {
     width: min(1040px, calc(100vw - 2rem));
     display: flex;
     flex-direction: column;
@@ -3661,30 +3773,42 @@ a { text-decoration: none; }
 /* The display:flex above overrides the display:none a closed <dialog> gets from
    the browser, which would leave the thing on screen at all times. This puts it
    back for the closed state, and outranks it: [open] adds specificity. */
-#destPageModal:not([open]) { display: none; }
+#pageModal:not([open]) { display: none; }
 
-#destPageModal .sheet__body { min-height: 0; }
+#pageModal .sheet__body { min-height: 0; }
 
 /* The fetched page opens with its own record-bar of links; inside the dialog
    they would leave it, which is the one thing the dialog exists to avoid. */
-#destPageModal .record-bar { display: none; }
+#pageModal .record-bar { display: none; }
 
 /* Injected pages bring their own .panel, which would draw a second card inside
    the dialog's own frame. */
-#destPageModal .panel {
+#pageModal .panel {
     border: 0;
     box-shadow: none;
     background: none;
     margin: 0;
 }
 
-#destPageModal .panel + .panel { margin-top: 1.15rem; border-top: 1px solid var(--line-soft); }
-#destPageModal .panel__body { padding: 0; }
-#destPageModal .set-head,
-#destPageModal .panel__head { padding-left: 0; padding-right: 0; }
+#pageModal .panel + .panel { margin-top: 1.15rem; border-top: 1px solid var(--line-soft); }
+#pageModal .panel__body { padding: 0; }
+#pageModal .set-head,
+#pageModal .panel__head { padding-left: 0; padding-right: 0; }
 
 @media (max-width: 575.98px) {
-    #destPageModal { width: 100vw; max-width: 100vw; }
+    /* Full screen on a phone, sized to what is actually visible. It inherits
+       .sheet's max-height, but its own height must follow too or the head and
+       the body split a box taller than the screen and the body's scroll starts
+       below the fold. */
+    #pageModal {
+        width: 100vw;
+        max-width: 100vw;
+        height: 100dvh;
+    }
+
+    /* The fetched page's own record bar and panel heads carry desktop padding.
+       At 320px that is a third of the width spent on margins. */
+    #pageModal .sheet__body { padding: .9rem; }
 }
 
 
@@ -4731,7 +4855,8 @@ details[open] > .tgq-more .tgq-more__chev { transform: rotate(90deg); }
     box-shadow: 0 12px 30px -12px rgba(16, 34, 20, .35);
 }
 
-.card-menu__panel a {
+.card-menu__panel a,
+.card-menu__item {
     display: grid;
     grid-template-columns: 18px 1fr auto;
     align-items: center;
@@ -4751,7 +4876,9 @@ details[open] > .tgq-more .tgq-more__chev { transform: rotate(90deg); }
 }
 
 .card-menu__panel i { color: var(--ink-3); font-size: .85rem; }
+.card-menu__item i { color: var(--ink-3); font-size: .85rem; }
 .card-menu__panel a:hover i { color: var(--green); }
+.card-menu__item:hover i { color: var(--green); }
 
 .card-menu__count {
     font-size: .72rem;
@@ -4768,4 +4895,171 @@ details[open] > .tgq-more .tgq-more__chev { transform: rotate(90deg); }
 @media (max-width: 575.98px) {
     .dest-tile__actions { grid-template-columns: 1fr auto; }
     .dest-tile__go { grid-column: 1 / -1; }
+}
+
+
+/* A menu row that submits rather than navigates.
+   ---------------------------------------------------------------------------
+   The overflow panel was built for links. Publishing, returning to draft and
+   archiving are POSTs — they change state and must not be reachable by a URL
+   somebody can put in an email — so each is a one-button form inside the panel,
+   and this is what makes it sit in the row like the links around it. */
+.card-menu__panel form { margin: 0; }
+
+.card-menu__item {
+    width: 100%;
+    border: 0;
+    background: none;
+    text-align: left;
+    cursor: pointer;
+    font: inherit;
+}
+
+.card-menu__item:focus-visible { outline: none; }
+
+/* Taking a live notice down, and filing one away. Named in red because both
+   are invisible the moment they are done — the notice simply is not there. */
+.card-menu__item.is-danger { color: var(--red, #B3261E); }
+.card-menu__item.is-danger i { color: var(--red, #B3261E); }
+.card-menu__item.is-danger:hover { background: #FDECEA; color: #8E1B1B; }
+.card-menu__item.is-danger:hover i { color: #8E1B1B; }
+
+/* On a phone the row stacks, so the menu button goes to the top right corner
+   of the card rather than taking a column of its own. */
+@media (max-width: 575.98px) {
+    .announce { grid-template-columns: 44px 1fr; position: relative; }
+    .announce__actions { position: static; }
+    .announce__actions .card-menu__toggle { position: absolute; top: .75rem; right: .75rem; }
+    .announce__actions .card-menu__panel { right: .75rem; }
+    .announce__top { padding-right: 2.5rem; }
+}
+
+/* The overflow panel opens UPWARD by default — right for a tile in a grid,
+   where a panel dropping down would be clipped by the card on the row below.
+   A list row is the opposite case: the first row is at the top of the page, so
+   opening upward puts the menu over the toolbar above it. */
+.announce__actions .card-menu__panel {
+    bottom: auto;
+    top: calc(100% + .35rem);
+}
+
+/* Except the last row or two, where there is nothing below to open into. */
+.announce:nth-last-child(-n+2) .announce__actions .card-menu__panel {
+    top: auto;
+    bottom: calc(100% + .35rem);
+}
+
+/* A rule before Delete. It is the only irreversible item on the menu, and the
+   four above it are not — a hairline is what stops a hurried hand landing on
+   it while reaching for Unpublish. */
+.card-menu__rule {
+    margin: .3rem .35rem;
+    border: 0;
+    border-top: 1px solid var(--line-soft);
+    opacity: 1;
+}
+
+
+/* =============================================================================
+   TABLES ON A PHONE
+   =============================================================================
+   Thirty-seven tables across the admin and the manager, and ten of them sit
+   directly in a panel with nothing to scroll them: the eight breakdowns in a
+   report, the analytics table, and the Tourism Attraction Visitor Record — which
+   is fourteen columns wide and was never going to fit 360px.
+
+   Done here rather than by wrapping each one in markup, for two reasons. The
+   wrapper would have to be added in ten places and remembered in every table
+   written afterwards; and _visitor-record-table.php is shared with the PRINT
+   view, where a scrolling box would cut the sheet off at the edge of a
+   container that has no edge on paper.
+
+   Scoped to screen. A width query alone was not enough: the print box inherits
+   the page width, so printing FROM a phone matched "max-width: 767.98px" too
+   and turned the DOT sheet into a scrolling box with its right-hand columns
+   amputated. "screen and" is what keeps this on glass; desktop is excluded by
+   the width.
+
+   display:block is what gives a table its own scrollbar — a table is not a
+   block box by default and overflow does nothing to it. The rows keep their
+   table layout; only the outer box changes.
+   ========================================================================== */
+
+@media screen and (max-width: 767.98px) {
+    .admin-content table {
+        display: block;
+        width: 100%;
+        max-width: 100%;
+        overflow-x: auto;
+
+        /* Momentum scrolling on iOS, where a nested scroller without it feels
+           broken rather than merely plain. */
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* A cell that wraps to five words per line is not readable, and the whole
+       point of the scroller is that it does not have to. Headings hold their
+       line; body cells may still wrap where they are long prose. */
+    .admin-content table th { white-space: nowrap; }
+
+    /* The scrollbar is a thin line rather than a system-width bar eating a
+       row's height, and it stays visible so the strip reads as scrollable. */
+    .admin-content table::-webkit-scrollbar { height: 4px; }
+    .admin-content table::-webkit-scrollbar-thumb {
+        background: var(--line);
+        border-radius: 4px;
+    }
+}
+
+/* ---- The first column stays put ------------------------------------------
+   Scrolling stopped the page overflowing, and left the tables looking cut off:
+   a strip of "DESTINATION | PERIOD | RECORDS | METHOD | SUBM…" with the last
+   column sliced down the middle and nothing to say there is more.
+
+   Every one of these tables opens with the thing that identifies the row —
+   Destination, Name, Guide, Reference, When — so that column is pinned and the
+   rest moves under it. Scroll to the far end of a seven-column table and you
+   can still see WHICH destination you are reading, which is the whole
+   difference between a table you can use on a phone and one you cannot.
+
+   The line down its right edge is the seam, and it is what tells a thumb that
+   the strip beside it moves.
+   ------------------------------------------------------------------------ */
+
+/* A pinned cell has to be opaque or the columns sliding beneath show through
+   it. That means repainting a background the row may already have had, and
+   three rows in this system do: a notable entry in the activity log, a group
+   heading on the DOT sheet, an unpriced line in the budget table. Painting all
+   of them white would have quietly erased the only thing that marked them.
+
+   So the colour is a variable. The default is the ordinary surface; a row that
+   has a tint declares --pin-bg beside the background it already sets, on the
+   same line, where the two cannot drift apart. Any row coloured in future does
+   the same and the pin follows it for free. */
+.log-notable                { --pin-bg: #FFFCF5; }
+.visitor-record .vr-subhead { --pin-bg: #f7f7f5; }
+.budget-table tr.is-unpriced { --pin-bg: #FCF8EE; }
+
+@media screen and (max-width: 767.98px) {
+    .admin-content table th:first-child,
+    .admin-content table td:first-child {
+        position: sticky;
+        left: 0;
+        z-index: 2;
+        background: var(--pin-bg, var(--surface));
+        box-shadow: 1px 0 0 var(--line);
+    }
+
+    /* Wide enough to be worth pinning, narrow enough to leave room for the
+       columns it is there to help you read. */
+    .admin-content table th:first-child,
+    .admin-content table td:first-child {
+        min-width: 7.5rem;
+        max-width: 11rem;
+    }
+
+    /* The last cell sat flush against the cut edge, which is what made the
+       tables look broken rather than scrollable. */
+    .admin-content table th:last-child,
+    .admin-content table td:last-child { padding-right: 1.1rem; }
 }

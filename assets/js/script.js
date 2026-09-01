@@ -1208,9 +1208,22 @@
             }
 
             function currentPage() {
-                var span = perPage() * step();
+                var pages = pageCount();
+                var max   = maxScroll();
 
-                return Math.min(pageCount() - 1, Math.round(rail.scrollLeft / span));
+                if (pages < 2 || max <= 0) { return 0; }
+
+                /* THE LAST PAGE IS OFTEN SHORT, and rounding by whole-page
+                   spans never reaches it. Six cards at five a page can only
+                   scroll one card — about 260px — while a page span is 1,300.
+                   round(260/1300) is 0, so pressing Next moved the strip to its
+                   end and the dot stayed on page one.
+
+                   Being at the end IS the last page, whatever the arithmetic
+                   makes of the distance. */
+                if (rail.scrollLeft >= max - 4) { return pages - 1; }
+
+                return Math.min(pages - 1, Math.round(rail.scrollLeft / (perPage() * step())));
             }
 
             function maxScroll() {

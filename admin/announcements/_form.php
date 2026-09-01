@@ -20,7 +20,10 @@ $isEdit = !empty($a['id']);
  * dialog is a card inside a card, and the nesting reads as a mistake. */
 $inSheet = !empty($inSheet);
 ?>
-<form method="post" id="announceForm" novalidate
+<?php /* enctype, because of the card picture below. Without it the browser
+         sends the filename and nothing else, and the upload fails in the one
+         way that leaves no error to read. */ ?>
+<form method="post" id="announceForm" novalidate enctype="multipart/form-data"
       <?= $inSheet ? 'action="create.php" class="sheet__form"' : 'class="form-grid"' ?>>
     <?= csrf_field() ?>
 
@@ -48,15 +51,40 @@ $inSheet = !empty($inSheet);
                     <?php if (has_error('title')): ?><div class="field-error"><?= e(error_for('title')) ?></div><?php endif; ?>
                 </div>
 
+                <?php
+                /* ONE GROUP OR THE OTHER, never both in one list.
+                 *
+                 * News and Events answer different questions and appear in
+                 * different sections of the public homepage, so offering all ten
+                 * types on one composer is how a festival ends up filed as a
+                 * notice — and then shown twice, which is the fault this split
+                 * exists to remove.
+                 *
+                 * Which group is offered follows the record: an existing event
+                 * keeps the event kinds, and a new one takes the group of the
+                 * door it was opened from. */
+                $currentType = (string) ($a['type'] ?? 'announcement');
+                $isEvent     = AnnouncementRepository::isEventType($currentType);
+                $group       = $isEvent
+                    ? AnnouncementRepository::EVENT_TYPES
+                    : AnnouncementRepository::NEWS_TYPES;
+                ?>
                 <div class="col-md-4">
-                    <label for="type" class="form-label">Type <span class="req">*</span></label>
+                    <label for="type" class="form-label">
+                        <?= $isEvent ? 'Kind of event' : 'Type' ?> <span class="req">*</span>
+                    </label>
                     <select id="type" name="type" required class="form-select">
-                        <?php foreach (AnnouncementRepository::TYPES as $value => $label): ?>
-                            <option value="<?= e($value) ?>" <?= ($a['type'] ?? 'announcement') === $value ? 'selected' : '' ?>>
+                        <?php foreach ($group as $value => $label): ?>
+                            <option value="<?= e($value) ?>" <?= $currentType === $value ? 'selected' : '' ?>>
                                 <?= e($label) ?>
                             </option>
                         <?php endforeach; ?>
                     </select>
+                    <p class="field-hint">
+                        <?= $isEvent
+                            ? 'Shown under Upcoming Events on the homepage &mdash; never under Latest News.'
+                            : 'Shown under Latest News &amp; Announcements. For something people can attend, use Events in the sidebar.' ?>
+                    </p>
                 </div>
 
                 <div class="col-12">
@@ -138,11 +166,31 @@ $inSheet = !empty($inSheet);
         <div class="<?= $inSheet ? 'sheet__fields' : 'panel__body' ?>">
             <div class="row g-3">
 
+                <?php
+                /* THIS IS WHERE AN UPCOMING EVENT COMES FROM, and it was not
+                   obvious. There is no separate "Events" screen: an event is an
+                   announcement whose type is "Tourism Event" and which carries a
+                   date. Set both and it appears in Upcoming Events on the
+                   homepage. Said here, next to the field that does it, rather
+                   than left for somebody to work out. */
+                ?>
+                <div class="col-12">
+                    <div class="form-note">
+                        <span>
+                            <strong>Making an Upcoming Event?</strong>
+                            Choose <em>Tourism Event</em> as the type above and give it a date
+                            below. It then appears in <em>Upcoming Events</em> on the homepage,
+                            newest first, and drops off by itself once the date has passed.
+                        </span>
+                    </div>
+                </div>
+
                 <div class="col-md-4">
                     <label for="event_date" class="form-label">Event date</label>
                     <input type="date" id="event_date" name="event_date" class="form-control"
                            value="<?= e((string) ($a['event_date'] ?? '')) ?>">
-                    <p class="field-hint">For the "Tourism Event" type.</p>
+                    <p class="field-hint">Required for an Upcoming Event &mdash; without it the
+                       notice is listed but not scheduled.</p>
                 </div>
 
                 <div class="col-md-8">
@@ -150,6 +198,42 @@ $inSheet = !empty($inSheet);
                     <input type="text" id="event_location" name="event_location" maxlength="200" class="form-control"
                            value="<?= e((string) ($a['event_location'] ?? '')) ?>"
                            placeholder="e.g. Municipal Plaza, Poblacion">
+                </div>
+
+                <?php
+                /* THE PICTURE ON THE CARD.
+                 *
+                 * announcements.banner_path has existed since the table was
+                 * created and nothing ever wrote to it — so every notice and
+                 * every event on the homepage fell back to the same stock
+                 * photograph, and a row of event cards was six copies of one
+                 * picture. There was no field for it anywhere.
+                 *
+                 * Attached after the announcement is saved, so an upload that
+                 * fails cannot take an edited paragraph down with it. */
+                $banner = trim((string) ($a['banner_path'] ?? ''));
+                ?>
+                <div class="col-12">
+                    <label for="banner" class="form-label">Card picture</label>
+
+                    <?php if ($banner !== ''): ?>
+                        <div class="hero-current mb-2">
+                            <img src="<?= e(base_url($banner)) ?>" alt="Current card picture"
+                                 style="max-height:120px;border-radius:8px">
+                            <label class="form-check mt-2">
+                                <input type="checkbox" class="form-check-input" name="remove_banner" value="1">
+                                <span class="form-check-label">Remove this picture</span>
+                            </label>
+                        </div>
+                    <?php endif; ?>
+
+                    <input type="file" id="banner" name="banner" accept="image/*" class="form-control">
+                    <p class="field-hint">
+                        Shown behind the card on the homepage &mdash; in Upcoming Events for an
+                        event, and in Latest News for everything else. Landscape works best,
+                        about three parts wide to two tall.
+                        <?= $banner !== '' ? 'Choosing a new file replaces the one above.' : 'Left empty, a stock photograph is used.' ?>
+                    </p>
                 </div>
 
                 <div class="col-md-6">

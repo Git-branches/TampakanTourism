@@ -43,6 +43,8 @@ if (is_post()) {
     $data = collect_announcement_input($v);
     AnnouncementRepository::update($id, $data);
 
+    store_announcement_banner($id);
+
     ActivityLog::record('announcement.update', 'announcement', $id, 'Updated "' . $data['title'] . '"');
     Session::flash('success', 'Changes saved.');
     redirect(base_url('/admin/announcements/view.php?id=' . $id));
@@ -53,6 +55,8 @@ foreach (array_keys($a) as $k) {
     if (isset($old[$k])) { $a[$k] = $old[$k]; }
 }
 
-require __DIR__ . '/../_partials/head.php';
+/* Skips the shell when this page was asked for as a dialog fragment.
+   Additive: without ?modal=1 nothing here changes at all. */
+if (!is_modal_request()) { require __DIR__ . '/../_partials/head.php'; }
 require __DIR__ . '/_form.php';
-require __DIR__ . '/../_partials/foot.php';
+if (!is_modal_request()) { require __DIR__ . '/../_partials/foot.php'; }

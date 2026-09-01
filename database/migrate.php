@@ -2187,4 +2187,33 @@ if ($tableExists($pdo, 'destination_heritage')) {
     echo "  ok    destination_heritage created\n";
 }
 
+// -----------------------------------------------------------------------------
+// 2026-09 — Upcoming Events gets its own vocabulary.               Feature 3
+//
+// "Tourism Event" was one type among six on a single Announcements screen, so
+// the same festival appeared under Latest News AND under Upcoming Events on the
+// public homepage. A visitor read it twice and neither section answered its own
+// question: News answers "what do I need to know", Events answers "what can I
+// go to".
+//
+// Four more event kinds, so the Events screen can say which kind of event it
+// is. The existing six are untouched and every stored row keeps its value —
+// adding members to an enum rewrites no data and cannot fail on existing rows.
+// -----------------------------------------------------------------------------
+$typeColumn = $pdo->query("SHOW COLUMNS FROM announcements WHERE Field = 'type'")
+                  ->fetch(PDO::FETCH_ASSOC);
+
+if ($typeColumn !== false && !str_contains((string) $typeColumn['Type'], "'festival'")) {
+    $pdo->exec(
+        "ALTER TABLE announcements MODIFY COLUMN type "
+        . "ENUM('announcement','advisory','schedule','closure','reminder',"
+        . "'event','festival','community','municipal','activity') "
+        . "NOT NULL DEFAULT 'announcement'"
+    );
+
+    echo "  ok    announcements.type gained the four event kinds\n";
+} else {
+    echo "  skip  announcements.type already carries the event kinds\n";
+}
+
 echo str_repeat('=', 60) . "\n  Migrations complete.\n\n";

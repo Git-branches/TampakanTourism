@@ -307,42 +307,9 @@ require __DIR__ . '/../_partials/head.php';
          use, so a field added there appears here without anyone remembering to.
          Rendered last, which is why the values are held in $sheetDestination
          until now — the table above walks the list in $d. */ ?>
-<?php
-/* ONE DIALOG, FILLED WHEN IT OPENS.
- *
- * Edit, Photos, Route and Heritage now open here instead of navigating away.
- * The dialog is empty until a button is pressed; then it fetches that page with
- * ?modal=1, which makes the page render its own body and skip the shell.
- *
- * WHY FETCH RATHER THAN RENDER THEM INLINE. The house pattern elsewhere is to
- * extract a partial and include it — that is what the tour guide ID card does,
- * because X-Frame-Options is DENY and a dialog cannot iframe an admin page. It
- * works there because there is one card. It does not work here: _form.php gives
- * its fields fixed ids, so rendering it once per destination would put twelve
- * elements called id="name" on one page and break every <label for> on it.
- * Fixing that would mean rewriting a form that works.
- *
- * Nothing about those four pages changed except that they skip the shell when
- * asked to. Every existing link to them still opens the full page.
- *
- * WHY THIS SITS ABOVE THE ADD SHEET. Edit's fragment is _form.php, and the Add
- * sheet below is the same _form.php — so while Edit is open the page really does
- * hold two elements called id="pickerMap", id="latitude", id="name". The
- * injected script calls document.getElementById, which answers with whichever
- * comes FIRST in the document; being above the Add sheet is what makes that the
- * Edit copy. The script clears this body on close, so the duplicates exist only
- * while the dialog is open and the Add sheet is shut. */
-?>
-<dialog class="sheet sheet--wide" id="destPageModal">
-    <header class="sheet__head">
-        <h2 id="destPageModalTitle"><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> Loading&hellip;</h2>
-        <button type="button" class="sheet__close" data-dialog-close aria-label="Close">
-            <i class="fa-solid fa-xmark" aria-hidden="true"></i>
-        </button>
-    </header>
-
-    <div class="sheet__body" id="destPageModalBody"></div>
-</dialog>
+<?php /* Edit, Photos, Route and Heritage open in here rather than navigating
+         away. Declared ABOVE the Add sheet on purpose — see the partial. */ ?>
+<?php require __DIR__ . '/../_partials/page-modal.php'; ?>
 
 <dialog class="sheet sheet--wide" id="addDestination"<?= $sheetOpen ? ' data-open' : '' ?>>
     <?php $inSheet = true; $d = $sheetDestination; require __DIR__ . '/_form.php'; ?>

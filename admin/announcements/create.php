@@ -38,6 +38,8 @@ if (is_post()) {
     $data = collect_announcement_input($v);
     $id   = AnnouncementRepository::create($data, Auth::id());
 
+    store_announcement_banner($id);
+
     ActivityLog::record('announcement.create', 'announcement', $id, 'Created "' . $data['title'] . '"');
 
     Session::flash('success', $data['status'] === 'published'
@@ -49,7 +51,7 @@ if (is_post()) {
 
 $a = array_fill_keys([
     'id','title','summary','body','type','audience','status',
-    'destination_id','event_date','event_location','publish_at','expires_at',
+    'destination_id','event_date','event_location','publish_at','expires_at','banner_path',
 ], '');
 $a['type'] = 'announcement';
 $a['audience'] = 'public';

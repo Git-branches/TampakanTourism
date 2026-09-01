@@ -37,11 +37,46 @@ $history = ReportBuilder::history(10);
 $type = (string) ($_GET['type'] ?? 'monthly');
 $report = null;
 
+/* WHICH MONTH IT OPENS ON, and why "this one" was not good enough.
+ *
+ * Defaulting to the current month is right for most of the month and wrong on
+ * the first of it: at one minute past midnight on the 1st the current month
+ * holds nothing, so the screen that was built to open on figures opened on a
+ * row of zeros — every month, for a day or so, without anybody changing a line.
+ *
+ * So: this month if it has records, otherwise the most recent month that does.
+ * The heading names the period either way, so there is no doubt which one is on
+ * screen, and naming a month in the URL still overrides both. */
+$landingYear  = (int) date('Y');
+$landingMonth = (int) date('n');
+
+if (!isset($_GET['year'], $_GET['month'])) {
+    $recent = App\Core\Database::first(
+        "SELECT YEAR(visit_date) y, MONTH(visit_date) m
+           FROM tourist_arrivals
+          WHERE status = 'valid'
+            AND visit_date <= CURDATE()
+          ORDER BY visit_date DESC
+          LIMIT 1"
+    );
+
+    $thisMonth = (int) App\Core\Database::scalar(
+        "SELECT COUNT(*) FROM tourist_arrivals
+          WHERE status = 'valid' AND YEAR(visit_date) = ? AND MONTH(visit_date) = ?",
+        [$landingYear, $landingMonth]
+    );
+
+    if ($thisMonth === 0 && $recent !== null) {
+        $landingYear  = (int) $recent['y'];
+        $landingMonth = (int) $recent['m'];
+    }
+}
+
 if ($type !== '' && isset(ReportBuilder::PERIODS[$type])) {
     $params = [
         'date'    => (string) ($_GET['date'] ?? date('Y-m-d')),
-        'year'    => (int) ($_GET['year'] ?? date('Y')),
-        'month'   => (int) ($_GET['month'] ?? date('n')),
+        'year'    => (int) ($_GET['year'] ?? $landingYear),
+        'month'   => (int) ($_GET['month'] ?? $landingMonth),
         'quarter' => (int) ($_GET['quarter'] ?? ceil((int) date('n') / 3)),
         'start'   => (string) ($_GET['start'] ?? date('Y-m-01')),
         'end'     => (string) ($_GET['end'] ?? date('Y-m-d')),

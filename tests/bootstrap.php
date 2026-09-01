@@ -286,6 +286,31 @@ function test_get(string $path): string
     return $body;
 }
 
+/**
+ * The status code an anonymous GET comes back with.
+ *
+ * Separate from test_get() because the body is not always the question. A page
+ * closed for maintenance and a page that rendered are both strings; only the
+ * code says which one a search engine will believe.
+ */
+function test_status(string $path): int
+{
+    $ch = curl_init(test_base_url() . '/' . ltrim($path, '/'));
+
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 30,
+        CURLOPT_FOLLOWLOCATION => false,
+        CURLOPT_NOBODY         => false,
+    ]);
+
+    curl_exec($ch);
+    $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    return $code;
+}
+
 /** Writes a real PNG of the given size and returns its path. */
 function test_make_png(string $path, string $label = 'TEST', int $w = 1920, int $h = 1080): string
 {

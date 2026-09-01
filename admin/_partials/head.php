@@ -91,7 +91,15 @@ $nav = [
     ['group' => 'Communication', 'items' => [
         ['label' => 'Messages',        'icon' => 'fa-envelope',         'href' => 'messages/index.php',     'dir' => 'messages'],
         ['label' => 'Promotional Videos','icon' => 'fa-film',           'href' => 'videos/index.php',       'dir' => 'videos'],
-        ['label' => 'Announcements',   'icon' => 'fa-bullhorn',         'href' => 'announcements/index.php','dir' => 'announcements'],
+        /* TWO DOORS INTO ONE SCREEN, and deliberately not two tables.
+           An event IS an announcement whose type is "Tourism Event" and which
+           carries a date: 15 of the 17 columns are shared, as are the status
+           workflow, the SMS dispatch and the public detail page. Splitting the
+           data would mean maintaining both and watching them drift — this
+           system's own note says a notice is written once so its copies cannot
+           disagree. Splitting the door costs one line. */
+        ['label' => 'New Announcements', 'icon' => 'fa-bullhorn',      'href' => 'announcements/index.php','dir' => 'announcements'],
+        ['label' => 'New Events',        'icon' => 'fa-calendar-day',  'href' => 'announcements/index.php?section=events', 'dir' => 'announcements', 'section' => 'events'],
         ['label' => 'Destination Managers','icon' => 'fa-address-book', 'href' => 'managers/index.php',     'dir' => 'managers'],
     ]],
     /* Decision Support and Budget Planner were removed from the officer's side
@@ -237,6 +245,21 @@ $nav = [
                         continue;   // cosmetic only — the page gate is authoritative
                     }
                     $isActive  = $currentDir === $item['dir'] || ($item['dir'] === 'admin' && $current === $item['href']);
+
+                    /* TWO ITEMS CAN SHARE A DIRECTORY. Announcements and Events
+                       are the same screen behind different filters, so matching
+                       on the folder alone would light both at once. An item that
+                       names a `type` is active only for that filter; the one
+                       that names none is the default door and stays active for
+                       every other filter — so narrowing to Closures still
+                       highlights the door it was opened from. */
+                    if ($isActive && isset($item['section'])) {
+                        $isActive = ($_GET['section'] ?? '') === $item['section'];
+                    } elseif ($isActive && $currentDir === 'announcements') {
+                        $claimed  = array_column($group['items'], 'section');
+                        $isActive = !in_array($_GET['section'] ?? '', array_filter($claimed), true);
+                    }
+
                     $isPending = isset($item['phase']);
                 ?>
                     <li>

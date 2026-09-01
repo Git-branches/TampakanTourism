@@ -6578,24 +6578,28 @@ button.dest-block__more {
    ------------------------------------------------------------------------ */
 
 .rail .dest-card__body,
-.rail .news-card__body { padding: 1.15rem 1.15rem 1.25rem; }
+.rail .news-card__body,
+.rail .event-card__body { padding: 1.15rem 1.15rem 1.25rem; }
 
 .rail .dest-card__title,
-.rail .news-card__title {
+.rail .news-card__title,
+.rail .event-card__title {
     font-size: 1.08rem;
     line-height: 1.32;
     margin-bottom: .45rem;
 }
 
 .rail .dest-card__meta,
-.rail .news-card__date { font-size: .78rem; margin-bottom: .5rem; }
+.rail .news-card__date,
+.rail .event-card__meta { font-size: .78rem; margin-bottom: .5rem; }
 
 .rail .dest-card__rating { font-size: .78rem; margin-bottom: .5rem; }
 
 /* Clamped rather than shortened in PHP: the same text still goes to the
    detail page, and a wider breakpoint shows more of it. */
 .rail .dest-card__text,
-.rail .news-card__text {
+.rail .news-card__text,
+.rail .event-card__text {
     font-size: .85rem;
     line-height: 1.55;
     margin-bottom: .75rem;
@@ -6652,10 +6656,12 @@ button.dest-block__more {
 
 @media (max-width: 767.98px) {
     .rail .dest-card__body,
-    .rail .news-card__body { padding: 1.1rem; }
+    .rail .news-card__body,
+    .rail .event-card__body { padding: 1.1rem; }
 
     .rail .dest-card__text,
-    .rail .news-card__text { -webkit-line-clamp: 4; }
+    .rail .news-card__text,
+    .rail .event-card__text { -webkit-line-clamp: 4; }
 
     .rail-dots { margin-top: .9rem; gap: .4rem; }
     .rail-dot { width: 8px; height: 8px; }
@@ -6664,7 +6670,8 @@ button.dest-block__more {
 
 @media (max-width: 575.98px) {
     .rail .dest-card__title,
-    .rail .news-card__title { font-size: 1.02rem; }
+    .rail .news-card__title,
+    .rail .event-card__title { font-size: 1.02rem; }
 }
 
 /* The arrows need room to hang off the sides. On a narrow desktop window the

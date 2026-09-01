@@ -67,6 +67,8 @@ foreach (array_keys($m) as $k) {
     if (isset($old[$k])) { $m[$k] = $old[$k]; }
 }
 
-require __DIR__ . '/../_partials/head.php';
+/* Skips the shell when this page was asked for as a dialog fragment.
+   Additive: without ?modal=1 nothing here changes at all. */
+if (!is_modal_request()) { require __DIR__ . '/../_partials/head.php'; }
 require __DIR__ . '/_form.php';
-require __DIR__ . '/../_partials/foot.php';
+if (!is_modal_request()) { require __DIR__ . '/../_partials/foot.php'; }

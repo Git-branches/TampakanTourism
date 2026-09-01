@@ -89,6 +89,13 @@ if (!function_exists('public_nav')) {
             ['label' => 'Destinations',  'href' => $onHome ? '#destinations' : destinations_url(), 'match' => 'destinations'],
             ['label' => 'Tourist Map',   'href' => base_url('/map.php'),              'match' => 'map.php'],
             ['label' => 'Tour Guide',    'href' => base_url('/tour-guide.php'),       'match' => 'tour-guide.php'],
+            /* EVENTS BEFORE ANNOUNCEMENTS, and each with its own entry.
+               They answer different questions — "what can I go to" and "what do
+               I need to know" — and a visitor looking for the fiesta should not
+               have to work out that it lives under notices. The invitation
+               comes first because that is what most people arrive for; the
+               advisories are what they read once they have decided to come. */
+            ['label' => 'Events',        'href' => $section('events'),                'match' => 'events'],
             ['label' => 'Announcements', 'href' => $onHome ? '#news' : announcements_url(), 'match' => 'announcements'],
             ['label' => 'Travel Guide',  'href' => $section('travel-guide'),          'match' => ''],
             ['label' => 'About',         'href' => $section('about'),                 'match' => ''],
@@ -253,6 +260,24 @@ if (!function_exists('announcements_url')) {
         /* Query first, fragment last — the other way round buries the whole
            query inside the fragment and the filter silently stops working. */
         return base_url('/') . $query . '#news';
+    }
+}
+
+if (!function_exists('events_url')) {
+    /**
+     * The Upcoming Events section, optionally narrowed to one kind of event.
+     *
+     * The twin of announcements_url(), pointing at the other section. Written
+     * out rather than parameterised because the two are read in different
+     * places and a single helper taking a fragment name would be one more
+     * thing to get wrong at the call site.
+     */
+    function events_url(array $params = []): string
+    {
+        $params = array_filter($params, static fn($value): bool => $value !== null && $value !== '');
+        $query  = $params !== [] ? '?' . http_build_query($params) : '';
+
+        return base_url('/') . $query . '#events';
     }
 }
 

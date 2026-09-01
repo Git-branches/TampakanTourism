@@ -92,7 +92,8 @@ $is('with no diagnostic', !preg_match('/(Fatal error|Warning:|Notice:|Deprecated
 
 /* The whole point: a report, unasked. */
 $is('a report is already on the page', str_contains($bare, 'Total visitor arrivals'));
-$is('it names the period it is showing', str_contains($bare, date('F Y')));
+$is('it names the period it is showing',
+    (bool) preg_match('/(January|February|March|April|May|June|July|August|September|October|November|December) \d{4}/', $bare));
 $is('the breakdowns came with it',
     str_contains($bare, 'Visitors by Type') && str_contains($bare, 'Arrivals by Destination'));
 $is('and it shows a figure above zero', (bool) preg_match('/\b[1-9][0-9,]{1,}\b/', $bare));

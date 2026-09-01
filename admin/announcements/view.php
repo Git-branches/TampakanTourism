@@ -39,13 +39,86 @@ if (is_post()) {
     Csrf::verify();
     $action = (string) ($_POST['action'] ?? '');
 
+    /* WHERE TO GO AFTERWARDS, and why it is not this page.
+     *
+     * These actions are started from the list's own menu, and sending the
+     * officer to a detail screen to be told "status changed to draft" is a
+     * navigation they did not ask for and a trip back they now have to make.
+     * The list says where to return, filters and page intact.
+     *
+     * Only a relative path inside this folder is honoured. A caller-supplied
+     * redirect target that accepted anything is an open redirect — a link that
+     * looks like it goes to the tourism office and lands somewhere else. */
+    $back = static function () use ($id): string {
+        $asked = trim((string) ($_POST['return'] ?? ''));
+
+        $safe = $asked !== ''
+            && !str_contains($asked, '//')
+            && !str_contains($asked, '\\')
+            && !str_starts_with($asked, '/')
+            && preg_match('#^[a-z0-9_-]+\.php(\?[A-Za-z0-9=&_%.+-]*)?$#', $asked) === 1;
+
+        return base_url('/admin/announcements/' . ($safe ? $asked : 'view.php?id=' . $id));
+    };
+
     if ($action === 'status') {
         $status = (string) ($_POST['status'] ?? '');
         if (in_array($status, ['draft', 'published', 'archived'], true)) {
             AnnouncementRepository::setStatus($id, $status);
             ActivityLog::record('announcement.' . $status, 'announcement', $id, ucfirst($status) . ' "' . $a['title'] . '"');
-            Session::flash('success', 'Status changed to ' . $status . '.');
+            Session::flash('success', $status === 'published'
+                ? 'Published. It is on the public website now.'
+                : ($status === 'draft'
+                    ? 'Unpublished. It is off the public website and back in draft.'
+                    : 'Archived. Nothing was deleted.'));
         }
+
+        redirect($back());
+    }
+
+    /* DUPLICATE AND DELETE ARE HANDLED HERE, not in two more files.
+     *
+     * This page already owns `action=status` and the list's menu already posts
+     * to it. Giving each new action its own endpoint would mean three more
+     * files repeating the same lookup, the same CSRF check and the same
+     * ownership rules — and three places for those to drift apart. */
+    if ($action === 'duplicate') {
+        $copyId = AnnouncementRepository::duplicate($id, Auth::id());
+
+        if ($copyId === null) {
+            Session::flash('danger', 'That announcement no longer exists.');
+            redirect(base_url('/admin/announcements/index.php'));
+        }
+
+        ActivityLog::record('announcement.duplicate', 'announcement', $copyId,
+            'Duplicated "' . $a['title'] . '"');
+
+        Session::flash('success', 'Copied as a draft — it is in the list now. '
+            . 'Open Edit on it to change the date and the wording.');
+
+        /* NOT into the copy. Being thrown into an editor is a navigation the
+           officer did not ask for; the copy appears where they already are,
+           and Edit is one press away on its own row. */
+        redirect($back());
+    }
+
+    if ($action === 'delete') {
+        /* Officer only. Deleting an announcement destroys the delivery board
+           with it — the record of who was texted and whether it arrived — and
+           that record is the only evidence the office has that a closure notice
+           actually went out. */
+        if (!Auth::isOfficer()) {
+            Session::flash('danger', 'Only the Tourism Officer can delete an announcement.');
+            redirect(base_url('/admin/announcements/view.php?id=' . $id));
+        }
+
+        AnnouncementRepository::delete($id);
+
+        ActivityLog::record('announcement.delete', 'announcement', $id,
+            'Deleted "' . $a['title'] . '"');
+
+        Session::flash('success', 'Deleted "' . $a['title'] . '".');
+        redirect($back());
     }
 
     if ($action === 'dispatch') {
@@ -91,7 +164,9 @@ $goesBySms  = in_array($a['audience'], ['managers', 'both'], true);
 $smsPreview = SmsGateway::compose($a['title'], $a['body'], (string) setting('office_name', 'Tampakan Tourism Office'));
 $style      = AnnouncementRepository::TYPE_STYLE[$a['type']] ?? ['icon' => 'fa-bullhorn', 'tone' => 'blue'];
 
-require __DIR__ . '/../_partials/head.php';
+/* Skips the shell when this page was asked for as a dialog fragment.
+   Additive: without ?modal=1 nothing here changes at all. */
+if (!is_modal_request()) { require __DIR__ . '/../_partials/head.php'; }
 ?>
 
 <div class="record-bar">
@@ -104,7 +179,13 @@ require __DIR__ . '/../_partials/head.php';
         <?php if ($a['author_name']): ?><span><i class="fa-regular fa-user"></i> <?= e($a['author_name']) ?></span><?php endif; ?>
     </div>
     <div class="record-bar__actions">
-        <a href="edit.php?id=<?= $id ?>" class="btn btn-sm btn-outline-secondary"><i class="fa-solid fa-pen"></i> Edit</a>
+        <?php /* NO EDIT BUTTON HERE ANY MORE.
+                 Edit, Duplicate, Publish and Delete all live in the list's own
+                 menu now, which is where an officer already is when they decide
+                 to do one of them. Repeating Edit inside the page you opened to
+                 READ is a second door to the same room, and the two would drift:
+                 the menu grew Duplicate and Delete and this toolbar did not.
+                 This page is for reading the notice and sending it. */ ?>
         <?php if ($a['status'] === 'published'): ?>
             <a href="<?= e(base_url('/announcement.php?slug=' . $a['slug'])) ?>" target="_blank" rel="noopener"
                class="btn btn-sm btn-outline-secondary"><i class="fa-solid fa-arrow-up-right-from-square"></i> Public page</a>
@@ -184,22 +265,53 @@ require __DIR__ . '/../_partials/head.php';
     </div>
 
     <div class="panel-stack">
+        <?php
+        /* THE STATUS BUTTONS HAVE GONE TO THE LIST, all but one.
+         *
+         * Publish, Unpublish, Duplicate and Delete are on the row's own menu —
+         * one place, reachable without opening anything. Repeating them here
+         * would be the same duplication as the Edit button above.
+         *
+         * Archive is the exception, and only because the menu does not carry
+         * it: filing a notice away is a rarer decision than publishing one, and
+         * it belongs with the notice in front of you rather than behind an
+         * ellipsis on a list. Removing it outright would have quietly deleted a
+         * capability nobody asked to lose. */
+        ?>
         <section class="panel">
-            <header class="panel__head"><h2><i class="fa-solid fa-toggle-on"></i> Status</h2></header>
+            <header class="panel__head"><h2><i class="fa-solid fa-box-archive"></i> Archive</h2></header>
             <div class="panel__body">
-                <form method="post" class="d-grid gap-2">
-                    <?= csrf_field() ?>
-                    <input type="hidden" name="id" value="<?= $id ?>">
-                    <input type="hidden" name="action" value="status">
-                    <?php foreach (['draft' => 'Return to draft', 'published' => 'Publish', 'archived' => 'Archive'] as $value => $label): ?>
-                        <?php if ($a['status'] !== $value): ?>
-                            <button name="status" value="<?= e($value) ?>"
-                                    class="btn btn-sm btn-outline-<?= $value === 'published' ? 'success' : 'secondary' ?>">
-                                <?= e($label) ?>
-                            </button>
-                        <?php endif; ?>
-                    <?php endforeach; ?>
-                </form>
+                <?php if ($a['status'] === 'archived'): ?>
+                    <p class="text-muted small mb-2">
+                        This notice is archived. It is off the public website and out of the
+                        working list, but nothing has been deleted.
+                    </p>
+                    <form method="post"
+                          data-confirm="Return &ldquo;<?= e($a['title']) ?>&rdquo; to draft? It comes back into the working list, still unpublished."
+                          data-confirm-tone="normal">
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="id" value="<?= $id ?>">
+                        <input type="hidden" name="action" value="status">
+                        <button name="status" value="draft" class="btn btn-sm btn-outline-secondary w-100">
+                            <i class="fa-solid fa-rotate-left"></i> Take out of the archive
+                        </button>
+                    </form>
+                <?php else: ?>
+                    <p class="text-muted small mb-2">
+                        Files it away: off the public website and out of the working list, but
+                        nothing is deleted and it can be brought back at any time.
+                    </p>
+                    <form method="post"
+                          data-confirm="Archive &ldquo;<?= e($a['title']) ?>&rdquo;? It leaves the public website and the working list. Nothing is deleted — it stays under the Archived filter and can be returned to draft."
+                          data-confirm-tone="normal">
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="id" value="<?= $id ?>">
+                        <input type="hidden" name="action" value="status">
+                        <button name="status" value="archived" class="btn btn-sm btn-outline-secondary w-100">
+                            <i class="fa-solid fa-box-archive"></i> Archive this notice
+                        </button>
+                    </form>
+                <?php endif; ?>
             </div>
         </section>
 
@@ -285,4 +397,4 @@ require __DIR__ . '/../_partials/head.php';
     </div>
 </div>
 
-<?php require __DIR__ . '/../_partials/foot.php'; ?>
+<?php if (!is_modal_request()) { require __DIR__ . '/../_partials/foot.php'; } ?>

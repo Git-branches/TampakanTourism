@@ -50,6 +50,14 @@ $showNavbar     = $showNavbar ?? true;
 $activeMatch = match ($current) {
     'destination.php'  => 'destinations',
     'announcement.php' => 'announcements',
+
+    /* Events was added to the navbar with an empty `match`, so it was the one
+       item that could never light: a visitor reading about the fiesta saw
+       nothing marked in the bar, while the same visitor reading a closure
+       notice saw Announcements highlighted. Same pattern as its twin above —
+       a detail page maps to the section it belongs to. */
+    'events.php'       => 'events',
+
     default            => $current,
 };
 ?>

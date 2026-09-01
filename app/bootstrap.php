@@ -183,3 +183,16 @@ $GLOBALS['__toursync_old']    = Session::get('_old', []);
 
 Session::forget('_errors');
 Session::forget('_old');
+
+// -----------------------------------------------------------------------------
+// 8. Maintenance mode
+//
+//    Last, so a closed public site has already had its session started and its
+//    security headers sent — and so the notice can read office_name and
+//    office_phone out of the settings table.
+//
+//    PUBLIC PAGES ONLY. /admin, /manager and the admin API are exempt: a switch
+//    that locks out the only people who can turn it off is a trap, not a
+//    switch. See Maintenance::appliesToThisRequest().
+// -----------------------------------------------------------------------------
+\App\Core\Maintenance::guard();

@@ -163,6 +163,59 @@
             });
         });
     }
+    /* THE SYSTEM ALREADY HAS ONE WAY TO SAY THINGS. USE IT.
+     *
+     * Two wrong answers before this one. First I built a toast by hand and
+     * it was a near-miss of the real thing: no icon, a stray Bootstrap
+     * `show` class, role="status" even on an error. Then I cloned the
+     * server's own node into #toastDock — right markup, still wrong, and
+     * for a reason the stylesheet spells out beside the rule itself:
+     *
+     *     notify.js removes this dock and redraws the flashes as
+     *     SweetAlert2 toasts, which position themselves. So this is the
+     *     no-script path.
+     *
+     * The dock is the FALLBACK, pinned to the left of the content for a
+     * browser with no JavaScript. Everywhere else the office sees a
+     * SweetAlert toast at top-end, and it dismisses itself. Appending to
+     * the dock put a fallback toast on the left of a page that had already
+     * moved past it — which is exactly what was reported: wrong corner, and
+     * nothing to make it go away.
+     *
+     * TourSync.showSuccess and friends are that one way. The server still
+     * decides the words and the tone; this only asks the house to draw it.
+     * The dock remains the answer when the script is blocked, because then
+     * the browser follows the redirect and the server renders it there. */
+    function adoptToast(doc) {
+        var made = doc.querySelector('#toastDock .toast');
+
+        if (!made) { return; }
+
+        var body    = made.querySelector('.toast__body');
+        var message = (body ? body.textContent : made.textContent).trim();
+
+        if (message === '') { return; }
+
+        var tone = 'Info';
+
+        if (made.classList.contains('toast--success')) { tone = 'Success'; }
+        if (made.classList.contains('toast--danger'))  { tone = 'Error'; }
+        if (made.classList.contains('toast--warning')) { tone = 'Warning'; }
+
+        var show = window.TourSync && window.TourSync['show' + tone];
+
+        if (typeof show === 'function') {
+            show(message);
+            return;
+        }
+
+        /* notify.js did not load. The dock is still in the markup and still
+           styled, so the message is shown rather than lost. */
+        var dock = document.getElementById('toastDock');
+
+        if (dock) { dock.appendChild(made.cloneNode(true)); }
+    }
+
 
     /* ---------------------------------------------------------------------
        Confirmation
@@ -966,15 +1019,15 @@
 
        A link marked data-modal-page is fetched with ?modal=1 — which is all it
        takes for those pages to render their body and skip the shell — and put
-       into #destPageModal. The link keeps its href, so this only intercepts a
+       into #pageModal. The link keeps its href, so this only intercepts a
        plain left click: Ctrl-click, middle-click and "open in new tab" go to
        the full page exactly as before, and so does this whole feature with
        JavaScript off.
        ------------------------------------------------------------------ */
     (function () {
-        var modal = document.getElementById('destPageModal');
-        var body  = document.getElementById('destPageModalBody');
-        var title = document.getElementById('destPageModalTitle');
+        var modal = document.getElementById('pageModal');
+        var body  = document.getElementById('pageModalBody');
+        var title = document.getElementById('pageModalTitle');
 
         if (!modal || !body || !title || !modal.showModal || !window.fetch) { return; }
 
@@ -1025,12 +1078,21 @@
             });
         }
 
+        /* The page this dialog is showing, so a form inside it can be sent
+           without navigating and the dialog refilled from the same address. */
+        var showing = '';
+        var showingLabel = '';
+
         function load(href, label) {
             var mine = ++turn;
 
+            showing      = href;
+            showingLabel = label || showingLabel;
+
             title.innerHTML = '<i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> Loading…';
             body.innerHTML  = '';
-            modal.showModal();
+
+            if (!modal.open) { modal.showModal(); }
 
             fetch(fragmentUrl(href), {
                 credentials: 'same-origin',
@@ -1089,12 +1151,218 @@
             load(link.getAttribute('href'), link.getAttribute('data-modal-title') || link.textContent.trim());
         });
 
+        /* -----------------------------------------------------------------
+           A FORM INSIDE THE DIALOG STAYS INSIDE THE DIALOG.
+           -----------------------------------------------------------------
+           Every page fetched in here is a real page, and its forms post and
+           redirect the way they always have. Correct for the address bar, wrong
+           for the dialog: adding a heritage item threw the officer out of the
+           modal and onto heritage.php — the exact navigation the modal exists
+           to remove — and the same for photos and for routes.
+
+           Sent by fetch instead, then the dialog is refilled by load(), which
+           already points the forms back at their own page and re-runs any
+           script they carry. Reusing it is why this is twenty lines rather than
+           a second copy of the loader.
+
+           NOT MARKED PER FORM. There are ten across three pages and more to
+           come; being inside #pageModal is the rule, rather than a list
+           somebody has to remember to add to.
+
+           WITH THE SCRIPT BLOCKED none of this runs, the form posts normally
+           and the officer lands on the full page. Slower, and correct.
+
+           It runs AFTER the confirmation, which re-submits with
+           confirmed="yes" — so a delete in here is still asked about first.
+           -------------------------------------------------------------- */
+        document.addEventListener('submit', function (event) {
+            var form = event.target;
+
+            if (!form || !form.closest || !form.closest('#pageModal')) { return; }
+            if (form.getAttribute('data-confirm') && form.dataset.confirmed !== 'yes') { return; }
+
+            var action = form.getAttribute('action') || showing;
+
+            if (!action) { return; }
+
+            event.preventDefault();
+
+            var data    = new FormData(form);
+            var pressed = event.submitter;
+
+            /* A <button name= value=> is only sent when it is the one pressed,
+               and FormData cannot know which that was. */
+            if (pressed && pressed.name) { data.append(pressed.name, pressed.value); }
+
+            Array.prototype.forEach.call(form.querySelectorAll('button'), function (b) {
+                b.disabled = true;
+            });
+
+            fetch(action, {
+                method: 'POST',
+                body: data,
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'fetch' }
+            }).then(function (response) {
+                if (!response.ok) { throw new Error('HTTP ' + response.status); }
+
+                return response.text();
+            }).then(function (html) {
+                /* The response is the page the server redirected to, so it
+                   carries the flash the application decided on. */
+                var said = new DOMParser().parseFromString(html, 'text/html');
+
+                load(showing, showingLabel);
+                adoptToast(said);
+            }).catch(function () {
+                /* Whatever went wrong, the officer must not be left looking at a
+                   dialog full of disabled buttons. */
+                window.location.href = action;
+            });
+        });
+
         /* Emptied on close so the ids borrowed from _form.php stop colliding
            with the Add sheet's copy, and so a map is not left running behind a
-           dialog nobody can see. */
+           dialog nobody can see.
+
+           THE GUARD IS NOT DEFENSIVE, IT IS THE FIX. A dialog's `close` event
+           is queued, not dispatched synchronously — so closing one row's dialog
+           and opening the next one straight away runs this handler AFTER the
+           new load has already started. It then cleared the body the officer
+           was looking at, and bumping the turn counter made the new fetch
+           discard its own answer when it landed: an empty dialog that never
+           filled, roughly one reopen in two.
+
+           If it is open again, this close belongs to the previous one and has
+           nothing left to tidy. The turn is no longer touched here at all —
+           superseding a load is load()'s own business. */
         modal.addEventListener('close', function () {
-            turn++;
+            if (modal.open) { return; }
+
             body.innerHTML = '';
+        });
+    })();
+
+
+    /* ---------------------------------------------------------------------
+       A menu action that does not leave the page
+       ---------------------------------------------------------------------
+       Publish, Unpublish, Duplicate and Delete are POSTs, and a POST that
+       redirects is a navigation: the officer is taken somewhere, told what
+       happened, and has to come back — losing their filter and their page on
+       the way.
+
+       A form marked data-ajax is sent by fetch instead. The server does exactly
+       what it always did, including the redirect; the difference is that the
+       browser never goes there. What comes back is the list as it now stands,
+       flash message and all, and the rows and the toast are lifted out of it.
+
+       NOTHING ABOUT THE SERVER CHANGED. With this script blocked the same form
+       posts normally, the redirect happens for real, and the officer lands back
+       on the same list — slower, and correct.
+
+       IT RUNS AFTER THE CONFIRMATION, not instead of it. The confirm handler
+       above intercepts the first submit and re-submits with confirmed="yes";
+       this listener stands aside until it sees that mark, so a Delete is still
+       asked about before anything is sent.
+       ------------------------------------------------------------------ */
+    (function () {
+        if (!window.fetch || !window.DOMParser) { return; }
+
+        /* Swapped after a successful action. The list of rows, the pager, and
+           anything the page shows when the list is empty. */
+        var REGIONS = ['.announce-list', '.pager', '.panel:has(.empty)'];
+
+
+        function refresh(url, done) {
+            fetch(url, { credentials: 'same-origin', headers: { 'X-Requested-With': 'fetch' } })
+                .then(function (r) { return r.text(); })
+                .then(function (html) {
+                    var doc = new DOMParser().parseFromString(html, 'text/html');
+
+                    REGIONS.forEach(function (selector) {
+                        var next, here;
+
+                        try {
+                            next = doc.querySelector(selector);
+                            here = document.querySelector(selector);
+                        } catch (e) {
+                            return;   /* :has() is unsupported on older engines */
+                        }
+
+                        if (next && here) {
+                            here.replaceWith(next.cloneNode(true));
+                        } else if (here && !next) {
+                            here.remove();
+                        }
+                    });
+
+                    done(doc);
+                })
+                .catch(function () { done(null); });
+        }
+
+        document.addEventListener('submit', function (event) {
+            var form = event.target;
+
+            if (!form || !form.hasAttribute || !form.hasAttribute('data-ajax')) { return; }
+
+            /* Let the confirmation run first. It re-submits once answered, and
+               that second pass is the one this handles. */
+            if (form.getAttribute('data-confirm') && form.dataset.confirmed !== 'yes') { return; }
+
+            event.preventDefault();
+
+            var data   = new FormData(form);
+            var pressed = event.submitter;
+
+            /* A <button name=… value=…> is only included when it is the one
+               pressed, and FormData does not know which that was. Publish and
+               Unpublish are the same form with different values. */
+            if (pressed && pressed.name) { data.append(pressed.name, pressed.value); }
+
+            var back = data.get('return') || window.location.pathname + window.location.search;
+
+            form.querySelectorAll('button').forEach(function (b) { b.disabled = true; });
+
+            fetch(form.getAttribute('action') || window.location.href, {
+                method: 'POST',
+                body: data,
+                credentials: 'same-origin',
+                headers: { 'X-Requested-With': 'fetch' },
+            }).then(function (response) {
+                if (!response.ok) { throw new Error('HTTP ' + response.status); }
+
+                /* The response IS the redirected page, so the flash has already
+                   been consumed by it — re-fetching the list here would show
+                   nothing. Read the message out of what came back, then refresh
+                   the rows separately. */
+                return response.text();
+            }).then(function (html) {
+                /* The response IS the redirected page, so its toast dock holds
+                   the flash the application decided on. Kept aside while the
+                   rows are refreshed, then moved into the live dock. */
+                var said = new DOMParser().parseFromString(html, 'text/html');
+
+                refresh(back, function () {
+                    adoptToast(said);
+                });
+            }).catch(function () {
+                /* Whatever went wrong, the officer must not be left looking at a
+                   dead menu wondering whether it worked. */
+                window.location.href = back;
+            });
+
+            /* The menu stays open behind a dialog otherwise. */
+            var panel = form.closest('.card-menu__panel');
+
+            if (panel) {
+                panel.hidden = true;
+
+                var owner = document.querySelector('[data-card-menu="' + panel.id + '"]');
+
+                if (owner) { owner.setAttribute('aria-expanded', 'false'); }
+            }
         });
     })();
 

@@ -126,7 +126,19 @@ $pageSubtitle = $d['name'];
 if (!is_modal_request()) { require __DIR__ . '/../_partials/head.php'; }
 ?>
 
-<div class="d-flex gap-2 flex-wrap mb-3">
+<?php
+/* .record-bar, not a bare flex row — and the difference matters.
+ *
+ * These three are the SAME three the destination card already offers: All
+ * destinations is the list you are looking at, Edit and Photos are on the card
+ * and in its menu. Opened in the dialog they were a second set of the same
+ * controls, one press away from the first.
+ *
+ * The class is what the modal hides, so this bar is for the full page — the
+ * address somebody reaches by middle-clicking, or with the script off — and
+ * disappears inside the dialog without any rule written for this file. */
+?>
+<div class="record-bar">
     <a href="index.php" class="btn btn-sm btn-outline-secondary">
         <i class="fa-solid fa-arrow-left"></i> All destinations
     </a>
@@ -136,11 +148,17 @@ if (!is_modal_request()) { require __DIR__ . '/../_partials/head.php'; }
     <a href="photos.php?id=<?= $id ?>" class="btn btn-sm btn-outline-secondary">
         <i class="fa-solid fa-images"></i> Photos
     </a>
+</div>
+
+<?php /* The printable sheet is NOT one of the three: nothing else on the card
+         or in its menu offers it, so it stays visible in the dialog. It belongs
+         with the route it prints, rather than in a bar of navigation. */ ?>
+<p class="mb-3">
     <a href="<?= e(base_url('/directions.php?slug=' . urlencode((string) $d['slug']))) ?>"
        target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary">
         <i class="fa-solid fa-print"></i> Preview the printable sheet
     </a>
-</div>
+</p>
 
 <?php if ($routes === []): ?>
     <div class="alert alert-warning">

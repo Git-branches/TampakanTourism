@@ -299,6 +299,22 @@ const ANNOUNCEMENTS = [
     ['event', 24,
         'Highland Harvest Weekend',
         'Farm visits, a pineapple market, and an evening programme at the municipal plaza. Transport leaves from the Poblacion terminal each morning.'],
+    ['event', 38,
+        "T'boli Weavers' Market",
+        'Weavers from the surrounding barangays bring finished cloth to the municipal plaza. '
+      . 'Demonstrations through the morning, selling all day.'],
+    ['event', 52,
+        'Mt. Matutum Trail Clean-up',
+        'A volunteer morning on the lower trails. Bring gloves and water; sacks and transport '
+      . 'are provided by the Office.'],
+    ['event', 66,
+        "Tampakan Farmers' and Tourism Fair",
+        'Produce, food stalls and a tourism desk at the Poblacion grounds, with guided walks '
+      . 'leaving each morning of the fair.'],
+    ['event', 81,
+        'Sunrise Climb at Kolon Ridge',
+        'An organised group ascent leaving the barangay desk before dawn. Registration and an '
+      . 'accredited guide are required.'],
     ['reminder', -17,
         'Respect the markers at heritage sites',
         'Several sites hold stones and markers placed by the families of the barangay. Please do not climb on them, move them, or take anything from around them.'],

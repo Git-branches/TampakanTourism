@@ -16,23 +16,71 @@ use App\Core\Database;
  */
 final class AnnouncementRepository
 {
-    public const TYPES = [
+    /**
+     * TWO VOCABULARIES, NOT ONE LIST WITH AN ODD MEMBER IN IT.
+     *
+     * "Tourism Event" used to sit among the notice types, so a festival was
+     * both a notice and an event and the public homepage showed it twice —
+     * once under Latest News and again under Upcoming Events. The visitor read
+     * the same thing in two places and neither section answered its own
+     * question.
+     *
+     * NEWS answers "what do I need to know": advisories, closures, schedules,
+     * reminders. EVENTS answers "what can I go to": something with a date you
+     * can turn up for.
+     *
+     * The split is by these two lists and nothing else — one table, one status
+     * workflow, one SMS path, one public detail page. A type belongs to exactly
+     * one of them, which is what stops a record appearing in both sections.
+     */
+    public const NEWS_TYPES = [
         'announcement' => 'General Announcement',
         'advisory'     => 'Tourism Advisory',
         'schedule'     => 'Report Submission Schedule',
-        'event'        => 'Tourism Event',
         'closure'      => 'Destination Closure',
         'reminder'     => 'Reminder',
     ];
+
+    public const EVENT_TYPES = [
+        'event'     => 'Tourism Event',
+        'festival'  => 'Festival',
+        'community' => 'Community Event',
+        'municipal' => 'Municipal Activity',
+        'activity'  => 'Other Upcoming Activity',
+    ];
+
+    /**
+     * Both, for the places that legitimately need every label: the filter on
+     * the admin list, the label beside a row, the public detail page. Kept as
+     * TYPES so nothing that already reads it had to change.
+     */
+    public const TYPES = self::NEWS_TYPES + self::EVENT_TYPES;
+
+    /** Is this type something a visitor can attend? */
+    public static function isEventType(string $type): bool
+    {
+        return isset(self::EVENT_TYPES[$type]);
+    }
+
+    /** The SQL fragment for "an event", used by both public queries. */
+    private static function eventTypeList(): string
+    {
+        return "'" . implode("','", array_keys(self::EVENT_TYPES)) . "'";
+    }
 
     /** Icon and tone per type, so an advisory never looks like an invitation. */
     public const TYPE_STYLE = [
         'announcement' => ['icon' => 'fa-bullhorn',              'tone' => 'blue'],
         'advisory'     => ['icon' => 'fa-triangle-exclamation',  'tone' => 'amber'],
         'schedule'     => ['icon' => 'fa-calendar-check',        'tone' => 'teal'],
-        'event'        => ['icon' => 'fa-calendar-star',         'tone' => 'green'],
         'closure'      => ['icon' => 'fa-circle-xmark',          'tone' => 'red'],
         'reminder'     => ['icon' => 'fa-bell',                  'tone' => 'blue'],
+
+        'event'        => ['icon' => 'fa-calendar-day',          'tone' => 'green'],
+        'festival'     => ['icon' => 'fa-masks-theater',         'tone' => 'green'],
+        'community'    => ['icon' => 'fa-people-group',          'tone' => 'green'],
+        'municipal'    => ['icon' => 'fa-landmark',              'tone' => 'green'],
+        'activity'     => ['icon' => 'fa-flag',                  'tone' => 'green'],
     ];
 
     public const AUDIENCES = [
@@ -100,7 +148,7 @@ final class AnnouncementRepository
                LEFT JOIN destinations d ON d.id = a.destination_id
               WHERE a.status = 'published'
                 AND a.audience IN ('public', 'both')
-                AND a.type = 'event'
+                AND a.type IN (" . self::eventTypeList() . ")
                 AND a.event_date IS NOT NULL
                 AND a.event_date >= CURDATE()
                 AND (a.publish_at IS NULL OR a.publish_at <= NOW())
@@ -110,10 +158,20 @@ final class AnnouncementRepository
         );
     }
 
-    /** Latest news and advisories for the homepage, excluding events. */
+    /**
+     * Latest news and advisories for the homepage — never an event.
+     *
+     * The homepage news section used to call publicFeed(), which returns
+     * everything published, so every festival appeared under Latest News AND
+     * under Upcoming Events. A visitor scrolling the page read the same fiesta
+     * twice and neither section answered its own question.
+     *
+     * The cap is 100 because that section is a filterable catalogue, not a
+     * teaser of three.
+     */
     public static function latestNews(int $limit = 3): array
     {
-        $limit = max(1, min($limit, 20));
+        $limit = max(1, min($limit, 100));
 
         return Database::all(
             "SELECT a.*, d.name AS destination_name
@@ -121,7 +179,7 @@ final class AnnouncementRepository
                LEFT JOIN destinations d ON d.id = a.destination_id
               WHERE a.status = 'published'
                 AND a.audience IN ('public', 'both')
-                AND a.type <> 'event'
+                AND a.type NOT IN (" . self::eventTypeList() . ")
                 AND (a.publish_at IS NULL OR a.publish_at <= NOW())
                 AND (a.expires_at IS NULL OR a.expires_at >= NOW())
               ORDER BY COALESCE(a.publish_at, a.created_at) DESC
@@ -172,6 +230,15 @@ final class AnnouncementRepository
         if (!empty($filters['type'])) {
             $clauses[] = 'a.type = ?';
             $params[]  = $filters['type'];
+        }
+
+        /* WHICH SECTION THIS LIST IS. News and Events are the same table read
+           through two doors, so each door narrows to its own vocabulary before
+           any type filter inside it applies. Without this the News list would
+           show festivals and the split would exist only on the public site. */
+        if (!empty($filters['types']) && is_array($filters['types'])) {
+            $clauses[] = 'a.type IN (' . implode(',', array_fill(0, count($filters['types']), '?')) . ')';
+            array_push($params, ...array_values($filters['types']));
         }
         if (!empty($filters['search'])) {
             $clauses[] = '(a.title LIKE ? OR a.body LIKE ?)';
@@ -256,6 +323,129 @@ final class AnnouncementRepository
     public static function setStatus(int $id, string $status): void
     {
         Database::run('UPDATE announcements SET status = ? WHERE id = ?', [$status, $id]);
+    }
+
+    /**
+     * A copy, as a draft, for the office to edit into next year's notice.
+     *
+     * The festival happens every year and the closure notice is the same words
+     * with a different date; retyping either is how two versions of the same
+     * announcement end up disagreeing. Everything is carried over EXCEPT the
+     * things that must not be:
+     *
+     *   status      — always draft. A copy that published itself the moment it
+     *                 was made would put last year's date on the website.
+     *   publish_at  — a scheduled time that has already passed would publish it
+     *                 instantly, which is the same fault by another route.
+     *   slug        — its own, because the public URL identifies one notice.
+     *   notifications — not copied. The delivery board belongs to the message
+     *                 that was actually sent, and cascade removes it anyway.
+     *
+     * The banner_path IS shared, deliberately: it is the same picture, and
+     * bannerInUse() already stops either copy deleting the other's file.
+     */
+    public static function duplicate(int $id, ?int $adminId): ?int
+    {
+        $a = Database::first('SELECT * FROM announcements WHERE id = ?', [$id]);
+
+        if ($a === null) {
+            return null;
+        }
+
+        $title = mb_substr($a['title'] . ' (copy)', 0, 200);
+
+        return Database::insert(
+            'INSERT INTO announcements
+                (title, slug, body, summary, type, audience, status, destination_id,
+                 event_date, event_location, banner_path, expires_at, created_by)
+             VALUES (?,?,?,?,?,?,"draft",?,?,?,?,?,?)',
+            [
+                $title,
+                self::uniqueSlug($title),
+                $a['body'],
+                $a['summary'],
+                $a['type'],
+                $a['audience'],
+                $a['destination_id'],
+                $a['event_date'],
+                $a['event_location'],
+                $a['banner_path'],
+                $a['expires_at'],
+                $adminId,
+            ]
+        );
+    }
+
+    /**
+     * Gone for good.
+     *
+     * `notifications` cascades, so the delivery board goes with it — the record
+     * of who was texted about this notice and whether it arrived. That is not a
+     * side effect worth discovering afterwards, so the screen that offers this
+     * says so before asking.
+     *
+     * The picture is removed only if nothing else is using it: the banners
+     * directory is shared with the homepage hero slides and with any copy made
+     * by duplicate().
+     */
+    public static function delete(int $id): void
+    {
+        $banner = trim((string) (Database::scalar(
+            'SELECT banner_path FROM announcements WHERE id = ?', [$id]) ?? ''));
+
+        Database::run('DELETE FROM announcements WHERE id = ?', [$id]);
+
+        if ($banner !== '' && !self::bannerInUse($banner)) {
+            \App\Core\Uploader::delete($banner);
+        }
+    }
+
+    /**
+     * The picture behind the card, replacing whatever was there.
+     *
+     * A method of its own rather than another column on create() and update():
+     * an upload can fail on its own — a file too large, a format GD will not
+     * decode — and it must not take a perfectly good edit to the words down
+     * with it. The announcement is saved first, then the picture is attached.
+     * That is how the heritage items work, for the same reason.
+     *
+     * The file it replaces is deleted, unless something else is using it. The
+     * banners directory is shared with the homepage hero slides, so an image
+     * an officer used for both would otherwise disappear from one of them.
+     */
+    public static function setBanner(int $id, string $path): void
+    {
+        $previous = trim((string) (Database::scalar(
+            'SELECT banner_path FROM announcements WHERE id = ?', [$id]) ?? ''));
+
+        Database::run('UPDATE announcements SET banner_path = ? WHERE id = ?', [$path, $id]);
+
+        if ($previous !== '' && $previous !== $path && !self::bannerInUse($previous)) {
+            \App\Core\Uploader::delete($previous);
+        }
+    }
+
+    /** Back to the stock photograph the public pages fall back to. */
+    public static function clearBanner(int $id): void
+    {
+        $previous = trim((string) (Database::scalar(
+            'SELECT banner_path FROM announcements WHERE id = ?', [$id]) ?? ''));
+
+        Database::run('UPDATE announcements SET banner_path = NULL WHERE id = ?', [$id]);
+
+        if ($previous !== '' && !self::bannerInUse($previous)) {
+            \App\Core\Uploader::delete($previous);
+        }
+    }
+
+    /** Is this file still referenced by an announcement or a hero slide? */
+    private static function bannerInUse(string $path): bool
+    {
+        if (Database::scalar('SELECT 1 FROM announcements WHERE banner_path = ? LIMIT 1', [$path]) !== null) {
+            return true;
+        }
+
+        return Database::scalar('SELECT 1 FROM hero_slides WHERE image_path = ? LIMIT 1', [$path]) !== null;
     }
 
     public static function statusCounts(): array

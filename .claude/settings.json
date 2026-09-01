@@ -35,7 +35,27 @@
       "Bash(/c/xampp/php/php.exe tests/run.php about)",
       "Bash(/c/xampp/php/php.exe -l admin/settings/accounts.php)",
       "Bash(/c/xampp/php/php.exe -l tests/account-username.php)",
-      "Bash(/c/xampp/php/php.exe tests/run.php username)"
+      "Bash(/c/xampp/php/php.exe tests/run.php username)",
+      "Bash(/c/xampp/php/php.exe -r 'require \"C:/xampp/htdocs/TampakanTourism/bootstrap.php\"; echo \\(string\\)\\(App\\\\Core\\\\Database::scalar\\(\"SELECT setting_value FROM settings WHERE setting_key = ?\", [\"public_url\"]\\) ?? \"\"\\);')",
+      "Bash(echo \"  public_url after everything: '$\\(/c/xampp/php/php.exe -r 'require \"C:/xampp/htdocs/TampakanTourism/bootstrap.php\"; echo \\(string\\)\\(App\\\\Core\\\\Database::scalar\\(\"SELECT setting_value FROM settings WHERE setting_key = ?\", [\"public_url\"]\\) ?? \"\"\\);'\\)'\")",
+      "Bash(/c/xampp/php/php.exe -r ' *)",
+      "Bash(/c/xampp/php/php.exe -l database/seed-demo.php)",
+      "Bash(/c/xampp/php/php.exe database/seed-demo.php)",
+      "Bash(/c/xampp/php/php.exe database/seed-demo.php --write)",
+      "Bash(/c/xampp/php/php.exe tests/feature-reports-ai.php)",
+      "Bash(awk '{printf \" %-34s %s\\\\n\", $NF, $5}')",
+      "Bash(/c/xampp/php/php.exe -r 'require \"bootstrap.php\"; foreach \\(App\\\\Core\\\\Database::all\\(\"SELECT id,name FROM categories ORDER BY id\"\\) as $c\\) printf\\(\"  %d %s\\\\n\", $c[\"id\"], $c[\"name\"]\\);')",
+      "Bash(sed -n '/function newToken/,/^    }/p' app/Repositories/DestinationRepository.php)",
+      "Bash(/c/xampp/php/php.exe -r 'require \"bootstrap.php\"; foreach \\(App\\\\Core\\\\Database::all\\(\"SHOW COLUMNS FROM destination_photos\"\\) as $c\\) printf\\(\"  %-16s %s%s\\\\n\", $c[\"Field\"], $c[\"Type\"], $c[\"Null\"]===\"NO\"?\" NOT NULL\":\"\"\\);')",
+      "Bash(/c/xampp/php/php.exe -r 'require \"bootstrap.php\"; foreach \\(App\\\\Core\\\\Database::all\\(\"SELECT name,attraction_code,latitude,longitude FROM destinations\"\\) as $d\\) printf\\(\"  %-24s %-10s %s, %s\\\\n\", $d[\"name\"], \\(string\\)$d[\"attraction_code\"], \\(string\\)$d[\"latitude\"], \\(string\\)$d[\"longitude\"]\\);')",
+      "Bash(exit 1)",
+      "Bash(/c/xampp/php/php.exe database/seed-demo.php --undo)",
+      "Bash(grep -n '\\\\$_GET\\\\|404\\\\|status' announcement.php)",
+      "Bash(grep -n '\\\\$_GET\\\\[' guide-verify.php booking.php)",
+      "Bash(/c/xampp/php/php.exe -r 'require \"bootstrap.php\"; foreach \\(App\\\\Core\\\\Database::all\\(\"SHOW COLUMNS FROM reports\"\\) as $c\\) printf\\(\"  %-18s %s\\\\n\", $c[\"Field\"], $c[\"Type\"]\\); *)",
+      "Bash(grep -nE '\\\\$_GET\\\\[|\\\\$_POST\\\\[|Auth::|require' manager/reports.php manager/report-form.php)",
+      "Bash(/c/xampp/php/php.exe -l tests/feature-reports-section.php)",
+      "Bash(/c/xampp/php/php.exe tests/feature-reports-section.php)"
     ]
   }
 }

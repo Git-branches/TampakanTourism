@@ -175,20 +175,48 @@ require __DIR__ . '/../_partials/head.php';
                             <?php endif; ?>
                         </td>
                         <td class="text-end">
-                            <a href="edit.php?id=<?= (int) $m['id'] ?>" class="btn btn-sm btn-outline-secondary">Edit</a>
+                            <?php /* Still a real href, so a middle-click, a Ctrl-click and a
+                                     browser with no JavaScript all reach the full page. The
+                                     script intercepts a plain click and opens the dialog. */ ?>
+                            <a href="edit.php?id=<?= (int) $m['id'] ?>" class="btn btn-sm btn-outline-secondary"
+                               data-modal-page data-modal-title="Edit <?= e($m['full_name']) ?>">Edit</a>
 
                             <?php if (Auth::isOfficer()): ?>
                                 <!-- Officer only. Issuing a sign-in hands someone the ability to
                                      file figures that become the municipality's official
                                      statistics — not a staff-level action. -->
                                 <a href="access.php?id=<?= (int) $m['id'] ?>"
+                                   data-modal-page
+                                   data-modal-title="<?= ($m['username'] ?? null) ? 'Access' : 'Issue sign-in' ?> &mdash; <?= e($m['full_name']) ?>"
                                    class="btn btn-sm btn-outline-<?= ($m['username'] ?? null) ? 'secondary' : 'primary' ?>">
                                     <i class="fa-solid fa-key"></i>
                                     <?= ($m['username'] ?? null) ? 'Access' : 'Issue sign-in' ?>
                                 </a>
                             <?php endif; ?>
 
-                            <form method="post" class="d-inline">
+                            <?php
+                            /* DEACTIVATING SOMEBODY WAS ONE UNGUARDED CLICK.
+                             *
+                             * The button sits immediately after Edit and Access in a row of
+                             * identically sized controls, and it silently stops a real person
+                             * receiving the SMS notices this office sends about their own
+                             * destination — closures, advisories, submission reminders. They
+                             * are not told. The first anyone learns of a misclick is a
+                             * manager who stopped answering.
+                             *
+                             * Asked through the same dialog as every other consequential
+                             * action here rather than through the browser's own box, and
+                             * phrased as what actually happens to that named person. */
+                            $askActivate = (int) $m['is_active'] === 1
+                                ? 'Deactivate ' . $m['full_name'] . '? They keep their records and their '
+                                  . 'sign-in, but stop receiving advisories, closures and submission '
+                                  . 'reminders for ' . ($m['destination_name'] ?? 'their destination') . '. '
+                                  . 'They are not notified of this.'
+                                : 'Reactivate ' . $m['full_name'] . '? They begin receiving notices again.';
+                            ?>
+                            <form method="post" class="d-inline"
+                                  data-confirm="<?= e($askActivate) ?>"
+                                  data-confirm-tone="<?= (int) $m['is_active'] === 1 ? 'danger' : 'normal' ?>">
                                 <?= csrf_field() ?>
                                 <input type="hidden" name="id" value="<?= (int) $m['id'] ?>">
                                 <input type="hidden" name="activate" value="<?= (int) $m['is_active'] === 1 ? '0' : '1' ?>">
@@ -206,6 +234,12 @@ require __DIR__ . '/../_partials/head.php';
 <?php endif; ?>
 
 <?php require __DIR__ . '/../../app/views/partials/pager.php'; ?>
+
+<?php /* Edit and Access open in here. ABOVE the Add sheet on purpose: both
+         render the same _form.php, so while this is open the page holds two
+         elements with each of that form's ids and getElementById answers with
+         whichever comes first. See the partial. */ ?>
+<?php require __DIR__ . '/../_partials/page-modal.php'; ?>
 
 <?php /* The registry's own copy of the add form. Same _form.php create.php and
          edit.php use, so a field added there appears here without anyone

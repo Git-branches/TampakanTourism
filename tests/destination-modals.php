@@ -144,9 +144,9 @@ echo "\n--- the list itself ---\n";
 
 $list = test_get_as($sid, '/admin/destinations/index.php');
 
-$is('the dialog is on the page', str_contains($list, 'id="destPageModal"'));
+$is('the dialog is on the page', str_contains($list, 'id="pageModal"'));
 $is('its body is empty until something is fetched',
-    (bool) preg_match('/id="destPageModalBody"\s*>\s*<\/div>/', $list));
+    (bool) preg_match('/id="pageModalBody"\s*>\s*<\/div>/', $list));
 
 preg_match_all('/data-modal-page/', $list, $triggers);
 
@@ -162,7 +162,7 @@ foreach (['edit.php', 'photos.php', 'routes.php', 'heritage.php'] as $file) {
 
 /* The dialog must be declared before the Add sheet, or the coordinate picker
    injected into it finds the Add sheet's #pickerMap instead of its own. */
-$posModal = strpos($list, 'id="destPageModal"');
+$posModal = strpos($list, 'id="pageModal"');
 $posAdd   = strpos($list, 'id="addDestination"');
 
 $is('the dialog is declared above the Add sheet',

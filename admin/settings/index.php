@@ -67,6 +67,12 @@ $editable = [
        working on. See QrService::url(). */
     'public_url'          => ['label' => 'Public website address (used by printed QR codes)', 'type' => 'url', 'max' => 200],
 
+    /* Closes the PUBLIC website only — see App\Core\Maintenance. Kept in
+       settings rather than in a file so an officer can reopen the site from
+       the screen they closed it on, at eleven at night, without FTP. */
+    'maintenance_mode'    => ['label' => 'Close the public website', 'type' => 'bool', 'max' => 1],
+    'maintenance_message' => ['label' => 'What visitors are told',  'type' => 'text', 'max' => 300],
+
     /* Municipal emergency numbers, shown on every destination's QR page.
        Settings rather than columns on destinations: the police station has one
        number for the whole municipality, and holding it in twenty destination
@@ -379,6 +385,15 @@ if (is_post()) {
         if ($rules['type'] === 'text' && mb_strlen($value) > $rules['max']) {
             $v->addError($key, 'That is longer than ' . $rules['max'] . ' characters.');
             continue;
+        }
+
+        /* A CHECKBOX THAT IS OFF POSTS NOTHING.
+           Every other type here reads absence as "left blank" and stores '',
+           which for a switch is indistinguishable from off — but only by
+           accident. Said explicitly, because the setting it drives closes the
+           public website and must not depend on a coincidence. */
+        if ($rules['type'] === 'bool') {
+            $value = isset($_POST[$key]) && $_POST[$key] !== '' && $_POST[$key] !== '0' ? '1' : '0';
         }
 
         if ((string) setting($key, '') !== $value) {
@@ -1068,6 +1083,114 @@ require __DIR__ . '/../_partials/head.php';
                 </dl>
             </div>
         </section>
+
+        <?php if (Auth::isOfficer()): ?>
+        <section class="panel" data-settab="system">
+            <?php section_head('fa-database', 'Database Backup',
+                'A copy of everything, taken now and downloaded to this computer.') ?>
+            <div class="panel__body">
+                <?php
+                /* THE WARNING IS THE FEATURE.
+                 *
+                 * This file carries every visitor's name and contact number, every
+                 * logbook entry, every feedback message and the account password
+                 * hashes. An officer who does not know that will email it to
+                 * themselves, or leave it in Downloads on a shared machine. The
+                 * button is easy; knowing what came out of it is the part the
+                 * screen has to supply. */
+                $rowTotal = 0;
+                $tableCount = 0;
+
+                foreach (App\Core\Database::all('SHOW TABLES') as $t) {
+                    $name = array_values($t)[0];
+                    $tableCount++;
+                    $rowTotal += (int) App\Core\Database::scalar('SELECT COUNT(*) FROM `' . $name . '`');
+                }
+                ?>
+                <dl class="detail-grid">
+                    <div><dt>Tables</dt><dd><?= n($tableCount) ?></dd></div>
+                    <div><dt>Rows</dt><dd><?= n($rowTotal) ?></dd></div>
+                    <div><dt>Format</dt><dd>SQL &mdash; restores with phpMyAdmin</dd></div>
+                </dl>
+
+                <div class="form-note mt-3">
+                    <span>
+                        <strong>This file contains personal data.</strong>
+                        Visitor names and contact numbers, logbook entries, feedback, and the
+                        password hashes for every account. Keep it the way you keep the paper
+                        logbooks it replaced &mdash; not in email, and not on a shared computer.
+                    </span>
+                </div>
+
+                <form method="post" action="backup.php" class="mt-3"
+                      data-confirm="Download a full backup? The file contains every visitor name and contact number this system holds, and the password hashes for every account. Save it somewhere only the Office can reach."
+                      data-confirm-tone="normal">
+                    <?= csrf_field() ?>
+                    <button type="submit" class="btn btn-brand btn-sm">
+                        <i class="fa-solid fa-download"></i> Download backup
+                    </button>
+                </form>
+
+                <p class="report-note">
+                    Generated in PHP rather than by <code>mysqldump</code>, which most shared
+                    hosts disable &mdash; a backup button that works here and fails silently on
+                    the live server would be worse than none, because the Office would believe
+                    they had backups. Nothing is written to the server: the file is streamed
+                    straight to this browser.
+                </p>
+            </div>
+        </section>
+
+        <section class="panel" data-settab="system">
+            <?php
+            $maintOn = trim((string) setting('maintenance_mode', '0')) === '1';
+            section_head('fa-triangle-exclamation', 'Maintenance Mode',
+                'Close the public website while you work on it.',
+                $maintOn ? 'PUBLIC SITE IS CLOSED' : 'Public site is open',
+                $maintOn ? 'flag' : 'ok');
+            ?>
+            <div class="panel__body">
+                <?php if ($maintOn): ?>
+                    <div class="alert alert-warning">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                        <strong>The public website is closed right now.</strong>
+                        Visitors, and anyone scanning a QR code at a destination, are seeing the
+                        notice below instead of the site. This screen and the manager area are
+                        unaffected.
+                    </div>
+                <?php endif; ?>
+
+                <p class="text-muted small mb-3">
+                    Closes the public website, the destination pages and the QR pages, and
+                    answers them with a short notice and a 503 so search engines know to come
+                    back rather than recording the notice as the page. <strong>This admin area
+                    and the manager area stay open</strong> &mdash; a switch that locked out the
+                    only people who can turn it off would be a trap, not a switch.
+                </p>
+
+                <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" role="switch"
+                           id="maintenance_mode" name="maintenance_mode" value="1"
+                           <?= $maintOn ? 'checked' : '' ?>>
+                    <label class="form-check-label" for="maintenance_mode">
+                        Close the public website
+                    </label>
+                </div>
+
+                <label for="maintenance_message" class="form-label">What visitors are told</label>
+                <textarea id="maintenance_message" name="maintenance_message" rows="2"
+                          maxlength="300" class="form-control"
+                          placeholder="The Tampakan tourism website is briefly offline for scheduled maintenance. Please try again shortly."><?=
+                    old('maintenance_message', (string) setting('maintenance_message', '')) ?></textarea>
+
+                <p class="text-muted small mt-2 mb-0">
+                    Left blank, visitors are told the site is briefly offline for maintenance.
+                    The office name and telephone number from the Office tab are shown beneath
+                    it, so somebody with an urgent question still has a way to ask it.
+                </p>
+            </div>
+        </section>
+        <?php endif; ?>
 
         <?php /* An "Accounts" panel used to sit here whose whole job was a link to
                  accounts.php. User Accounts is a tab of its own now, so the panel
