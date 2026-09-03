@@ -175,7 +175,7 @@ $unchanged  = AdminRepository::usingInstallerPassword();
 $officers   = AdminRepository::activeOfficerCount();
 
 /* Counted over the WHOLE list, not the page window. A tally that changes when
-   you turn the page is a tally nobody can act on — the roster learned this. */
+   you turn the page is a tally nobody can act on — the tour guide list learned this. */
 /* Officers and staff were counted separately here. With one kind of account
    that was a card reading "Tourism Staff 0" beside a card reading the total —
    two numbers that could never disagree. These four can. */
@@ -234,7 +234,7 @@ require __DIR__ . '/../_partials/head.php';
     <?php endforeach; ?>
 </div>
 
-<?php /* One bar, the same one the roster, arrivals and messages use — so the
+<?php /* One bar, the same one the tour guide list, arrivals and messages use — so the
          primary action sits where it sits on every other list in this system. */ ?>
 <div class="filter-bar">
     <div class="filter-bar__row">
@@ -358,7 +358,7 @@ require __DIR__ . '/../_partials/head.php';
 <?php /* A SHEET, LIKE EVERY OTHER "ADD" IN THIS SYSTEM.
          It was a permanent panel below the table: a six-field form open on the
          screen at all times, on a page an officer visits mostly to reset one
-         password. The roster, the managers and the videos all put creation
+         password. The tour guide list, the managers and the videos all put creation
          behind a button, and this now matches them.
 
          --wide, not the 680px default: six fields in three columns wrap onto

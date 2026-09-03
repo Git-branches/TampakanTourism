@@ -5,6 +5,7 @@ namespace App\Repositories;
 
 use App\Core\Database;
 use App\Core\DocumentUploader;
+use App\Core\SmsGateway;
 
 /**
  * =============================================================================
@@ -272,6 +273,7 @@ final class InspectionRepository
     {
         $items = Database::all(
             'SELECT i.*, q.title, q.guidance, q.is_required, q.sort_order,
+                    q.min_photos, q.max_photos,
                     a.full_name AS reviewed_by_name,
                     (SELECT COUNT(*) FROM inspection_photos p WHERE p.item_id = i.id) AS photo_count
                FROM inspection_items i
@@ -291,10 +293,23 @@ final class InspectionRepository
 
     public static function findItem(int $itemId, int $reportId): ?array
     {
+        /* THE SAME SHAPE items() RETURNS, minus the photographs.
+           It used to select title and is_required only, which was enough while
+           its two callers used it as a null guard. A screen then rendered one
+           item from it and read $item['guidance'] — a key this row did not have
+           — and PHP said so. Two callers guarding on null cannot tell you the
+           row is half-built; the first screen to actually display it can.
+
+           guidance and reviewed_by_name are added rather than the display being
+           taught to cope, because a repository returning two different shapes
+           for the same record under two method names is the actual defect. */
         return Database::first(
-            'SELECT i.*, q.title, q.is_required
+            'SELECT i.*, q.title, q.guidance, q.is_required, q.sort_order,
+                    q.min_photos, q.max_photos,
+                    a.full_name AS reviewed_by_name
                FROM inspection_items i
                JOIN inspection_requirements q ON q.id = i.requirement_id
+               LEFT JOIN admins a ON a.id = i.reviewed_by
               WHERE i.id = ? AND i.report_id = ?',
             [$itemId, $reportId]
         );
@@ -432,13 +447,24 @@ final class InspectionRepository
     public static function missingRequired(int $reportId): array
     {
         $rows = Database::all(
+            /* AGAINST min_photos, NOT AGAINST ZERO.
+               This used to ask only whether a standard had any photograph at
+               all. Once the office stated a count per requirement — a first aid
+               kit needs the kit open AND its contents — one picture of a
+               two-picture standard would still have passed the gate, and the
+               number printed on the card would have been decoration. The gate
+               and the card now read the same column.
+
+               COALESCE, because a requirement created before that column
+               existed has no count and should still mean "at least one". */
             "SELECT q.title
                FROM inspection_items i
                JOIN inspection_requirements q ON q.id = i.requirement_id
               WHERE i.report_id = ?
                 AND q.is_required = 1
                 AND q.is_active = 1
-                AND (SELECT COUNT(*) FROM inspection_photos p WHERE p.item_id = i.id) = 0
+                AND (SELECT COUNT(*) FROM inspection_photos p WHERE p.item_id = i.id)
+                    < GREATEST(1, COALESCE(q.min_photos, 1))
               ORDER BY q.sort_order ASC",
             [$reportId]
         );
@@ -508,7 +534,98 @@ final class InspectionRepository
             [$status, trim($comment) !== '' ? mb_substr(trim($comment), 0, 600) : null, $adminId, $itemId, $reportId]
         );
 
+        /* AND HAND THE REPORT BACK, OR THE REQUEST CANNOT BE ACTED ON.
+         *
+         * This used to touch the item and nothing else. EDITABLE is
+         * ['draft','rejected'], so a report sitting at 'submitted' stayed
+         * locked — and the manager who opened it read "Fire Extinguisher —
+         * Needs clearer evidence" directly above "This report is Submitted and
+         * is read-only while the Office looks at it". They were asked for a
+         * photograph and denied the means to send one.
+         *
+         * The way out existed: the officer could also reject the whole report.
+         * Nothing prompted them to, and until they did the manager was stuck.
+         * Per-requirement decisions are the point of reviewing remotely; they
+         * are worth nothing if the manager cannot answer one.
+         *
+         * So a decision that is not an approval sends the report back on the
+         * spot. Approved requirements keep their status — the manager
+         * re-photographs the one that was refused, not all five. */
+        if ($status !== 'approved') {
+            Database::run(
+                "UPDATE inspection_reports
+                    SET status = 'rejected', reviewed_by = ?, reviewed_at = NOW()
+                  WHERE id = ? AND status IN ('submitted','reviewing','approved')",
+                [$adminId, $reportId]
+            );
+        }
+
         return true;
+    }
+
+    /**
+     * Texts the destination manager that the Office has decided.
+     *
+     * WHY THIS EXISTS AT ALL
+     *
+     * There is no bell in the manager shell and nothing else told them. A
+     * report could sit decided for a fortnight because the only way to find out
+     * was to open the page and look — and an approval is good for a year, so
+     * "they will notice eventually" is a year of a destination not knowing
+     * whether it is compliant.
+     *
+     * WHAT IT WILL NOT DO
+     *
+     * Send to a manager who has not opted in, send to a number the gateway
+     * cannot parse, or send outside SmsGateway — which is where the live/test
+     * switch lives. In test mode this writes to storage/logs/sms.log and no
+     * real message leaves. Every send in this system has to pass that gate;
+     * one that did not once texted a real number and spent real credit.
+     *
+     * @return bool Whether a message was actually handed to the gateway.
+     */
+    public static function notifyManager(int $reportId, string $outcome): bool
+    {
+        $row = Database::first(
+            'SELECT r.id, d.name AS destination_name,
+                    m.full_name, m.mobile_number, m.sms_opt_in
+               FROM inspection_reports r
+               JOIN destinations d ON d.id = r.destination_id
+               LEFT JOIN destination_managers m
+                      ON m.destination_id = r.destination_id AND m.is_active = 1
+              WHERE r.id = ?
+              ORDER BY m.id
+              LIMIT 1',
+            [$reportId]
+        );
+
+        if ($row === null || (int) ($row['sms_opt_in'] ?? 0) !== 1) {
+            return false;
+        }
+
+        $number = SmsGateway::normalise((string) ($row['mobile_number'] ?? ''));
+
+        if ($number === null) {
+            return false;
+        }
+
+        /* Said in the words the manager will act on. "Status changed" is a
+           notification; "two standards need a clearer photo" is an instruction. */
+        $body = match ($outcome) {
+            'approved' => 'Your compliance inspection for ' . $row['destination_name']
+                        . ' has been approved. It is valid for ' . self::VALID_MONTHS . ' months.',
+            default    => 'The Municipal Tourism Office has sent your compliance inspection for '
+                        . $row['destination_name'] . ' back. Open the Compliance Inspection page '
+                        . 'to see which standards need a clearer photo.',
+        };
+
+        $message = SmsGateway::compose(
+            'Compliance Inspection',
+            $body,
+            (string) setting('office_name', 'Tampakan Tourism Office')
+        );
+
+        return !empty(SmsGateway::send($number, $message)['ok']);
     }
 
     /**

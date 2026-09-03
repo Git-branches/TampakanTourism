@@ -123,6 +123,13 @@ $pageIcon     = 'fa-user-gear';
 $pageSubtitle = ManagerAuth::destinationName();
 
 require __DIR__ . '/_partials/head.php';
+
+/* THE OFFICER'S OWN SECTION HEADER, not a manager copy of it.
+   The request was for the same collapse behaviour, the same chevron and
+   the same spacing as Admin -> Settings; requiring the same partial is the
+   only version of that which cannot drift. It brings data-section (so the
+   fold is remembered per section) and the fa-chevron-up toggle with it. */
+require_once __DIR__ . '/../admin/_partials/section-head.php';
 ?>
 
 <?php if ($neverSet): ?>
@@ -142,9 +149,8 @@ require __DIR__ . '/_partials/head.php';
 
 <!-- ===================== CONTACT ===================== -->
 <section class="panel">
-    <header class="panel__head">
-        <h2><i class="fa-solid fa-mobile-screen"></i> How the Office reaches you</h2>
-    </header>
+    <?php section_head('fa-mobile-screen', 'How the Office reaches you',
+        'The number and address the Office uses when something needs you.') ?>
 
     <div class="panel__body">
         <form method="post" class="row g-3">
@@ -211,9 +217,8 @@ require __DIR__ . '/_partials/head.php';
 
 <!-- ===================== PASSWORD ===================== -->
 <section class="panel">
-    <header class="panel__head">
-        <h2><i class="fa-solid fa-lock"></i> Password</h2>
-    </header>
+    <?php section_head('fa-lock', 'Change Password',
+        'Only you can set this. The Office cannot read it back.') ?>
 
     <div class="panel__body">
         <form method="post" class="row g-3">
@@ -252,10 +257,12 @@ require __DIR__ . '/_partials/head.php';
 </section>
 
 <!-- ===================== WHAT THE OFFICE SETS ===================== -->
-<section class="panel">
-    <header class="panel__head">
-        <h2><i class="fa-solid fa-id-card"></i> Set by the Municipal Tourism Office</h2>
-    </header>
+<?php /* Folded by default: this section is a statement of what the Office has
+         set, with nothing on it to act on. Open sections are for work. */ ?>
+<section class="panel is-collapsed">
+    <?php section_head('fa-id-card', 'Set by the Municipal Tourism Office',
+        'Your name, destination and role. Ask the Office to change any of these.',
+        '', 'qr', true) ?>
 
     <div class="panel__body">
         <dl class="detail-grid">

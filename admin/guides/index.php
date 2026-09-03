@@ -42,7 +42,7 @@ if (is_post()) {
     }
 
     $refusal = Guides::decide($id, $status, $adminId, [
-        /* Chosen from the roster when there is one; the two text fields remain
+        /* Chosen from the tour guide list when there is one; the two text fields remain
            the fallback for a guide who has not been entered yet. The repository
            settles which wins and refuses a guide whose ID is not good. */
         'guide_id'      => $_POST['guide_id']      ?? 0,
@@ -245,7 +245,7 @@ $stopsFor = static function (array $row) use (&$stops): string {
         : '—';
 };
 
-/* THE ROSTER, AND WHO IS ALREADY OUT.
+/* THE TOUR GUIDE LIST, AND WHO IS ALREADY OUT.
  *
  * Loaded once for the whole page rather than per request card. Only guides
  * whose ID is active and unexpired appear at all — §19's gate — and the
@@ -865,7 +865,7 @@ require __DIR__ . '/../_partials/head.php';
                             <div class="alert alert-warning py-2 small mb-0">
                                 <strong>No accredited guide is available.</strong>
                                 Every guide is expired, suspended, revoked, or has no ID issued &mdash;
-                                <a href="<?= e(base_url('/admin/tour-guides/index.php')) ?>">open the roster</a>.
+                                <a href="<?= e(base_url('/admin/tour-guides/index.php')) ?>">open the tour guide list</a>.
                             </div>
                         <?php endif; ?>
                     <?php endif; ?>
@@ -873,12 +873,12 @@ require __DIR__ . '/../_partials/head.php';
                     <div class="tgq-or">OR</div>
 
                     <?php /* The escape hatch, opened by itself when the request already
-                             carries a typed name — an arrangement made before the roster
+                             carries a typed name — an arrangement made before the tour guide list
                              existed stays editable. */ ?>
                     <details <?= $typed || $roster === [] ? 'open' : '' ?>>
                         <summary class="tgq-more">
                             <i class="fa-solid fa-plus"></i>
-                            Add someone not on the roster
+                            Add someone not on the tour guide list
                             <i class="fa-solid fa-chevron-right tgq-more__chev"></i>
                         </summary>
 
@@ -900,7 +900,7 @@ require __DIR__ . '/../_partials/head.php';
                             <div class="col-12">
                                 <p class="form-text mt-0 mb-0">
                                     Leaves no record behind &mdash;
-                                    <a href="<?= e(base_url('/admin/tour-guides/create.php')) ?>">add them to the roster</a>
+                                    <a href="<?= e(base_url('/admin/tour-guides/create.php')) ?>">add them to the tour guide list</a>
                                     instead when there is time.
                                 </p>
                             </div>

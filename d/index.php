@@ -405,26 +405,14 @@ $hasDirections = $d['latitude'] !== null && $d['longitude'] !== null;
         </section>
     <?php endif; ?>
 
-    <!-- =============== 3b. THE MUNICIPALITY'S OWN HERITAGE ===============
-         SHARED BY EVERY QR CODE, and separate from the block above on purpose.
-         The section above is about this one place; this one is about Tampakan,
-         and it reads identically at Bulol Falls and at Kolon Ridge because it
-         is the same municipality either way.
+    <!-- 3b. THE MUNICIPALITY'S OWN HERITAGE was here — one paragraph about
+         Tampakan, identical at every sign, read from the municipal_heritage
+         setting. Removed at the office's request: heritage is kept per
+         destination instead, in section 3 above, and the municipal text was
+         never filled in, so this section never rendered on a single QR page.
 
-         Two sections rather than one merged paragraph: a visitor should be able
-         to tell which sentences are about the ground under their feet and which
-         are about the town they drove through to get here. -->
-    <?php
-    $municipalHeritage = trim((string) (setting('municipal_heritage', '') ?? ''));
-    $municipalTitle    = trim((string) (setting('municipal_heritage_title', '') ?? ''))
-        ?: 'Local Culture & Heritage of Tampakan';
-    ?>
-    <?php if ($municipalHeritage !== ''): ?>
-        <section class="lb-card lb-card--heritage">
-            <h2 class="lb-h2"><i class="fa-solid fa-people-group"></i> <?= e($municipalTitle) ?></h2>
-            <p><?= nl2br(e($municipalHeritage)) ?></p>
-        </section>
-    <?php endif; ?>
+         Its Settings panel went with it; the two setting rows remain in the
+         database, unread. -->
 
     <!-- ===================== GETTING AROUND =====================
          Somebody scanning this sign has already arrived, so directions here are

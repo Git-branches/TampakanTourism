@@ -2,17 +2,17 @@
 declare(strict_types=1);
 
 /**
- * TourSync — the accredited tour guide roster.
+ * TourSync — the accredited tour guide tour guide list.
  *
  * WHY THIS EXISTS AT ALL
  *
- * tour_guide_requests was built around an office that kept no roster: guide_name
+ * tour_guide_requests was built around an office that kept no tour guide list: guide_name
  * and guide_contact are free text because the officer phoned around and typed in
  * whoever answered. That worked, and it left nothing behind — no record of who
  * is accredited, no card anybody could check, and no way to stop a revoked guide
  * being assigned by an officer who had not heard.
  *
- * This is the roster. The request screen still accepts a typed name, so nothing
+ * This is the tour guide list. The request screen still accepts a typed name, so nothing
  * that worked before stops working; what it gains is a list to choose from.
  */
 
@@ -44,7 +44,7 @@ if (is_post()) {
     if (($_POST['action'] ?? '') === 'delete') {
         Roster::delete($id);
         ActivityLog::record('guide.delete', 'tour_guide', $id, 'Removed ' . $guide['full_name']);
-        Session::flash('success', $guide['full_name'] . ' was removed from the roster.');
+        Session::flash('success', $guide['full_name'] . ' was removed from the tour guide list.');
     }
 
     redirect(base_url('/admin/tour-guides/index.php'));
@@ -69,7 +69,7 @@ $search = trim((string) ($_GET['q'] ?? ''));
 /* PAGED, LIKE EVERY OTHER LIST HERE.
  *
  * This screen shipped without a pager — my omission. With one guide on the
- * roster nothing looked wrong; at forty it is a forty-row page with no way to
+ * tour guide list nothing looked wrong; at forty it is a forty-row page with no way to
  * break it, and the office has to scroll past the whole municipality to reach
  * the last name.
  *
@@ -91,7 +91,7 @@ foreach (Roster::all() as $row) {
 
 /* THE ADD FORM'S OWN COPY OF THE RECORD.
  *
- * NOT $g. The table below walks the roster with `foreach ($guides as $g)`, and
+ * NOT $g. The table below walks the tour guide list with `foreach ($guides as $g)`, and
  * the sheet is rendered after it — so a variable called $g here would hold the
  * last guide on the page by the time the form read it, and somebody's rejected
  * input would come back silently wearing a stranger's details. The manager
@@ -113,7 +113,7 @@ foreach (array_keys($sheetGuide) as $key) {
 }
 
 /* Rejected input comes back from create.php with the errors attached, and the
-   sheet reopens over the roster rather than sending anybody to a second screen
+   sheet reopens over the tour guide list rather than sending anybody to a second screen
    to read them. */
 $sheetOpen = old_all() !== [];
 
@@ -187,7 +187,10 @@ $cards = [
 
 <section class="panel">
     <header class="panel__head">
-        <h2><i class="fa-solid fa-id-card"></i> Roster</h2>
+        <?php /* Not plain "Tour Guides": the topbar above already says that, and
+                 a panel repeating its own page title says nothing. This names
+                 what the table actually holds. */ ?>
+        <h2><i class="fa-solid fa-id-card"></i> Accredited tour guides</h2>
     </header>
 
     <?php if ($guides === []): ?>
@@ -264,7 +267,7 @@ $cards = [
     <?php endif; ?>
 </section>
 
-<?php /* The roster's own copy of the add form. Same _form.php that create.php and
+<?php /* The tour guide list's own copy of the add form. Same _form.php that create.php and
          edit.php use, so a field added there appears here without anyone
          remembering to. */ ?>
 <?php /* --wide, not the 680px default. This form carries three groups where the

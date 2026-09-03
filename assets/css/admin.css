@@ -4182,7 +4182,7 @@ a { text-decoration: none; }
           font-size: .7rem; letter-spacing: .08em; color: var(--ink-3); }
 .tgq-or::before, .tgq-or::after { content: ''; flex: 1; height: 1px; background: var(--line-soft); }
 
-/* A row that opens the off-roster fields. Reads as a control because it has a
+/* A row that opens the off-list fields. Reads as a control because it has a
    chevron and a hover, which a bare <summary> does not. */
 .tgq-more {
     display: flex; align-items: center; gap: .5rem; width: 100%;
@@ -5062,4 +5062,552 @@ details[open] > .tgq-more .tgq-more__chev { transform: rotate(90deg); }
        tables look broken rather than scrollable. */
     .admin-content table th:last-child,
     .admin-content table td:last-child { padding-right: 1.1rem; }
+}
+
+/* =============================================================================
+   THE DESTINATION MANAGER'S OWN SURFACES
+   -----------------------------------------------------------------------------
+   EVERY RULE BELOW IS SCOPED TO body.is-manager, WITHOUT EXCEPTION.
+
+   This stylesheet is shared with the officer, whose interface is finished and
+   signed off. A bare `.mgr-card` would still be safe today because nothing else
+   uses the name — but the next person to add a manager style would copy the
+   shape of what is here, and an unscoped rule in this file is one rename away
+   from moving something on the officer's screen. The scope is the contract, not
+   the specificity.
+
+   The brief these serve: avoid unnecessary scrolling. Compact cards for status,
+   a dialog for the detail, collapsible sections for account information — and
+   no small inner scrollbars, which only move the problem somewhere the user
+   cannot see it.
+   ========================================================================== */
+
+/* ---- compact standard cards (Compliance Inspection) --------------------- */
+
+body.is-manager .mgr-card-grid {
+    display: grid;
+    /* auto-fill, so five standards land as two comfortable rows and a sixth
+       costs nothing. minmax(0, …) because a grid item's floor is its content
+       and a long requirement title would otherwise widen the whole track. */
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 244px), 1fr));
+    gap: .8rem;
+}
+
+body.is-manager .mgr-card {
+    display: flex;
+    flex-direction: column;
+    gap: .45rem;
+    min-width: 0;
+    padding: .85rem .9rem;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--line);
+    border-radius: var(--radius);
+}
+
+/* The status, said twice: once as a word in the pill for anyone reading, and
+   once as the edge colour for someone scanning the grid for what is left. */
+body.is-manager .mgr-card--ok   { border-left-color: var(--green); }
+body.is-manager .mgr-card--flag { border-left-color: var(--red, #B3261E); }
+body.is-manager .mgr-card--qr   { border-left-color: var(--blue, #0277BD); }
+body.is-manager .mgr-card--void { border-left-color: var(--line); }
+
+body.is-manager .mgr-card__title {
+    display: flex;
+    align-items: flex-start;
+    gap: .45rem;
+    margin: 0;
+    font-size: .93rem;
+    font-weight: 600;
+    color: var(--ink);
+    min-width: 0;
+}
+body.is-manager .mgr-card__title i { color: var(--ink-3); margin-top: .15rem; flex: none; }
+body.is-manager .mgr-card__title span { min-width: 0; overflow-wrap: anywhere; }
+
+/* Two lines of guidance, then stop. The full text is in the dialog; here it is
+   only there to tell two requirements apart. */
+body.is-manager .mgr-card__hint {
+    margin: 0;
+    font-size: .78rem;
+    line-height: 1.35;
+    color: var(--ink-3);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+body.is-manager .mgr-card__meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: .4rem .6rem;
+    margin: 0;
+    font-size: .75rem;
+    color: var(--ink-3);
+}
+body.is-manager .mgr-card__count i { margin-right: .2rem; opacity: .75; }
+body.is-manager .mgr-card__opt {
+    font-size: .7rem;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--ink-3);
+}
+
+/* Pushed to the bottom edge so every card's action sits on one line however
+   long the titles above them run. */
+body.is-manager .mgr-card__go { margin-top: auto; align-self: flex-start; }
+
+/* ---- the evidence dialog ------------------------------------------------ */
+
+body.is-manager .mgr-evidence__status {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    margin: 0 0 .5rem;
+}
+
+body.is-manager .mgr-evidence__form {
+    padding: .8rem;
+    background: var(--canvas);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+}
+
+body.is-manager .mgr-evidence__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: .5rem;
+    margin-top: .2rem;
+}
+
+body.is-manager .mgr-evidence__remarks { margin-top: .9rem; }
+
+/* On a phone the two buttons are the last thing reached and the most likely to
+   be tapped wrong, so they get the full width and the primary one goes last. */
+@media screen and (max-width: 575.98px) {
+    body.is-manager .mgr-evidence__actions { flex-direction: column-reverse; }
+    body.is-manager .mgr-evidence__actions .btn { width: 100%; }
+}
+
+/* ---- the alert form: numbered steps and tap-once chips ------------------ */
+
+body.is-manager .mgr-step { margin-bottom: 1rem; }
+body.is-manager .mgr-step:last-of-type { margin-bottom: .8rem; }
+
+body.is-manager .mgr-step__label {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    margin: 0 0 .45rem;
+    font-size: .85rem;
+    font-weight: 600;
+    color: var(--ink);
+}
+
+/* The step number, so the four parts read as a sequence rather than a form. */
+body.is-manager .mgr-step__label > span:first-child {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.35rem;
+    height: 1.35rem;
+    flex: none;
+    border-radius: 50%;
+    background: var(--green-pale);
+    color: var(--green-dark);
+    font-size: .72rem;
+    font-weight: 700;
+}
+
+body.is-manager .mgr-step__fixed {
+    margin: 0;
+    font-size: .85rem;
+    color: var(--ink-2);
+}
+body.is-manager .mgr-step__fixed i { color: var(--ink-3); margin-right: .3rem; }
+
+body.is-manager .mgr-chips { display: flex; flex-wrap: wrap; gap: .4rem; }
+
+/* The radio itself is the control and must stay operable by keyboard, so it is
+   moved out of sight rather than display:none — a hidden input takes no focus
+   and the group would be unreachable by tab. */
+body.is-manager .mgr-chip { margin: 0; }
+body.is-manager .mgr-chip input {
+    position: absolute;
+    opacity: 0;
+    width: 1px;
+    height: 1px;
+    pointer-events: none;
+}
+
+body.is-manager .mgr-chip span {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    padding: .42rem .7rem;
+    font-size: .8rem;
+    color: var(--ink-2);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background .15s var(--ease), border-color .15s var(--ease);
+}
+body.is-manager .mgr-chip span i { opacity: .7; }
+body.is-manager .mgr-chip:hover span { border-color: var(--green); }
+
+body.is-manager .mgr-chip input:checked + span {
+    background: var(--green-pale);
+    border-color: var(--green);
+    color: var(--green-dark);
+    font-weight: 600;
+}
+body.is-manager .mgr-chip input:checked + span i { opacity: 1; }
+
+/* Focus has to be visible on the label, because the input it belongs to is not. */
+body.is-manager .mgr-chip input:focus-visible + span {
+    outline: 2px solid var(--green);
+    outline-offset: 2px;
+}
+
+/* Urgency carries its own colour when chosen — "Urgent" should not look the
+   same as "For information" at a glance. */
+body.is-manager .mgr-chip--urgent input:checked + span {
+    background: #FDECEA; border-color: #8E1B1B; color: #8E1B1B;
+}
+body.is-manager .mgr-chip--warning input:checked + span {
+    background: #FDF0DC; border-color: #9A5B00; color: #9A5B00;
+}
+
+/* ---- the alert confirmation's summary list ----------------------------- */
+/* Inside a SweetAlert, which is appended to the top layer and therefore NOT a
+   descendant of body.is-manager. Scoped by its own class instead — the one
+   place in this block where that scope cannot reach, and it is named
+   distinctly enough that nothing else will collide with it. */
+.mgr-confirm {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: .3rem .8rem;
+    margin: 0;
+    text-align: left;
+    font-size: .85rem;
+}
+.mgr-confirm dt { color: #6B7280; font-weight: 500; white-space: nowrap; }
+.mgr-confirm dd { margin: 0; color: #111827; overflow-wrap: anywhere; }
+
+/* ---- and then making the alert form SHORTER than what it replaced --------
+   The chips were the request, but seven of them wrap onto three rows where a
+   <select> was one, and the first measurement came back 1.5 -> 1.8 screens on
+   a phone: longer, on the page the brief asked to shorten. Two dropdowns that
+   cost four taps had been traded for one tap and more scrolling.
+
+   So the steps pair up once there is width for it, the chips lose a little
+   padding, and step 4 — which is a statement of fact, not a question — sits on
+   the submit row instead of claiming a block of its own. */
+
+body.is-manager .mgr-chip span { padding: .34rem .62rem; }
+body.is-manager .mgr-step { margin-bottom: .75rem; }
+body.is-manager .mgr-step__label { margin-bottom: .35rem; font-size: .82rem; }
+
+/* Steps 1 and 2 side by side: the category chips need the room, the three
+   urgency chips do not. */
+@media screen and (min-width: 768px) {
+    body.is-manager .mgr-steps-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+        gap: 0 1.4rem;
+        align-items: start;
+    }
+}
+
+/* "Where" and the send button on one line — it is one short line of text and a
+   button, and stacking them cost a whole row for no decision. */
+body.is-manager .mgr-send {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: .6rem;
+    margin-top: .2rem;
+    padding-top: .7rem;
+    border-top: 1px solid var(--line);
+}
+body.is-manager .mgr-send .mgr-step { margin: 0; }
+
+/* ---- the manager dashboard: two columns, then one ----------------------- */
+
+body.is-manager .mgr-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+    gap: 1rem;
+    align-items: start;
+    margin-bottom: 1rem;
+}
+
+/* One column below 992px. The trend needs width to be readable at all, and a
+   half-width line chart on a tablet is a smear with axis labels on top of each
+   other — so it takes the whole row rather than being squeezed. */
+@media screen and (max-width: 991.98px) {
+    body.is-manager .mgr-row { grid-template-columns: minmax(0, 1fr); }
+}
+
+body.is-manager .mgr-row > .panel { margin-bottom: 0; }
+
+body.is-manager .mgr-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    min-width: 0;
+}
+body.is-manager .mgr-stack > .panel { margin-bottom: 0; }
+
+/* A FIXED HEIGHT, WHICH CHART.JS REQUIRES.
+   maintainAspectRatio is off so the canvas fills its box; without a height on
+   that box the canvas reports zero, Chart.js draws nothing, and the panel is
+   an empty rectangle with no error anywhere. */
+body.is-manager .mgr-chart { position: relative; height: 232px; }
+
+@media screen and (max-width: 575.98px) {
+    body.is-manager .mgr-chart { height: 200px; }
+}
+
+/* The range chips live in the panel header, so they must not push its height
+   around on a narrow screen. */
+body.is-manager .mgr-chips--range { margin-left: auto; }
+body.is-manager .mgr-chips--range .mgr-chip span {
+    padding: .26rem .55rem;
+    font-size: .74rem;
+}
+
+@media screen and (max-width: 575.98px) {
+    body.is-manager .panel__head:has(.mgr-chips--range) { flex-wrap: wrap; }
+    body.is-manager .mgr-chips--range { margin-left: 0; width: 100%; }
+}
+
+/* ---- the compliance meter ---------------------------------------------- */
+
+body.is-manager .mgr-meter__bar {
+    height: .5rem;
+    background: var(--canvas);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    overflow: hidden;
+}
+body.is-manager .mgr-meter__bar span {
+    display: block;
+    height: 100%;
+    background: var(--green);
+    border-radius: 999px;
+    transition: width .4s var(--ease);
+}
+
+body.is-manager .mgr-meter__read {
+    display: flex;
+    align-items: baseline;
+    gap: .4rem;
+    margin: .5rem 0 0;
+    font-size: .85rem;
+    color: var(--ink-2);
+}
+body.is-manager .mgr-meter__pct { margin-left: auto; font-weight: 700; color: var(--ink); }
+
+body.is-manager .mgr-meter__sub {
+    margin: .35rem 0 .8rem;
+    font-size: .8rem;
+    color: var(--ink-3);
+}
+body.is-manager .mgr-meter__sub i { margin-right: .25rem; opacity: .8; }
+
+/* ---- quick actions ------------------------------------------------------ */
+
+body.is-manager .mgr-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .5rem;
+}
+
+body.is-manager .mgr-action {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    min-width: 0;
+    padding: .6rem .7rem;
+    font-size: .8rem;
+    font-weight: 500;
+    color: var(--ink-2);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    transition: border-color .15s var(--ease), background .15s var(--ease);
+}
+body.is-manager .mgr-action i { color: var(--ink-3); flex: none; }
+body.is-manager .mgr-action span { min-width: 0; overflow-wrap: anywhere; }
+body.is-manager .mgr-action:hover {
+    background: var(--green-pale);
+    border-color: var(--green);
+    color: var(--green-dark);
+}
+body.is-manager .mgr-action:hover i { color: var(--green-dark); }
+
+/* The alert is the one that is pressed in a hurry, and it should not look like
+   the other three while somebody is looking for it. */
+body.is-manager .mgr-action--urgent { border-color: #E9B7B2; color: #8E1B1B; }
+body.is-manager .mgr-action--urgent i { color: #8E1B1B; }
+body.is-manager .mgr-action--urgent:hover {
+    background: #FDECEA; border-color: #8E1B1B; color: #8E1B1B;
+}
+body.is-manager .mgr-action--urgent:hover i { color: #8E1B1B; }
+
+/* ---- the QR line and the empty trend ----------------------------------- */
+
+body.is-manager .mgr-qr {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    flex-wrap: wrap;
+    margin-bottom: .7rem;
+}
+body.is-manager .mgr-qr__url {
+    flex: 1 1 14rem;
+    min-width: 0;
+    padding: .35rem .5rem;
+    font-size: .76rem;
+    background: var(--canvas);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    overflow-wrap: anywhere;
+}
+
+body.is-manager .mgr-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 232px;
+    text-align: center;
+    color: var(--ink-3);
+}
+body.is-manager .mgr-empty i { font-size: 1.9rem; color: var(--line); margin-bottom: .6rem; }
+
+/* ---- the evidence dialog: previews and the running count --------------- */
+
+body.is-manager .mgr-evidence__count {
+    margin: .4rem 0 0;
+    font-size: .78rem;
+    font-weight: 600;
+    color: var(--ink-3);
+}
+/* Green only once the requirement is met, so the manager can stop looking at
+   it. Amber-by-default would make a finished standard shout. */
+body.is-manager .mgr-evidence__count.is-met { color: var(--green-dark); }
+
+body.is-manager .mgr-previews {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+    gap: .45rem;
+    margin-top: .55rem;
+}
+
+body.is-manager .mgr-preview { margin: 0; min-width: 0; }
+body.is-manager .mgr-preview img {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--line);
+    display: block;
+}
+body.is-manager .mgr-preview figcaption {
+    margin-top: .2rem;
+    font-size: .68rem;
+    color: var(--ink-3);
+    /* One line. A phone camera's filename is longer than the thumbnail. */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* The card's photo counter, matching the dialog's. */
+body.is-manager .mgr-card__count.is-met { color: var(--green-dark); font-weight: 600; }
+body.is-manager .mgr-card__count.is-met i { opacity: 1; }
+
+/* ---- the evidence viewer ------------------------------------------------
+   A <dialog>, so it stacks above #pageModal in the top layer — the photograph
+   is usually clicked from inside that dialog, and anything positioned with
+   z-index would have rendered underneath it.
+
+   Not scoped to body.is-manager, because a dialog in the top layer is not
+   painted as a descendant of body and the scope would never match. The class
+   name carries the scoping instead: nothing in the officer's markup uses it,
+   and the script that opens it is loaded only from the manager foot.
+   ---------------------------------------------------------------------- */
+
+.mgr-lightbox {
+    padding: 0;
+    border: 0;
+    max-width: 100vw;
+    max-height: 100vh;
+    width: auto;
+    background: transparent;
+    overflow: visible;
+}
+.mgr-lightbox::backdrop { background: rgba(17, 24, 39, .82); }
+
+.mgr-lightbox__frame {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .5rem;
+}
+
+/* Sized to the VIEWPORT, not to the file. A phone camera hands over a
+   1080x1920 photograph, and the old tab showed it at full size with the top
+   third of a logbook page filling the screen. */
+.mgr-lightbox__frame img {
+    display: block;
+    max-width: min(92vw, 1100px);
+    max-height: 82vh;
+    width: auto;
+    height: auto;
+    border-radius: 6px;
+    background: #111827;
+    box-shadow: 0 18px 60px rgba(0, 0, 0, .45);
+}
+
+.mgr-lightbox__frame figcaption {
+    max-width: min(92vw, 1100px);
+    color: #F3F4F6;
+    font-size: .82rem;
+    text-align: center;
+    overflow-wrap: anywhere;
+}
+
+/* Fixed rather than absolute: the dialog's own box shrinks to the photograph,
+   so a corner button anchored to it would wander with every image. */
+.mgr-lightbox__close {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    width: 2.4rem;
+    height: 2.4rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, .92);
+    color: #111827;
+    font-size: 1rem;
+    cursor: pointer;
+}
+.mgr-lightbox__close:hover { background: #fff; }
+
+/* The whole picture is the target on a phone, where a 2.4rem circle in the
+   corner is a small thing to hit while holding a torch. */
+@media screen and (max-width: 575.98px) {
+    .mgr-lightbox__frame img { max-width: 96vw; max-height: 74vh; }
+    .mgr-lightbox__close { top: .6rem; right: .6rem; }
 }

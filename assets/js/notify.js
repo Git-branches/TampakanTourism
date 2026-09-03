@@ -208,10 +208,16 @@
             return;
         }
 
-        window.Swal.fire(inFront(merge(BASE, {
+        /* An optional markup body, for a confirmation that has to show a list
+           rather than a sentence — the manager's alert summary is four labelled
+           lines and they collapse into one run-on if passed as `text`. Callers
+           that pass `html` are responsible for escaping what goes in it; every
+           existing caller passes `text` and is unaffected. */
+        var body = o.html ? { html: o.html } : { text: text };
+
+        window.Swal.fire(inFront(merge(merge(BASE, body), {
             icon:               danger ? 'warning' : 'question',
             title:              title,
-            text:               text,
             showCancelButton:   true,
             confirmButtonText:  confirm,
             cancelButtonText:   cancel,

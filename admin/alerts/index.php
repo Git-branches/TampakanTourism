@@ -22,6 +22,7 @@ use App\Core\Csrf;
 use App\Core\Session;
 use App\Core\SmsGateway;
 use App\Repositories\AlertRepository as Alerts;
+use App\Repositories\ManagerNotificationRepository as Bell;
 
 Auth::require();
 
@@ -93,6 +94,20 @@ if (is_post()) {
 
         ActivityLog::record('alert.replied', 'destination_alert', $id,
             'Replied to ' . $where . ': ' . mb_substr($body, 0, 100));
+
+        /* The text may not arrive — no signal, no credit, opted out. The
+           bell is the copy that cannot fail to be delivered. */
+        $alertRow = Alerts::find($id);
+
+        if ($alertRow !== null) {
+            Bell::record((int) $alertRow['destination_id'], 'alert_response',
+                'The Office replied to your alert', [
+                    'body'        => $body,
+                    'link'        => base_url('/manager/alert.php'),
+                    'entity_type' => 'destination_alert',
+                    'entity_id'   => $id,
+                ]);
+        }
 
         if ($sms['sent']) {
             Session::flash('success', SmsGateway::isLive()

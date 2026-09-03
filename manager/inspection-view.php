@@ -126,8 +126,11 @@ $itemTone = static fn (string $s): string => match ($s) {
                 <div class="evidence-grid">
                     <?php foreach ($item['photos'] as $photo): ?>
                         <figure class="evidence">
+                            <?php /* Same viewer as the evidence dialog. The href
+                                     remains the no-JavaScript path. */ ?>
                             <a href="<?= e(base_url('/api/inspections/photo.php?id=' . (int) $photo['id'] . '&report=' . $id)) ?>"
-                               target="_blank" rel="noopener">
+                               data-lightbox
+                               data-caption="<?= e((string) ($photo['caption'] ?: $item['title'])) ?>">
                                 <img src="<?= e(base_url('/api/inspections/photo.php?id=' . (int) $photo['id'] . '&report=' . $id)) ?>"
                                      alt="<?= e((string) ($photo['caption'] ?: $item['title'])) ?>" loading="lazy">
                             </a>

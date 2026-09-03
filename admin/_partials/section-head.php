@@ -29,13 +29,21 @@ if (!function_exists('section_head')) {
      * @param string $subtitle Already-escaped HTML
      * @param string $badge    Optional count, escaped here
      * @param string $tone     Pill tone: qr | ok | flag | void
+     * @param bool   $folded   Start collapsed, for a section that is reference
+     *                         material rather than something to act on. The
+     *                         CALLER must also put is-collapsed on its .panel —
+     *                         this function only draws the header, and a chevron
+     *                         pointing down over an open panel is worse than no
+     *                         default at all. Defaults false, so every existing
+     *                         caller is untouched.
      */
     function section_head(
         string $icon,
         string $title,
         string $subtitle = '',
         string $badge = '',
-        string $tone = 'qr'
+        string $tone = 'qr',
+        bool $folded = false
     ): void {
         /* A STABLE SLUG, BECAUSE THE PRE-PAINT SCRIPT HAS NO DOM TO SEARCH.
          *
@@ -68,7 +76,9 @@ if (!function_exists('section_head')) {
                      to type="submit", and eleven of those would mean eleven ways to
                      save the page by pressing Enter in a text field. */ ?>
             <button type="button" class="set-head__toggle" data-collapse
-                    aria-expanded="true" aria-label="Collapse this section">
+                    <?= $folded ? 'data-folded-default' : '' ?>
+                    aria-expanded="<?= $folded ? 'false' : 'true' ?>"
+                    aria-label="<?= $folded ? 'Expand' : 'Collapse' ?> this section">
                 <i class="fa-solid fa-chevron-up" aria-hidden="true"></i>
             </button>
         </header>

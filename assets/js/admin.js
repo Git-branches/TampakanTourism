@@ -186,21 +186,79 @@
      * decides the words and the tone; this only asks the house to draw it.
      * The dock remains the answer when the script is blocked, because then
      * the browser follows the redirect and the server renders it there. */
-    function adoptToast(doc) {
+    /* The message and its tone, read out of a fetched page's dock. Split out so
+       adoptToast and stashToast cannot disagree about what counts as a flash. */
+    function readToast(doc) {
         var made = doc.querySelector('#toastDock .toast');
 
-        if (!made) { return; }
+        if (!made) { return null; }
 
         var body    = made.querySelector('.toast__body');
         var message = (body ? body.textContent : made.textContent).trim();
 
-        if (message === '') { return; }
+        if (message === '') { return null; }
 
         var tone = 'Info';
 
         if (made.classList.contains('toast--success')) { tone = 'Success'; }
         if (made.classList.contains('toast--danger'))  { tone = 'Error'; }
         if (made.classList.contains('toast--warning')) { tone = 'Warning'; }
+
+        return { node: made, message: message, tone: tone };
+    }
+
+    var TOAST_STASH = 'toursync.toast.pending';
+
+    /* Hold a flash across a deliberate reload. Used only by a form marked
+       data-modal-reload: its POST already consumed the flash server-side, so
+       without this the reloaded page would say nothing happened. */
+    function stashToast(doc) {
+        var got = readToast(doc);
+
+        if (got === null) { return; }
+
+        try {
+            sessionStorage.setItem(TOAST_STASH, JSON.stringify({
+                message: got.message,
+                tone: got.tone
+            }));
+        } catch (e) { /* private mode — the message is lost, the upload is not */ }
+    }
+
+    /* And replay it, once, on the page that comes back. */
+    (function () {
+        var raw;
+
+        try {
+            raw = sessionStorage.getItem(TOAST_STASH);
+            if (raw !== null) { sessionStorage.removeItem(TOAST_STASH); }
+        } catch (e) { return; }
+
+        if (!raw) { return; }
+
+        var held;
+
+        try { held = JSON.parse(raw); } catch (e) { return; }
+
+        if (!held || !held.message) { return; }
+
+        /* notify.js defines TourSync on its own script tag, which runs before
+           this one, but the toast is drawn on DOMContentLoaded either way. */
+        document.addEventListener('DOMContentLoaded', function () {
+            var show = window.TourSync && window.TourSync['show' + (held.tone || 'Info')];
+
+            if (typeof show === 'function') { show(held.message); }
+        });
+    })();
+
+    function adoptToast(doc) {
+        var got = readToast(doc);
+
+        if (got === null) { return; }
+
+        var made    = got.node;
+        var message = got.message;
+        var tone    = got.tone;
 
         var show = window.TourSync && window.TourSync['show' + tone];
 
@@ -776,11 +834,50 @@
             }
         }
 
+        /* A SECOND LIST, FOR SECTIONS THAT START FOLDED.
+           A panel the server rendered collapsed (data-folded-default) has to be
+           able to stay open once somebody opens it — otherwise the next
+           navigation folds it again and the control looks broken. Storing only
+           the folded keys cannot express "opened this one", because its default
+           is the opposite of everything else's.
+
+           Nothing on the officer's side sets a default, so this list stays empty
+           there and the behaviour is exactly what it was. */
+        var OPEN_KEY = 'toursync.unfolded';
+
+        function unfolded() {
+            try {
+                return JSON.parse(window.localStorage.getItem(OPEN_KEY) || '[]') || [];
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function rememberOpen(list) {
+            try {
+                window.localStorage.setItem(OPEN_KEY, JSON.stringify(list));
+            } catch (e) { /* folding still works for this visit */ }
+        }
+
         var shut = folded();
+        var open = unfolded();
 
         document.querySelectorAll('.panel').forEach(function (panel) {
-            if (panel.querySelector('[data-collapse]') && shut.indexOf(keyOf(panel)) !== -1) {
+            var toggle = panel.querySelector('[data-collapse]');
+
+            if (!toggle) { return; }
+
+            var key = keyOf(panel);
+
+            if (shut.indexOf(key) !== -1) {
                 fold(panel, true);
+                return;
+            }
+
+            /* Only a default-folded panel can be re-opened by this list; for
+               everything else "not folded" is already the rendered state. */
+            if (toggle.hasAttribute('data-folded-default') && open.indexOf(key) !== -1) {
+                fold(panel, false);
             }
         });
 
@@ -800,6 +897,15 @@
             if (close) { list.push(key); }
 
             remember(list);
+
+            /* And the mirror of it, so a default-folded section stays however
+               the user last left it. Kept in step with the list above: a key is
+               never in both. */
+            var opened = unfolded().filter(function (k) { return k !== key; });
+
+            if (!close) { opened.push(key); }
+
+            rememberOpen(opened);
         });
 
         /* A FOLDED SECTION MUST NOT SWALLOW AN ERROR.
@@ -1211,6 +1317,25 @@
                 /* The response is the page the server redirected to, so it
                    carries the flash the application decided on. */
                 var said = new DOMParser().parseFromString(html, 'text/html');
+
+                /* OPT-IN: close and reload instead of refilling the dialog.
+                   For a form whose result changes the page BEHIND the dialog —
+                   the manager's evidence upload turns a card from "0 photos ·
+                   Pending" into "1 photo · Awaiting review" — refilling the
+                   dialog would leave that card lying until the next navigation.
+                   Nothing carries this attribute unless it says so, so every
+                   existing dialog keeps refilling exactly as before. */
+                if (form.hasAttribute('data-modal-reload')) {
+                    /* THE FLASH IS ALREADY SPENT. The fetch above followed the
+                       redirect, so the server handed this response its "Photo
+                       added" message and cleared it — reloading now would show
+                       nothing at all. So the message is carried across the
+                       reload by hand and replayed on the other side. */
+                    stashToast(said);
+                    modal.close();
+                    window.location.reload();
+                    return;
+                }
 
                 load(showing, showingLabel);
                 adoptToast(said);

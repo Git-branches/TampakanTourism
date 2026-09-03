@@ -95,12 +95,23 @@ $editable = [
        to edit the database by hand. */
     'alert_sms_recipients' => ['label' => 'Extra numbers to text', 'type' => 'text', 'max' => 400],
 
-    /* Shown on EVERY destination's QR page, unlike destinations.cultural_heritage
-       which describes one place. Same words at every sign, because it is the
-       same municipality. 'text' with a large max — the validator only measures
-       length, and the textarea is chosen at render time. */
-    'municipal_heritage_title' => ['label' => 'Heading', 'type' => 'text', 'max' => 120],
-    'municipal_heritage'       => ['label' => 'The text itself', 'type' => 'text', 'max' => 4000],
+    /* municipal_heritage and municipal_heritage_title were here — a paragraph
+       about Tampakan shown on every destination's QR page, below that
+       destination's own heritage. Removed at the office's request: they keep
+       heritage per destination instead (admin/destinations/heritage.php), which
+       is what they actually use — 10 of 10 destinations have heritage photo
+       items, and the municipal text was never filled in, so the section never
+       once appeared on a QR page.
+
+       BOTH KEYS HAD TO LEAVE $editable, not just the fields. The save loop below
+       writes $_POST[$key] ?? '' for every key in here, so a key with no rendered
+       field is silently blanked on every save. Removing the panel and leaving
+       the keys would have been a slow eraser, not a tidy-up.
+
+       The two rows are still in the settings table and the migration that seeds
+       them is untouched, the same way the old hero_* rows were kept: nothing
+       reads them now, and they hold the only copy of the heading the office
+       chose. Recoverable from git if the client asks for it back. */
 
     'retention_months'    => ['label' => 'Retain personal data for (months)', 'type' => 'int', 'min' => 6,  'max' => 120],
     'dedupe_window_hours' => ['label' => 'Duplicate detection window (hours)','type' => 'int', 'min' => 1,  'max' => 72],
@@ -570,50 +581,10 @@ require __DIR__ . '/../_partials/head.php';
                 </div>
             </section>
 
-            <section class="panel" data-settab="public">
-                <?php section_head('fa-people-group', 'Local Culture &amp; Heritage',
-                    'Short introduction about Tampakan, shown on every destination&rsquo;s QR page.') ?>
-                <div class="panel__body">
-                    <p class="text-muted small mb-3">
-                        Shown on <strong>every destination's QR page</strong>, below that destination's own
-                        heritage section. This is about Tampakan itself &mdash; the people, the customs, the
-                        history a visitor should know wherever in the municipality they happen to be standing.
-                        Written once here rather than copied into each destination, so correcting it corrects
-                        it everywhere.
-                    </p>
-
-                    <div class="mb-3">
-                        <label for="municipal_heritage_title" class="form-label">
-                            <?= e($editable['municipal_heritage_title']['label']) ?>
-                        </label>
-                        <input type="text" id="municipal_heritage_title" name="municipal_heritage_title"
-                               maxlength="120"
-                               class="form-control <?= has_error('municipal_heritage_title') ? 'is-invalid' : '' ?>"
-                               value="<?= old('municipal_heritage_title', (string) setting('municipal_heritage_title', '')) ?>">
-                        <?php if (has_error('municipal_heritage_title')): ?>
-                            <div class="field-error"><?= e(error_for('municipal_heritage_title')) ?></div>
-                        <?php endif; ?>
-                    </div>
-
-                    <div>
-                        <label for="municipal_heritage" class="form-label">
-                            <?= e($editable['municipal_heritage']['label']) ?>
-                        </label>
-                        <?php /* A textarea, not an input. This is paragraphs — the
-                                 B'laan and T'boli communities of the area, the
-                                 harvest customs, why the mountain matters. */ ?>
-                        <textarea id="municipal_heritage" name="municipal_heritage" rows="8" maxlength="4000"
-                                  class="form-control <?= has_error('municipal_heritage') ? 'is-invalid' : '' ?>"
-                                  placeholder="Tampakan sits at the foot of Mt. Matutum, on land the B'laan people have lived on for generations&hellip;"><?= old('municipal_heritage', (string) setting('municipal_heritage', '')) ?></textarea>
-                        <p class="form-text">
-                            Leave blank and the section simply does not appear on any QR page.
-                        </p>
-                        <?php if (has_error('municipal_heritage')): ?>
-                            <div class="field-error"><?= e(error_for('municipal_heritage')) ?></div>
-                        <?php endif; ?>
-                    </div>
-                </div>
-            </section>
+            <?php /* The "Local Culture & Heritage" panel used to sit here — one
+                     paragraph about Tampakan, repeated on every destination's QR
+                     page. Removed with its two $editable keys; see the note
+                     beside them for why the keys had to go with the fields. */ ?>
 
             <?php /* The Homepage Hero panel used to sit HERE, inside this form.
                      It is now rendered after the form closes, because each slide
@@ -1263,14 +1234,14 @@ require __DIR__ . '/../_partials/head.php';
 <?php
 /* THE SLIDE EDITOR, ONE SHEET PER SLIDE PLUS ONE FOR A NEW ONE.
  *
- * The same .sheet dialog the roster, the managers and the videos use, so a slide
+ * The same .sheet dialog the tour guide list, the managers and the videos use, so a slide
  * is edited the way everything else in this system is edited. Rendering one per
  * slide rather than a single sheet repopulated by JavaScript means the fields
  * are filled by PHP with the values already escaped, and a sheet opened with
  * scripting broken is still the right slide's form.
  *
  * $slide is a local here and shadows nothing — the settings loops above finished
- * long ago and the roster's lesson about a loop variable leaking into a form is
+ * long ago and the tour guide list's lesson about a loop variable leaking into a form is
  * respected by giving this its own name. */
 $heroSheet = static function (?array $s): void {
     $sid    = $s !== null ? (int) $s['id'] : 0;

@@ -226,6 +226,14 @@ check('the token endpoint answers with JSON',
 echo "\n--- clean up ---\n";
 
 Database::run('DELETE FROM arrival_report_days WHERE report_id = ?', [$reportId]);
+/* The bell row this report's approval created goes with it. Without
+   this the table collects one orphan per suite run, pointing at a
+   report id that no longer exists. */
+Database::run(
+    'DELETE FROM manager_notifications WHERE entity_type = ? AND entity_id = ?',
+    ['arrival_report', $reportId]
+);
+
 Database::run('DELETE FROM arrival_reports WHERE id = ?', [$reportId]);
 Database::run(
     'DELETE FROM arrival_daily_summary WHERE destination_id = ? AND visit_date BETWEEN ? AND ?',

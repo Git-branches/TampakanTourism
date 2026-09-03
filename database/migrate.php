@@ -1070,7 +1070,7 @@ echo "  ok    alert notification settings seeded\n";
 //
 //  WHY THIS IS NOT A BOOKING SYSTEM
 //
-//  The office does not keep a roster of accredited guides, does not hold their
+//  The office does not keep a tour guide list of accredited guides, does not hold their
 //  calendars, and assigns whoever is free by phoning around. A schema built for
 //  availability windows and confirmations would describe a process that does not
 //  exist, and every one of those columns would sit empty. What the office
@@ -1129,7 +1129,7 @@ if ($tableExists($pdo, 'tour_guide_requests')) {
             status ENUM('new','acknowledged','assigned','completed','declined','cancelled')
                    NOT NULL DEFAULT 'new',
 
-            -- Free text on purpose. See the note above about the roster.
+            -- Free text on purpose. See the note above about the tour guide list.
             guide_name    VARCHAR(120) NULL,
             guide_contact VARCHAR(20)  NULL,
 
@@ -1756,15 +1756,15 @@ $addColumn($pdo, 'tour_guide_requests', 'needs_advice',
 // -----------------------------------------------------------------------------
 //  WHAT CHANGED SINCE tour_guide_requests WAS BUILT
 //
-//  That table's own comment says the office keeps no roster and assigns whoever
+//  That table's own comment says the office keeps no tour guide list and assigns whoever
 //  is free by phoning around, which is why guide_name and guide_contact are free
 //  text. The office has since asked for accredited guides with credentials,
-//  certificates and a printed ID — so the roster now exists, and this is it.
+//  certificates and a printed ID — so the tour guide list now exists, and this is it.
 //
 //  guide_name and guide_contact are NOT removed. They stay as the SNAPSHOT of
 //  who was assigned: a guide who later leaves, is revoked, or changes their
 //  number must not rewrite what a visitor was told last March. guide_id points
-//  at the roster row; the two text columns record what the SMS actually said.
+//  at the tour guide list row; the two text columns record what the SMS actually said.
 //
 //  EXPIRY IS DERIVED, NOT STORED
 //
@@ -1814,7 +1814,7 @@ if ($tableExists($pdo, 'tour_guides')) {
             status ENUM('active','suspended','revoked') NOT NULL DEFAULT 'active',
 
             -- The date on the card. NULL means no ID has been issued yet, which
-            -- is a guide on the roster who cannot yet be assigned.
+            -- is a guide on the tour guide list who cannot yet be assigned.
             valid_until  DATE NULL,
             id_issued_at DATETIME NULL,
 
@@ -1909,8 +1909,8 @@ if ($tableExists($pdo, 'tour_guide_certificates')) {
     echo "  ok    tour_guide_certificates created\n";
 }
 
-/* Which roster guide was assigned. SET NULL rather than CASCADE for the same
-   reason the text columns stay: deleting a guide from the roster must not
+/* Which tour guide list guide was assigned. SET NULL rather than CASCADE for the same
+   reason the text columns stay: deleting a guide from the tour guide list must not
    delete the record of the arrangements they were part of. */
 $addColumn($pdo, 'tour_guide_requests', 'guide_id',
     'guide_id INT UNSIGNED NULL AFTER status');
@@ -2215,5 +2215,121 @@ if ($typeColumn !== false && !str_contains((string) $typeColumn['Type'], "'festi
 } else {
     echo "  skip  announcements.type already carries the event kinds\n";
 }
+
+// =============================================================================
+//  2026-09 — How many photographs each standard needs.
+// -----------------------------------------------------------------------------
+//  The office asked for a stated count per requirement: a first aid kit needs
+//  two pictures (the kit open, and the contents) and an extinguisher needs one
+//  or two (the unit, and its gauge if it is not legible in the first). A manager
+//  standing in front of it should not have to guess how much is enough.
+//
+//  Two columns rather than one, because "1-2" is a range and a single number
+//  cannot say it. min_photos is what the submit is measured against; max_photos
+//  is the guidance printed on the card, NOT a limit enforced against the
+//  manager — refusing a third photograph of a hazard would be the software
+//  arguing with somebody who is standing at the hazard.
+// =============================================================================
+
+$hasCounts = $pdo->query("SHOW COLUMNS FROM inspection_requirements LIKE 'min_photos'")
+                 ->fetch(PDO::FETCH_ASSOC);
+
+if ($hasCounts === false) {
+    $pdo->exec(
+        "ALTER TABLE inspection_requirements
+            ADD COLUMN min_photos TINYINT UNSIGNED NOT NULL DEFAULT 1 AFTER guidance,
+            ADD COLUMN max_photos TINYINT UNSIGNED NOT NULL DEFAULT 2 AFTER min_photos"
+    );
+
+    echo "  ok    inspection_requirements gained min_photos and max_photos\n";
+} else {
+    echo "  skip  inspection_requirements already states its photo counts\n";
+}
+
+/* The five the office settled on. Matched by title because these rows are
+   seeded rather than authored — an id would differ between this laptop and the
+   server. is_required is set here too: the restroom used to be optional and the
+   office now wants all five. */
+$standards = [
+    ['Fire Extinguisher',            1, 2],
+    ['First Aid Kit',                2, 2],
+    ['Clean Restroom',               1, 2],
+    ['Emergency and Safety Signage', 1, 2],
+    ['Clean and Safe Tourist Area',  2, 2],
+];
+
+$setCounts = $pdo->prepare(
+    'UPDATE inspection_requirements
+        SET min_photos = ?, max_photos = ?, is_required = 1
+      WHERE title = ?'
+);
+
+$touched = 0;
+
+foreach ($standards as [$stdTitle, $stdMin, $stdMax]) {
+    $setCounts->execute([$stdMin, $stdMax, $stdTitle]);
+    $touched += $setCounts->rowCount();
+}
+
+echo "  ok    {$touched} standard(s) given a photo count and marked required\n";
+
+// =============================================================================
+//  2026-09 — Notifications for destination managers.
+// -----------------------------------------------------------------------------
+//  The officer has had a bell since Feature 3. A manager had nothing: a
+//  compliance report could sit decided for a fortnight, because the only way to
+//  find out was to open the page and look.
+//
+//  A SEPARATE STREAM, NOT A SHARED ONE. admin_notifications carries "a manager
+//  submitted a report", "a visitor left a review", "an alert was raised" — the
+//  office's workload. None of that is a manager's business, and many of those
+//  rows name destinations that are not theirs. Pointing managers at the same
+//  table would mean filtering a stream that was never designed to be filtered,
+//  and one missed WHERE clause would show a manager another site's business.
+//
+//  Keyed to the DESTINATION rather than to one manager, because a destination
+//  can have two and both need to see that their report came back. The reads
+//  table is per manager, so one of them marking it read does not hide it from
+//  the other — the same shape admin_notification_reads has, for the same reason.
+// =============================================================================
+
+$pdo->exec(
+    "CREATE TABLE IF NOT EXISTS manager_notifications (
+        id             INT UNSIGNED NOT NULL AUTO_INCREMENT,
+        destination_id INT UNSIGNED NOT NULL,
+        type           VARCHAR(40)  NOT NULL,
+        title          VARCHAR(160) NOT NULL,
+        body           VARCHAR(400) NULL,
+        link           VARCHAR(255) NULL,
+        entity_type    VARCHAR(40)  NULL,
+        entity_id      INT UNSIGNED NULL,
+        created_at     TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY idx_mgr_notif_dest (destination_id, id),
+        CONSTRAINT fk_mgr_notif_dest FOREIGN KEY (destination_id)
+            REFERENCES destinations (id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+);
+
+echo "  ok    manager_notifications ready\n";
+
+/* ON DELETE CASCADE on both sides: a read mark is meaningless once either the
+   notification or the manager is gone, and unlike an activity log there is no
+   audit value in keeping one. */
+$pdo->exec(
+    "CREATE TABLE IF NOT EXISTS manager_notification_reads (
+        notification_id INT UNSIGNED NOT NULL,
+        manager_id      INT UNSIGNED NOT NULL,
+        read_at         DATETIME NOT NULL,
+        PRIMARY KEY (notification_id, manager_id),
+        KEY idx_mgr_reads_manager (manager_id),
+        CONSTRAINT fk_mgr_reads_notif FOREIGN KEY (notification_id)
+            REFERENCES manager_notifications (id) ON DELETE CASCADE,
+        CONSTRAINT fk_mgr_reads_manager FOREIGN KEY (manager_id)
+            REFERENCES destination_managers (id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+);
+
+echo "  ok    manager_notification_reads ready\n";
 
 echo str_repeat('=', 60) . "\n  Migrations complete.\n\n";
