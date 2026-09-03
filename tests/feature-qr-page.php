@@ -132,7 +132,12 @@ echo "\n--- the retired logbook cannot be posted to ---\n";
 
 /* The digital logbook was closed deliberately: the monthly record filed with
    the DOT is built from reports a manager submitted and the office approved,
-   and this endpoint used to write arrivals with nothing behind them. */
+   and this endpoint used to write arrivals with nothing behind them.
+
+   It answered 410 while the file was kept as a documented refusal. The file was
+   deleted on 2026-09-03 once the office confirmed no printed sign carries the
+   old address, so the answer is now 404. Still a POST rather than a GET: the
+   thing being guarded is that nothing can WRITE here. */
 $ch = curl_init(test_base_url() . '/api/arrivals/submit.php');
 curl_setopt_array($ch, [
     CURLOPT_POST           => true,
@@ -144,7 +149,7 @@ curl_exec($ch);
 $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
 curl_close($ch);
 
-check('the old submission endpoint is Gone (410)', $code, 410);
+check('the old submission endpoint is gone (404)', $code, 404);
 
 echo "\n--- a token nobody issued is refused ---\n";
 

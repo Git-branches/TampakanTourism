@@ -5,7 +5,7 @@
  * $g            the guide's fields, blank on create
  * $isEdit       whether this is an existing record
  * $credentials  rows to prefill the repeating credential boxes
- * $inSheet      rendered inside the roster's <dialog> rather than on its own page
+ * $inSheet      rendered inside the tour guide list's <dialog> rather than on its own page
  *
  * ONE FILE, THREE PLACES. Same reasoning as the manager registry: a field added
  * here appears in the sheet and on both full pages without anybody remembering

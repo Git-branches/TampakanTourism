@@ -63,31 +63,103 @@ if (is_post()) {
             redirect(base_url('/manager/inspection.php'));
         }
 
-        $uploader = new DocumentUploader();
-        $stored   = $uploader->store($_FILES['photo'] ?? [], 'inspections');
+        /* SEVERAL AT ONCE NOW, AND THE REMARKS IN THE SAME BREATH.
+         *
+         * A first aid kit needs two photographs — the kit open and its contents
+         * — and taking them was one submit each, with the remarks a third. The
+         * office asked for one action, so the field is photos[] and the note
+         * travels with it.
+         *
+         * STILL ONE FILE AT A TIME UNDERNEATH. Each is stored and recorded on
+         * its own, so a connection that drops halfway keeps the photographs that
+         * already landed instead of failing the batch. Whoever is doing this is
+         * standing at a waterfall on one bar.
+         *
+         * The single-file name is still read, so an older cached page — or a
+         * browser that ignores `multiple` — keeps working. */
+        $files = $_FILES['photos'] ?? $_FILES['photo'] ?? null;
 
-        if ($stored === null) {
-            Session::flash('danger', $uploader->firstError() ?? 'That photo could not be uploaded.');
-            redirect(base_url('/manager/inspection.php#item' . $itemId));
+        /* PHP gives a multi-file input as parallel arrays, not a list of files.
+           Normalised to one row per file so the loop below reads plainly. */
+        $incoming = [];
+
+        if (is_array($files) && isset($files['name'])) {
+            foreach ((array) $files['name'] as $i => $originalName) {
+                if (!is_array($files['name'])) {
+                    $incoming[] = $files;
+                    break;
+                }
+
+                $incoming[] = [
+                    'name'     => $originalName,
+                    'type'     => $files['type'][$i]     ?? '',
+                    'tmp_name' => $files['tmp_name'][$i] ?? '',
+                    'error'    => $files['error'][$i]    ?? UPLOAD_ERR_NO_FILE,
+                    'size'     => $files['size'][$i]     ?? 0,
+                ];
+            }
         }
 
-        /* PDF passes DocumentUploader — it is allowed for logbook pages — but a
-           compliance standard is a thing you photograph. Rejected here rather
-           than by widening the shared uploader's rules. */
-        if ($stored['mime_type'] === 'application/pdf') {
-            DocumentUploader::delete($stored['stored_name'], 'inspections');
-            Session::flash('danger', 'Please upload a photo (JPG or PNG), not a PDF — the office needs to see the item itself.');
-            redirect(base_url('/manager/inspection.php#item' . $itemId));
+        /* An empty slot is not an error — the browser sends one for a field
+           nobody filled, and the manager may have come only to write a note. */
+        $incoming = array_values(array_filter(
+            $incoming,
+            static fn (array $f): bool => (int) ($f['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE
+        ));
+
+        $caption = trim((string) ($_POST['caption'] ?? ''));
+        $saved   = 0;
+        $problem = null;
+
+        foreach ($incoming as $file) {
+            $uploader = new DocumentUploader();
+            $stored   = $uploader->store($file, 'inspections');
+
+            if ($stored === null) {
+                $problem = $uploader->firstError() ?? 'One photo could not be uploaded.';
+                continue;
+            }
+
+            /* PDF passes DocumentUploader — it is allowed for logbook pages — but
+               a compliance standard is a thing you photograph. Rejected here
+               rather than by widening the shared uploader's rules. */
+            if ($stored['mime_type'] === 'application/pdf') {
+                DocumentUploader::delete($stored['stored_name'], 'inspections');
+                $problem = 'Please upload photos (JPG or PNG), not a PDF — the office needs to see the item itself.';
+                continue;
+            }
+
+            Inspections::addPhoto($itemId, $stored, (int) ManagerAuth::id(), $caption);
+            $saved++;
         }
 
-        Inspections::addPhoto($itemId, $stored, (int) ManagerAuth::id(), trim((string) ($_POST['caption'] ?? '')));
+        /* The note is saved whether or not a photograph came with it, which is
+           what removed the second button. */
+        if (array_key_exists('remarks', $_POST)) {
+            Inspections::saveItemRemarks($itemId, $reportId, trim((string) $_POST['remarks']));
+        }
 
-        ActivityLog::record(
-            'inspection.photo_uploaded', 'inspection_report', $reportId,
-            'Photo for "' . $item['title'] . '" at ' . ManagerAuth::destinationName()
-        );
+        if ($saved > 0) {
+            ActivityLog::record(
+                'inspection.photo_uploaded', 'inspection_report', $reportId,
+                $saved . ' photo(s) for "' . $item['title'] . '" at ' . ManagerAuth::destinationName()
+            );
+        }
 
-        Session::flash('success', 'Photo added to ' . $item['title'] . '.');
+        /* Said exactly: "2 photos added" when two landed, and the reason when
+           some did not — a batch that half-worked must not report success. */
+        if ($saved > 0 && $problem === null) {
+            Session::flash('success', $saved . ' photo' . ($saved === 1 ? '' : 's')
+                . ' added to ' . $item['title'] . '.');
+        } elseif ($saved > 0) {
+            Session::flash('warning', $saved . ' photo' . ($saved === 1 ? '' : 's')
+                . ' added to ' . $item['title'] . '. ' . $problem);
+        } elseif ($problem !== null) {
+            Session::flash('danger', $problem);
+        } else {
+            Session::flash('success', 'Saved.');
+        }
+
         redirect(base_url('/manager/inspection.php#item' . $itemId));
     }
 
@@ -239,125 +311,97 @@ $itemTone = static fn (string $s): string => match ($s) {
     </div>
 <?php endif; ?>
 
-<!-- ===================== THE STANDARDS ===================== -->
-<?php foreach ($items as $item): ?>
-    <section class="panel" id="item<?= (int) $item['id'] ?>">
-        <header class="panel__head">
-            <h2>
-                <i class="fa-solid fa-shield-halved"></i>
-                <?= e((string) $item['title']) ?>
-                <?php if ((int) $item['is_required'] !== 1): ?>
-                    <span class="text-muted small">(optional)</span>
-                <?php endif; ?>
-            </h2>
-            <span class="pill pill--<?= $itemTone((string) $item['status']) ?>">
-                <?= e(Inspections::ITEM_STATUSES[$item['status']]) ?>
-            </span>
-        </header>
+<!-- ===================== THE STANDARDS =====================
+     A CARD EACH, NOT A FORM EACH.
 
-        <div class="panel__body">
-            <?php if ($item['guidance']): ?>
-                <p class="text-muted small"><?= e((string) $item['guidance']) ?></p>
-            <?php endif; ?>
+     This used to render every standard's full upload form at once: five
+     panels, forty-six form fields, and 4.3 screens of scrolling on a phone.
+     A manager arrives having already decided which requirement they are
+     photographing, so four fifths of that was always in the way.
 
-            <?php if ($item['office_comment']): ?>
-                <div class="alert alert-<?= $item['status'] === 'approved' ? 'success' : 'warning' ?> py-2">
-                    <strong>Office:</strong> <?= e((string) $item['office_comment']) ?>
-                    <?php if ($item['reviewed_by_name']): ?>
-                        <span class="cell-sub">&mdash; <?= e((string) $item['reviewed_by_name']) ?></span>
+     Each card now carries the four things you choose between on — name, what
+     it is for, where it stands, and how much evidence is already in — and the
+     form itself is one tap away in inspection-item.php.
+
+     The grid is auto-fill, so five standards land as two rows and a sixth
+     costs nothing. Pagination would be the answer past roughly a dozen; at
+     five it would be a control that only ever says "1". -->
+<section class="panel mgr-standards">
+    <header class="panel__head">
+        <h2><i class="fa-solid fa-list-check"></i> Tourism Standards</h2>
+        <span class="pill pill--qr"><?= n(count($items)) ?></span>
+    </header>
+
+    <div class="panel__body">
+        <div class="mgr-card-grid">
+            <?php foreach ($items as $item): ?>
+                <?php
+                $itemPhotos = (int) $item['photo_count'];
+                $isOpen     = $editable;
+                ?>
+                <article class="mgr-card mgr-card--<?= $itemTone((string) $item['status']) ?>"
+                         id="item<?= (int) $item['id'] ?>">
+                    <h3 class="mgr-card__title">
+                        <i class="fa-solid fa-shield-halved" aria-hidden="true"></i>
+                        <span><?= e((string) $item['title']) ?></span>
+                    </h3>
+
+                    <?php if ($item['guidance']): ?>
+                        <p class="mgr-card__hint"><?= e((string) $item['guidance']) ?></p>
                     <?php endif; ?>
-                </div>
-            <?php endif; ?>
 
-            <?php if ($item['photos'] === []): ?>
-                <p class="text-muted small mb-3"><em>No photo sent for this standard yet.</em></p>
-            <?php else: ?>
-                <div class="evidence-grid mb-3">
-                    <?php foreach ($item['photos'] as $photo): ?>
-                        <figure class="evidence">
-                            <a href="<?= e(base_url('/api/inspections/photo.php?id=' . (int) $photo['id'] . '&report=' . $reportId)) ?>"
-                               target="_blank" rel="noopener">
-                                <img src="<?= e(base_url('/api/inspections/photo.php?id=' . (int) $photo['id'] . '&report=' . $reportId)) ?>"
-                                     alt="<?= e((string) ($photo['caption'] ?: $item['title'])) ?>" loading="lazy">
-                            </a>
-                            <figcaption>
-                                <?php if ($photo['caption']): ?>
-                                    <span class="evidence__caption"><?= e((string) $photo['caption']) ?></span>
-                                <?php endif; ?>
-                                <span class="cell-sub"><?= e(Inspections::humanSize((int) $photo['byte_size'])) ?></span>
+                    <?php
+                    $need = max(1, (int) ($item['min_photos'] ?? 1));
+                    $cap  = max($need, (int) ($item['max_photos'] ?? $need));
+                    $met  = $itemPhotos >= $need;
+                    ?>
+                    <p class="mgr-card__meta">
+                        <span class="pill pill--<?= $itemTone((string) $item['status']) ?>">
+                            <?= e(Inspections::ITEM_STATUSES[$item['status']]) ?>
+                        </span>
 
-                                <?php if ($editable): ?>
-                                    <form method="post" class="d-inline">
-                                        <?= csrf_field() ?>
-                                        <input type="hidden" name="action" value="remove-photo">
-                                        <input type="hidden" name="photo_id" value="<?= (int) $photo['id'] ?>">
-                                        <input type="hidden" name="item_id" value="<?= (int) $item['id'] ?>">
-                                        <button type="submit" class="btn btn-sm btn-outline-danger" data-confirm="Remove this photo?"
-                                                aria-label="Remove this photo">
-                                            <i class="fa-solid fa-trash" aria-hidden="true"></i>
-                                        </button>
-                                    </form>
-                                <?php endif; ?>
-                            </figcaption>
-                        </figure>
-                    <?php endforeach; ?>
-                </div>
-            <?php endif; ?>
+                        <?php /* AGAINST WHAT IS ASKED FOR, not just how many are
+                                 there. "1 photo" tells a manager nothing; "1 of
+                                 2 photos" tells them to take another. */ ?>
+                        <span class="mgr-card__count<?= $met ? ' is-met' : '' ?>">
+                            <i class="fa-solid fa-camera" aria-hidden="true"></i>
+                            <?= n($itemPhotos) ?> of <?= n($need) ?><?= $cap > $need ? '&ndash;' . n($cap) : '' ?>
+                            photo<?= $need === 1 && $cap === 1 ? '' : 's' ?>
+                        </span>
 
-            <?php if ($editable): ?>
-                <!-- One upload, one POST. A dropped connection costs this photo
-                     and nothing else. -->
-                <form method="post" enctype="multipart/form-data" class="row g-2 align-items-end">
-                    <?= csrf_field() ?>
-                    <input type="hidden" name="action" value="upload">
-                    <input type="hidden" name="item_id" value="<?= (int) $item['id'] ?>">
+                        <?php if ((int) $item['is_required'] !== 1): ?>
+                            <span class="mgr-card__opt">Optional</span>
+                        <?php endif; ?>
+                    </p>
 
-                    <div class="col-12 col-md-5">
-                        <label class="form-label" for="photo<?= (int) $item['id'] ?>">Add a photo</label>
-                        <input type="file" id="photo<?= (int) $item['id'] ?>" name="photo" required
-                               class="form-control form-control-sm"
-                               accept="image/jpeg,image/png,.jpg,.jpeg,.png" capture="environment"
-                               data-max-mb="<?= n(upload_limit_mb()) ?>">
-                    </div>
-
-                    <div class="col-12 col-md-5">
-                        <label class="form-label" for="caption<?= (int) $item['id'] ?>">
-                            What it shows <span class="text-muted small">(optional)</span>
-                        </label>
-                        <input type="text" id="caption<?= (int) $item['id'] ?>" name="caption"
-                               class="form-control form-control-sm" maxlength="300"
-                               placeholder="e.g. by the entrance, tag dated Jan 2026">
-                    </div>
-
-                    <div class="col-12 col-md-2">
-                        <button type="submit" class="btn btn-brand btn-sm w-100">
-                            <i class="fa-solid fa-camera"></i> Upload
-                        </button>
-                    </div>
-                </form>
-
-                <form method="post" class="mt-3">
-                    <?= csrf_field() ?>
-                    <input type="hidden" name="action" value="remarks">
-                    <input type="hidden" name="item_id" value="<?= (int) $item['id'] ?>">
-
-                    <label class="form-label" for="remarks<?= (int) $item['id'] ?>">
-                        Your remarks <span class="text-muted small">(optional)</span>
-                    </label>
-                    <div class="d-flex gap-2">
-                        <input type="text" id="remarks<?= (int) $item['id'] ?>" name="remarks"
-                               class="form-control form-control-sm" maxlength="600"
-                               value="<?= e((string) ($item['remarks'] ?? '')) ?>"
-                               placeholder="Anything the Office should know about this standard">
-                        <button type="submit" class="btn btn-sm btn-outline-secondary">Save</button>
-                    </div>
-                </form>
-            <?php elseif ($item['remarks']): ?>
-                <p class="text-muted small mb-0"><strong>Your remarks:</strong> <?= e((string) $item['remarks']) ?></p>
-            <?php endif; ?>
+                    <?php /* One primary action, worded for what it does. A
+                             standard with no photograph needs one; a standard
+                             with photographs is something you look at. Both
+                             open the same dialog — the wording is the whole
+                             difference, and it is the part a manager reads. */ ?>
+                    <a class="btn btn-sm <?= $itemPhotos === 0 && $isOpen ? 'btn-brand' : 'btn-outline-secondary' ?> mgr-card__go"
+                       href="<?= e(base_url('/manager/inspection-item.php?id=' . (int) $item['id'])) ?>"
+                       data-modal-page
+                       data-modal-title="<?= e((string) $item['title']) ?>">
+                        <?php if (!$isOpen): ?>
+                            <i class="fa-solid fa-eye"></i> View Evidence
+                        <?php elseif ($itemPhotos === 0): ?>
+                            <i class="fa-solid fa-camera"></i> Add Evidence
+                        <?php else: ?>
+                            <i class="fa-solid fa-images"></i> View Evidence
+                        <?php endif; ?>
+                    </a>
+                </article>
+            <?php endforeach; ?>
         </div>
-    </section>
-<?php endforeach; ?>
+    </div>
+</section>
+
+<?php /* The old per-standard panels rendered here — one full upload form
+         per requirement, all of them open at once. Everything they did now
+         lives in inspection-item.php, opened from the cards above. The POST
+         handlers at the top of this file were not touched: this was a change
+         of what the manager is shown, not of what the server does. */ ?>
 
 <?php if ($editable): ?>
     <section class="panel">
@@ -368,7 +412,11 @@ $itemTone = static fn (string $s): string => match ($s) {
         <div class="panel__body">
             <?php if ($missing !== []): ?>
                 <p class="text-muted small mb-0">
-                    <?= n(count($missing)) ?> required standard(s) still have no photo:
+                    <?php /* "still have no photo" was true while the gate only
+                             asked for one. A standard that wants two and has one
+                             now appears here too, and saying it has no photo is
+                             simply false. */ ?>
+                    <?= n(count($missing)) ?> required standard(s) still need photos:
                     <strong><?= e(implode(', ', $missing)) ?></strong>.
                 </p>
             <?php else: ?>

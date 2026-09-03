@@ -7,7 +7,7 @@ use App\Core\Database;
 use App\Core\DocumentUploader;
 
 /**
- * TourSync — the accredited tour guide roster.
+ * TourSync — the accredited tour guide tour guide list.
  *
  * SEPARATE FROM TourGuideRepository, WHICH IS ABOUT REQUESTS
  *
@@ -40,7 +40,7 @@ final class TourGuideRosterRepository
 
     /**
      * Every state a guide can actually be in, including the two nobody sets by
-     * hand. Used for the badge on the roster and on the verification page.
+     * hand. Used for the badge on the tour guide list and on the verification page.
      */
     public const EFFECTIVE = [
         'active'    => 'Active',
@@ -75,7 +75,7 @@ final class TourGuideRosterRepository
         $validUntil = trim((string) ($guide['valid_until'] ?? ''));
 
         /* No date means no card has been issued yet. That is not the same as an
-           expired one: the guide is on the roster and simply has nothing to
+           expired one: the guide is on the tour guide list and simply has nothing to
            show, which is what an officer needs to be told before they try to
            assign them. */
         if ($validUntil === '') {
@@ -103,7 +103,7 @@ final class TourGuideRosterRepository
     // -------------------------------------------------------------------------
 
     /**
-     * The roster.
+     * The tour guide list.
      *
      * @param  array<string, mixed> $filters
      * @return array<int, array<string, mixed>>
@@ -149,7 +149,7 @@ final class TourGuideRosterRepository
          *
          * 'expired' and 'no_id' are not values of the `status` column — they are
          * worked out from valid_until and today's date, deliberately, so the
-         * roster can never disagree with the verification page. That means this
+         * tour guide list can never disagree with the verification page. That means this
          * filter has to happen here rather than in the WHERE clause above.
          *
          * 'barred' is the officer's question, not the database's: suspended and
@@ -383,7 +383,7 @@ final class TourGuideRosterRepository
      *
      * Two parallel arrays rather than one nested one, because that is what a
      * repeating pair of plain inputs sends. Here rather than in a page, because
-     * three pages submit this form — the roster's sheet, create.php and
+     * three pages submit this form — the tour guide list's sheet, create.php and
      * edit.php — and the same pairing written out three times is two copies
      * waiting to disagree.
      *

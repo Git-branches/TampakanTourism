@@ -29,12 +29,12 @@ Csrf::verify();
    box on a government website attracts automated spam within days of going
    live, and neither check costs a real visitor anything. */
 if (trim((string) ($_POST['website'] ?? '')) !== '') {
-    redirect(base_url('/logbook-success.php?rated=1'));
+    redirect(destinations_url());
 }
 
 $renderedAt = (int) ($_POST['rendered_at'] ?? 0);
 if ($renderedAt > 0 && (time() - $renderedAt) < 2) {
-    redirect(base_url('/logbook-success.php?rated=1'));
+    redirect(destinations_url());
 }
 
 $limitKey = 'feedback:' . ($_SERVER['REMOTE_ADDR'] ?? 'unknown');

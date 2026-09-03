@@ -25,6 +25,7 @@ use App\Core\Auth;
 use App\Core\Csrf;
 use App\Core\Session;
 use App\Repositories\ArrivalReportRepository as Reports;
+use App\Repositories\ManagerNotificationRepository as Bell;
 use App\Repositories\LogbookEntryRepository as Entries;
 use App\Repositories\ReportDocumentRepository as Documents;
 
@@ -104,6 +105,14 @@ if (is_post()) {
                 . $report['period_end'] . '), ' . (int) $report['visitors'] . ' visitors'
             );
 
+            Bell::record((int) $report['destination_id'], 'report_approved',
+                'Your arrival report was approved', [
+                    'body'        => 'The figures are now part of the municipality\'s tourism records.',
+                    'link'        => base_url('/manager/reports.php'),
+                    'entity_type' => 'arrival_report',
+                    'entity_id'   => $id,
+                ]);
+
             Session::flash('success', 'Approved. The figures are now part of the municipality\'s tourism records.');
         } else {
             Session::flash('warning', 'That report could not be approved from its current status. Reload and try again.');
@@ -129,6 +138,14 @@ if (is_post()) {
             'report.rejected', 'arrival_report', $id,
             'Sent back to ' . $report['destination_name'] . ': ' . mb_substr($reason, 0, 120)
         );
+
+        Bell::record((int) $report['destination_id'], 'report_returned',
+            'Your arrival report was sent back', [
+                'body'        => $reason,
+                'link'        => base_url('/manager/reports.php'),
+                'entity_type' => 'arrival_report',
+                'entity_id'   => $id,
+            ]);
 
         Session::flash('success', 'Sent back with your reason. The manager can correct it and resubmit.');
         redirect(base_url('/admin/arrival-reports/index.php'));

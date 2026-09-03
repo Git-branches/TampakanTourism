@@ -31,6 +31,7 @@ use App\Core\Auth;
 use App\Core\Csrf;
 use App\Core\Session;
 use App\Repositories\InspectionRepository as Inspections;
+use App\Repositories\ManagerNotificationRepository as Bell;
 
 Auth::require();
 
@@ -73,6 +74,16 @@ if (is_post()) {
         ActivityLog::record('inspection.reviewing', 'inspection_report', $id,
             'Opened for review: ' . $report['destination_name']);
 
+        /* Somebody has it. Worth saying, because the alternative is a
+           manager refreshing a page that has not changed for a week. */
+        Bell::record((int) $report['destination_id'], 'inspection_reviewing',
+            'Your compliance inspection is being reviewed', [
+                'body'        => 'The Municipal Tourism Office has opened it. Nothing is needed from you yet.',
+                'link'        => base_url('/manager/inspection.php'),
+                'entity_type' => 'inspection_report',
+                'entity_id'   => $id,
+            ]);
+
         Session::flash('info', 'Marked as under review. The manager can see it has been picked up.');
         redirect(base_url('/admin/inspections/review.php?id=' . $id));
     }
@@ -89,6 +100,12 @@ if (is_post()) {
             redirect(base_url('/admin/inspections/review.php?id=' . $id));
         }
 
+        /* Read BEFORE the decision, so the message is sent by whichever
+           decision actually moved the report — not by every one after it.
+           An officer settling five standards in a row should cost the
+           manager one text, not five. */
+        $wasOpen = in_array($report["status"], ["submitted", "reviewing", "approved"], true);
+
         if (!Inspections::decideItem($itemId, $id, $status, $comment, $adminId)) {
             Session::flash('danger', $status === 'approved'
                 ? 'That decision could not be recorded.'
@@ -101,7 +118,26 @@ if (is_post()) {
         ActivityLog::record('inspection.item_decided', 'inspection_report', $id,
             $item['title'] . ' -> ' . Inspections::ITEM_STATUSES[$status] . ' (' . $report['destination_name'] . ')');
 
-        Session::flash('success', $item['title'] . ': ' . Inspections::ITEM_STATUSES[$status] . '.');
+        /* decideItem() sends the whole report back when a standard is
+           refused, so the manager can act on it. Tell them it happened. */
+        $sentBack = $status !== 'approved' && $wasOpen;
+        $texted   = $sentBack ? Inspections::notifyManager($id, 'rejected') : false;
+
+        if ($sentBack) {
+            /* The REASON travels with it. "Needs revision" on its own is
+               the phone call this feature exists to remove. */
+            Bell::record((int) $report['destination_id'], 'inspection_revision',
+                $item['title'] . ' needs a clearer photo', [
+                    'body'        => $comment,
+                    'link'        => base_url('/manager/inspection.php'),
+                    'entity_type' => 'inspection_report',
+                    'entity_id'   => $id,
+                ]);
+        }
+
+        Session::flash('success', $item['title'] . ': ' . Inspections::ITEM_STATUSES[$status] . '.'
+            . ($sentBack ? ' The report has gone back to the manager so they can correct it'
+                . ($texted ? ', and they have been texted.' : '.') : ''));
         redirect(base_url('/admin/inspections/review.php?id=' . $id . '#item' . $itemId));
     }
 
@@ -139,7 +175,18 @@ if (is_post()) {
         ActivityLog::record('inspection.approved', 'inspection_report', $id,
             'Compliance granted to ' . $report['destination_name']);
 
-        Session::flash('success', $report['destination_name'] . ' is now recorded as compliant.');
+        $texted = Inspections::notifyManager($id, 'approved');
+
+        Bell::record((int) $report['destination_id'], 'inspection_approved',
+            'Your compliance inspection was approved', [
+                'body'        => trim((string) ($_POST['office_remarks'] ?? '')) ?: 'Every standard met.',
+                'link'        => base_url('/manager/inspection.php'),
+                'entity_type' => 'inspection_report',
+                'entity_id'   => $id,
+            ]);
+
+        Session::flash('success', $report['destination_name'] . ' is now recorded as compliant.'
+            . ($texted ? ' The manager has been texted.' : ''));
         redirect(base_url('/admin/inspections/index.php'));
     }
 
@@ -154,7 +201,18 @@ if (is_post()) {
         ActivityLog::record('inspection.rejected', 'inspection_report', $id,
             'Sent back to ' . $report['destination_name'] . ': ' . mb_substr($remarks, 0, 120));
 
-        Session::flash('success', 'Sent back with your remarks. The manager can correct it and resubmit.');
+        $texted = Inspections::notifyManager($id, 'rejected');
+
+        Bell::record((int) $report['destination_id'], 'inspection_revision',
+            'Your compliance inspection was sent back', [
+                'body'        => $remarks,
+                'link'        => base_url('/manager/inspection.php'),
+                'entity_type' => 'inspection_report',
+                'entity_id'   => $id,
+            ]);
+
+        Session::flash('success', 'Sent back with your remarks. The manager can correct it and resubmit.'
+            . ($texted ? ' They have been texted.' : ''));
         redirect(base_url('/admin/inspections/index.php'));
     }
 

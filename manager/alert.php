@@ -136,47 +136,91 @@ require __DIR__ . '/_partials/head.php';
             facility that has failed.
         </p>
 
-        <form method="post">
+        <?php
+        /* CHIPS, NOT DROPDOWNS.
+         *
+         * Seven categories and three urgencies were two <select> elements, which
+         * on a phone means two full-screen native pickers and four taps to
+         * choose two things. As chips they are all visible at once and cost one
+         * tap each — and the person using this is standing in front of the
+         * landslide, not sitting down.
+         *
+         * They are radio inputs underneath. Same names, same values, same POST:
+         * the handler above did not change and neither did the validation.
+         */
+        $alertIcons = [
+            'closure'  => 'fa-ban',
+            'hazard'   => 'fa-triangle-exclamation',
+            'accident' => 'fa-kit-medical',
+            'weather'  => 'fa-cloud-showers-heavy',
+            'utility'  => 'fa-plug-circle-exclamation',
+            'crowding' => 'fa-people-group',
+            'other'    => 'fa-circle-question',
+        ];
+        $chosenCat = (string) ($_POST['category'] ?? 'closure');
+        $chosenSev = (string) ($_POST['severity'] ?? 'warning');
+        ?>
+
+        <form method="post" id="alertForm">
             <?= csrf_field() ?>
 
-            <div class="row g-3">
-                <div class="col-12 col-md-6">
-                    <label for="category" class="form-label">What kind of thing is it?</label>
-                    <select id="category" name="category" class="form-select">
-                        <?php foreach (Alerts::CATEGORIES as $key => $label): ?>
-                            <option value="<?= e($key) ?>" <?= ($_POST['category'] ?? '') === $key ? 'selected' : '' ?>>
+            <div class="mgr-steps-row">
+            <div class="mgr-step">
+                <p class="mgr-step__label"><span>1</span> What kind of thing is it?</p>
+                <div class="mgr-chips" role="radiogroup" aria-label="Alert type">
+                    <?php foreach (Alerts::CATEGORIES as $key => $label): ?>
+                        <label class="mgr-chip">
+                            <input type="radio" name="category" value="<?= e($key) ?>"
+                                   <?= $chosenCat === $key ? 'checked' : '' ?>>
+                            <span>
+                                <i class="fa-solid <?= e($alertIcons[$key] ?? 'fa-circle-question') ?>"
+                                   aria-hidden="true"></i>
                                 <?= e($label) ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
+                            </span>
+                        </label>
+                    <?php endforeach; ?>
                 </div>
+            </div>
 
-                <div class="col-12 col-md-6">
-                    <label for="severity" class="form-label">How urgent?</label>
-                    <select id="severity" name="severity" class="form-select">
-                        <?php foreach (Alerts::SEVERITIES as $key => $label): ?>
-                            <option value="<?= e($key) ?>"
-                                <?= ($_POST['severity'] ?? 'warning') === $key ? 'selected' : '' ?>>
-                                <?= e($label) ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
+            <div class="mgr-step">
+                <p class="mgr-step__label"><span>2</span> How urgent?</p>
+                <div class="mgr-chips mgr-chips--sev" role="radiogroup" aria-label="Urgency">
+                    <?php foreach (Alerts::SEVERITIES as $key => $label): ?>
+                        <label class="mgr-chip mgr-chip--<?= e($key) ?>">
+                            <input type="radio" name="severity" value="<?= e($key) ?>"
+                                   <?= $chosenSev === $key ? 'checked' : '' ?>>
+                            <span><?= e($label) ?></span>
+                        </label>
+                    <?php endforeach; ?>
                 </div>
+            </div>
+            </div><!-- /.mgr-steps-row -->
 
-                <div class="col-12">
-                    <label for="message" class="form-label">What has happened?</label>
-                    <textarea id="message" name="message" class="form-control" rows="4" maxlength="1000"
-                              required placeholder="e.g. Landslide across the trail about 200m from the entrance. No one hurt. Trail closed until it is cleared."><?= e((string) ($_POST['message'] ?? '')) ?></textarea>
-                    <p class="text-muted small mt-1 mb-0">
-                        Say where, and whether anyone is hurt. The Office cannot see what you are looking at.
+            <div class="mgr-step">
+                <label class="mgr-step__label" for="message"><span>3</span> What has happened?</label>
+                <textarea id="message" name="message" class="form-control" rows="4" maxlength="1000"
+                          required placeholder="e.g. Landslide across the trail about 200m from the entrance. No one hurt. Trail closed until it is cleared."><?= e((string) ($_POST['message'] ?? '')) ?></textarea>
+                <p class="text-muted small mt-1 mb-0">
+                    Say where, and whether anyone is hurt. The Office cannot see what you are looking at.
+                </p>
+            </div>
+
+            <?php /* Step 4 is not a field. The alert can only ever be about this
+                     manager's own destination — the server takes it from the
+                     session and never from the form — so it is shown as a fact
+                     rather than asked as a question. */ ?>
+            <div class="mgr-send">
+                <div class="mgr-step">
+                    <p class="mgr-step__label"><span>4</span> Where</p>
+                    <p class="mgr-step__fixed" id="alertPlace">
+                        <i class="fa-solid fa-location-dot" aria-hidden="true"></i>
+                        <?= e(ManagerAuth::destinationName()) ?>
                     </p>
                 </div>
 
-                <div class="col-12">
-                    <button type="submit" class="btn btn-brand btn-sm">
-                        <i class="fa-solid fa-paper-plane"></i> Send Alert
-                    </button>
-                </div>
+                <button type="submit" class="btn btn-brand btn-sm">
+                    <i class="fa-solid fa-paper-plane"></i> Send Alert
+                </button>
             </div>
         </form>
 
@@ -298,5 +342,82 @@ require __DIR__ . '/_partials/head.php';
         <?php endif; ?>
     </div>
 </section>
+
+<script>
+/* CONFIRM BEFORE IT LEAVES.
+ *
+ * An alert texts the Office and cannot be unsent, so the manager sees exactly
+ * what they are about to say first — type, urgency, place and their own words.
+ *
+ * It goes through TourSync.confirmAction, which is the confirmation this system
+ * already uses everywhere else. A second dialog implementation would look
+ * almost right and behave slightly differently, which is worse than either.
+ *
+ * The description is the manager's own free text, so it is escaped by putting
+ * it through a text node rather than into a template string — the one place on
+ * this page where markup and typing meet.
+ */
+(function () {
+    var form = document.getElementById('alertForm');
+
+    if (!form) { return; }
+
+    function esc(s) {
+        var d = document.createElement('div');
+        d.appendChild(document.createTextNode(s));
+        return d.innerHTML;
+    }
+
+    function chosen(name) {
+        var picked = form.querySelector('input[name="' + name + '"]:checked');
+        if (!picked) { return ''; }
+        var text = picked.parentNode.textContent || '';
+        return text.replace(/\s+/g, ' ').trim();
+    }
+
+    form.addEventListener('submit', function (event) {
+        if (form.dataset.confirmed === 'yes') { return; }
+
+        /* Let the browser's own required-field message win first — confirming
+           an alert with no description then failing validation behind the
+           dialog would be a confusing pair of steps. */
+        if (typeof form.reportValidity === 'function' && !form.reportValidity()) { return; }
+
+        event.preventDefault();
+
+        var place = document.getElementById('alertPlace');
+        var rows  = [
+            ['Alert type',  chosen('category')],
+            ['Urgency',     chosen('severity')],
+            ['Location',    (place ? place.textContent : '').replace(/\s+/g, ' ').trim()],
+            ['Description', (form.querySelector('#message').value || '').trim()]
+        ];
+
+        var html = '<dl class="mgr-confirm">' + rows.map(function (r) {
+            return '<dt>' + esc(r[0]) + '</dt><dd>' + esc(r[1]) + '</dd>';
+        }).join('') + '</dl>';
+
+        var ask = window.TourSync && window.TourSync.confirmAction;
+
+        if (typeof ask !== 'function') { return; }   /* no dialog: let it submit */
+
+        ask({
+            title: 'Submit this alert?',
+            html: html,
+            tone: 'normal',
+            confirmText: 'Submit Alert',
+            cancelText: 'Cancel',
+            onConfirm: function () {
+                form.dataset.confirmed = 'yes';
+                /* Disabled after the decision, not before: a manager who
+                   cancels must be able to change something and send it. */
+                var go = form.querySelector('button[type="submit"]');
+                if (go) { go.disabled = true; }
+                form.submit();
+            }
+        });
+    });
+})();
+</script>
 
 <?php require __DIR__ . '/_partials/foot.php'; ?>

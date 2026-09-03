@@ -600,10 +600,10 @@ final class TourGuideRepository
         $meetingPoint = trim((string) ($data['meeting_point'] ?? ''));
         $note         = trim((string) ($data['office_note'] ?? ''));
 
-        /* CHOSEN FROM THE ROSTER, OR TYPED.
+        /* CHOSEN FROM THE TOUR GUIDE LIST, OR TYPED.
          *
-         * The office now keeps a roster, and picking from it is the normal
-         * path. Typing a name still works and is deliberately kept: the roster
+         * The office now keeps a tour guide list, and picking from it is the normal
+         * path. Typing a name still works and is deliberately kept: the tour guide list
          * is new, it will be incomplete for a while, and an officer with a
          * visitor waiting must not be blocked because the person who is free
          * this afternoon has not been entered yet.
@@ -611,7 +611,7 @@ final class TourGuideRepository
          * A chosen guide's name and number are SNAPSHOT onto the request rather
          * than read through the join later. The visitor was texted a particular
          * name and number; if that guide later changes their mobile or leaves
-         * the roster, the record of what the visitor was told must not quietly
+         * the tour guide list, the record of what the visitor was told must not quietly
          * rewrite itself. */
         $guideId = (int) ($data['guide_id'] ?? 0);
 
@@ -619,7 +619,7 @@ final class TourGuideRepository
             $roster = TourGuideRosterRepository::find($guideId);
 
             if ($roster === null) {
-                return 'That guide is no longer on the roster. Choose another.';
+                return 'That guide is no longer on the tour guide list. Choose another.';
             }
 
             /* The gate §19 asks for, enforced here rather than only in the

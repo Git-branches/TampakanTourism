@@ -108,7 +108,7 @@ require __DIR__ . '/../_partials/head.php';
 <?php
 /* WHY THIS PAGE WAS REBUILT.
  *
- * It had six panels of identical weight, so "Remove from roster" carried the
+ * It had six panels of identical weight, so "Remove from tour guide list" carried the
  * same visual authority as the guide's own name, and about a hundred and twenty
  * words of prose explaining what each panel was for. A record page that has to
  * lecture is a record page whose layout is not doing its job.
@@ -139,7 +139,7 @@ $dtStyle = 'font-size:.71rem; letter-spacing:.05em; text-transform:uppercase; co
 
 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
     <a class="text-muted small" href="<?= e(base_url('/admin/tour-guides/index.php')) ?>">
-        <i class="fa-solid fa-arrow-left"></i> Roster
+        <i class="fa-solid fa-arrow-left"></i> Tour Guides
     </a>
     <div class="d-flex gap-2 flex-wrap">
         <a class="btn btn-outline-secondary btn-sm" href="<?= e(base_url('/admin/tour-guides/edit.php?id=' . $id)) ?>">
@@ -433,9 +433,9 @@ $dtStyle = 'font-size:.71rem; letter-spacing:.05em; text-transform:uppercase; co
         <input type="hidden" name="id" value="<?= $id ?>">
         <input type="hidden" name="action" value="delete">
         <button class="btn btn-sm btn-link text-danger" type="submit"
-                data-confirm="Remove this guide from the roster?"
+                data-confirm="Remove this guide from the tour guide list?"
                 data-confirm-tone="danger">
-            Remove from roster
+            Remove from tour guide list
         </button>
     </form>
 </div>

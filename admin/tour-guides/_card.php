@@ -153,7 +153,33 @@ $tgidIcon = static function (string $name, string $size, bool $filled = false) u
     }
     .tgid-face--back { transform: rotateY(180deg); }
 
-    @media (prefers-reduced-motion: reduce) { .tgid-flip { transition: none; } }
+    /* THE BACK USED TO SHOW THE FRONT THROUGH IT, MIRRORED.
+       Reported from a phone on the office LAN: flip to the back and the crest,
+       the photograph and RHONJON ROMERO were all there in reverse, behind the
+       real back. Desktop Chrome never showed it.
+
+       backface-visibility is NOT an inherited property. It was set on
+       .tgid-face, but everything you can actually see lives in .tgid-card,
+       which has overflow: hidden and a box-shadow — enough for WebKit to give
+       it its own compositing layer, and a composited child paints its own
+       backface regardless of what its ancestor asked for. So the property has
+       to be on the element that does the painting. */
+    .tgid-card { -webkit-backface-visibility: hidden; backface-visibility: hidden; }
+
+    /* And a second lock that does not involve 3D at all, because the one above
+       is a rendering hint and this is a government ID: the far face is taken
+       out of the paint entirely. The .3s delay is the midpoint of the .6s
+       flip, so the swap happens while the card is edge-on and the animation
+       looks exactly as it did. */
+    .tgid-face { transition: visibility 0s linear .3s; }
+    .tgid-flip:not(.is-back) .tgid-face--back  { visibility: hidden; }
+    .tgid-flip.is-back       .tgid-face--front { visibility: hidden; }
+
+    @media (prefers-reduced-motion: reduce) {
+        .tgid-flip { transition: none; }
+        /* No flip to hide the swap behind, so it must not lag either. */
+        .tgid-face { transition: none; }
+    }
 
     /* ---------- the controls under the card ---------- */
     .tgid-controls {
@@ -440,7 +466,14 @@ $tgidIcon = static function (string $name, string $size, bool $filled = false) u
         .tgid-face {
             position: static; inset: auto; transform: none !important;
             -webkit-backface-visibility: visible; backface-visibility: visible;
+            /* Paper gets BOTH faces, so the screen rule that hides the far one
+               has to be lifted here — !important because it is written with
+               three classes and would otherwise outrank everything below,
+               including the dialog-print path, and send one blank card out of
+               the printer. */
+            visibility: visible !important;
         }
+        .tgid-card { -webkit-backface-visibility: visible; backface-visibility: visible; }
         .tgid-card { box-shadow: none; page-break-inside: avoid; }
         /* The green bands ARE the design, not decoration a printer may drop. */
         * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }

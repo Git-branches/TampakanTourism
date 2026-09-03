@@ -55,7 +55,17 @@
       "Bash(/c/xampp/php/php.exe -r 'require \"bootstrap.php\"; foreach \\(App\\\\Core\\\\Database::all\\(\"SHOW COLUMNS FROM reports\"\\) as $c\\) printf\\(\"  %-18s %s\\\\n\", $c[\"Field\"], $c[\"Type\"]\\); *)",
       "Bash(grep -nE '\\\\$_GET\\\\[|\\\\$_POST\\\\[|Auth::|require' manager/reports.php manager/report-form.php)",
       "Bash(/c/xampp/php/php.exe -l tests/feature-reports-section.php)",
-      "Bash(/c/xampp/php/php.exe tests/feature-reports-section.php)"
+      "Bash(/c/xampp/php/php.exe tests/feature-reports-section.php)",
+      "Bash(cd /c/xampp/htdocs/TampakanTourism *)",
+      "Bash(/c/xampp/php/php.exe -l admin/_partials/section-head.php)",
+      "Bash(grep -oE '\\\\$item\\\\['\\\\''[a-z_]+'\\\\''\\\\]' manager/inspection-item.php)",
+      "Bash(grep -oE '\\\\$item\\\\[.[a-z_]+.\\\\]' manager/inspection-item.php)",
+      "Bash(/c/xampp/php/php.exe -l manager/index.php)",
+      "Bash(/c/xampp/php/php.exe -l tests/qr-no-logbook.php)",
+      "Bash(/c/xampp/php/php.exe tests/qr-no-logbook.php)"
+    ],
+    "additionalDirectories": [
+      "C:\\xampp\\htdocs\\TampakanTourism\\storage\\ratelimit"
     ]
   }
 }
