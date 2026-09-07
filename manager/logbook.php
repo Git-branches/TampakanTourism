@@ -206,8 +206,8 @@ require __DIR__ . '/_partials/head.php';
                 Under each type is the column that line will occupy on the Municipal Tourism Office's
                 monthly form &mdash; <strong>This province</strong> (<?= e($officeProvince) ?>),
                 <strong>Other Province</strong>, or <strong>Foreign Country</strong>. A line reading
-                <span class="text-danger">no residence column</span> is counted in the total and appears
-                in none of the three; fixing its address puts it where it belongs.
+                <span class="text-danger">no column</span> is counted in the total and appears in none
+                of the three, so the three will come to less than the total on the office's form.
                 Sex is optional &mdash; the paper page does not ask for it.
             </p>
 
@@ -304,15 +304,39 @@ require __DIR__ . '/_partials/head.php';
                                     };
                                     ?>
 
-                                    <?php if ($entry['confidence'] === 'low'): ?>
-                                        <span class="cell-sub text-danger">check</span>
-                                    <?php elseif ($entry['tourist_type'] !== $suggested): ?>
-                                        <span class="cell-sub">set by you</span>
-                                    <?php endif; ?>
-
+                                    <?php
+                                    /* THE REMEDY, BESIDE THE PROBLEM — AND ONCE.
+                                     *
+                                     * These were two red words, "check" and "no
+                                     * residence column", and they arrive
+                                     * together: an address the classifier
+                                     * cannot place is always both low
+                                     * confidence and without a province. So the
+                                     * line said two things about one fault and
+                                     * named the fix for neither.
+                                     *
+                                     * The paragraph at the top of the page does
+                                     * explain them, but it is read once and the
+                                     * red word is met forty rows down, by which
+                                     * point what to do about it has scrolled
+                                     * off the screen.
+                                     *
+                                     * "check" survives on its own for the one
+                                     * case where the two come apart: a line the
+                                     * classifier was unsure of whose type the
+                                     * manager then set by hand, which gives it
+                                     * a column without making the address any
+                                     * more recognisable. */
+                                    ?>
                                     <?php if ($column === null): ?>
-                                        <span class="cell-sub text-danger">no residence column</span>
+                                        <span class="cell-sub text-danger">no column &mdash; add the town or city</span>
                                     <?php else: ?>
+                                        <?php if ($entry['confidence'] === 'low'): ?>
+                                            <span class="cell-sub text-danger">check</span>
+                                        <?php elseif ($entry['tourist_type'] !== $suggested): ?>
+                                            <span class="cell-sub">set by you</span>
+                                        <?php endif; ?>
+
                                         <span class="cell-sub"><?= e($column) ?></span>
                                     <?php endif; ?>
                                 </td>

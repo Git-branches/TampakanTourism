@@ -28,6 +28,7 @@ use App\Core\DocumentUploader;
 use App\Core\ManagerAuth;
 use App\Core\Session;
 use App\Repositories\InspectionRepository as Inspections;
+use App\Repositories\NotificationRepository as Notifications;
 
 ManagerAuth::require();
 
@@ -202,6 +203,37 @@ if (is_post()) {
             ActivityLog::record(
                 'inspection.submitted', 'inspection_report', $reportId,
                 'Compliance report submitted for ' . ManagerAuth::destinationName()
+            );
+
+            /* AND RING THE OFFICER'S BELL, which this never did.
+             *
+             * Thirty-two compliance reports had been submitted and the officer's
+             * bell had recorded none of them: the only way to learn one had
+             * arrived was to open the Compliance Review page and look. Every
+             * other thing a manager sends — an arrival report, an alert, a
+             * change request — announces itself. This one was the exception, and
+             * NotificationRepository::TYPES has carried an 'inspection' entry
+             * the whole time, waiting for a caller.
+             *
+             * The body says how much there is to look at, so the officer can
+             * judge whether it is a two-minute job before opening it. */
+            $ready = Inspections::items($reportId);
+            $shots = 0;
+
+            foreach ($ready as $one) {
+                $shots += (int) $one['photo_count'];
+            }
+
+            Notifications::record(
+                'inspection',
+                'Compliance report submitted — ' . ManagerAuth::destinationName(),
+                [
+                    'body'        => n(count($ready)) . ' standards, ' . n($shots) . ' photo'
+                                   . ($shots === 1 ? '' : 's') . ', from ' . ManagerAuth::name() . '.',
+                    'link'        => base_url('/admin/inspections/review.php?id=' . $reportId),
+                    'entity_type' => 'inspection_report',
+                    'entity_id'   => $reportId,
+                ]
             );
 
             Session::flash('success', 'Inspection report submitted. The Municipal Tourism Office will review the photos — you do not need to travel there.');

@@ -119,10 +119,15 @@ $smsLive   = SmsGateway::isLive();
 $neverSet  = $me['password_changed_at'] === null;
 
 $pageTitle    = 'My Account';
-$pageIcon     = 'fa-user-gear';
+$pageIcon     = 'fa-gear';
 $pageSubtitle = ManagerAuth::destinationName();
 
+/* The landing tab of Settings. The sidebar points here, so this is the page a
+   manager arrives on and the strip is what shows them the other two. */
+$mgrSettingsTab = 'me';
+
 require __DIR__ . '/_partials/head.php';
+require __DIR__ . '/_partials/settings-tabs.php';
 
 /* THE OFFICER'S OWN SECTION HEADER, not a manager copy of it.
    The request was for the same collapse behaviour, the same chevron and

@@ -284,6 +284,46 @@ require __DIR__ . '/_partials/head.php';
     </a>
 </p>
 
+<?php
+/* THE THREE STEPS, SAID OUT LOUD.
+ *
+ * The flow was already exactly this — upload, read the preview, confirm — and
+ * the page has always refused to write anything before the second press. What
+ * it never did was say so, so a manager on the preview screen could not tell
+ * whether the rows were already in or still waiting on them.
+ *
+ * Derived from the state the page is in, not remembered: $preview is null
+ * before a file is read and holds the parsed rows after, which is the only
+ * thing that separates the two screens. */
+$importStep = $preview === null ? 1 : 2;
+
+$importSteps = [
+    1 => 'Upload File',
+    2 => 'Preview Data',
+    3 => 'Confirm',
+];
+?>
+
+<ol class="rf-steps">
+    <?php foreach ($importSteps as $nStep => $label): ?>
+        <?php
+        $done = $nStep < $importStep;
+        $now  = $nStep === $importStep;
+        ?>
+        <li class="rf-steps__step<?= $done ? ' is-done' : ($now ? ' is-now' : '') ?>"
+            <?= $now ? 'aria-current="step"' : '' ?>>
+            <span class="rf-steps__n" aria-hidden="true">
+                <?php if ($done): ?>
+                    <i class="fa-solid fa-check"></i>
+                <?php else: ?>
+                    <?= $nStep ?>
+                <?php endif; ?>
+            </span>
+            <span class="rf-steps__label"><?= e($label) ?></span>
+        </li>
+    <?php endforeach; ?>
+</ol>
+
 <?php if ($errors !== []): ?>
     <div class="alert alert-danger">
         <i class="fa-solid fa-circle-exclamation"></i>

@@ -52,6 +52,17 @@ final class ManagerNotificationRepository
         'report_approved'      => ['icon' => 'fa-circle-check',        'tone' => 'green', 'label' => 'Arrival report'],
         'report_returned'      => ['icon' => 'fa-rotate-left',         'tone' => 'amber', 'label' => 'Arrival report'],
         'alert_response'       => ['icon' => 'fa-triangle-exclamation','tone' => 'red',   'label' => 'Alert'],
+
+        /* Added 2026-09-07. Every other thing the office decides told the
+           manager; a change request decided nothing back. The officer's screen
+           even said "Declined, with your reason sent to the manager" while
+           nothing was sent — see admin/change-requests/index.php.
+
+           `type` is varchar(40), not an enum, so these two are additive: no
+           migration, and a row written before they existed still reads. */
+        'change_approved'      => ['icon' => 'fa-circle-check',        'tone' => 'green', 'label' => 'Destination update'],
+        'change_declined'      => ['icon' => 'fa-rotate-left',         'tone' => 'amber', 'label' => 'Destination update'],
+
         'office'               => ['icon' => 'fa-building-columns',    'tone' => 'blue',  'label' => 'Tourism Office'],
     ];
 

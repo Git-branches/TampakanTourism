@@ -47,20 +47,50 @@ $mgrNavGroups = [
 
         ['label' => 'Report an Alert', 'icon' => 'fa-triangle-exclamation', 'href' => 'alert.php',
          'file' => 'alert.php'],
+
+        /* RELINKED 2026-09-07, and the label is the reason it is safe to.
+         *
+         * This was unlinked because "destination information is the Admin's to
+         * edit, and a manager offered the form was being offered a second
+         * source of truth for the same record." The concern was right; the page
+         * was not the thing causing it. update-info.php writes NOTHING to the
+         * destination — it files a proposal the office must approve, and it
+         * cannot touch the name, the location, the coordinates, the QR token or
+         * whether the site is open at all. Those stay office decisions.
+         *
+         * "Request", not "Edit" or "Update": the label has to say that somebody
+         * else decides, or the manager reads their own draft as published.
+         *
+         * Unlinking it had also taken away the only route to the office's
+         * ANSWER, so an officer could decline with a reason and the manager
+         * would never see it. See admin/change-requests/index.php. */
+        ['label' => 'Request a Detail Update', 'icon' => 'fa-pen-to-square',
+         'href' => 'update-info.php', 'file' => 'update-info.php'],
     ],
 
-    'Account' => [
-        /* update-info.php keeps its route and its permissions. Unlinking it is a
+    'System' => [
+        /* ONE ENTRY, THREE PAGES — the shape the officer's shell already has.
+           The sidebar said "My Account" and led to one page; a manager had no
+           route to their own activity trail, and none to the notifications
+           behind the bell beyond the four it could show. Settings is the
+           container for all three, and account.php stays the landing because
+           it is the one anybody comes here for.
+
+           update-info.php keeps its route and its permissions. Unlinking it is a
            navigation decision; blocking it would be a permissions change, and
            this task was explicitly not to touch those. A bookmark still works,
            and nothing in the system links here any more. */
-        ['label' => 'My Account', 'icon' => 'fa-user-gear', 'href' => 'account.php',
-         'file' => 'account.php', 'also' => ['update-info.php']],
+        ['label' => 'Settings', 'icon' => 'fa-gear', 'href' => 'account.php',
+         'file' => 'account.php',
+         'also' => ['logs.php', 'notifications.php']],
     ],
 ];
 
-$current = basename($_SERVER['SCRIPT_NAME'] ?? '');
-$flashes = App\Core\Session::takeFlash();
+/* Also nav-prefixed. update-info.php uses $current for the live value of the
+   field it is drawing, and any page is free to — the name is far too ordinary
+   for a shared partial to claim. */
+$navCurrent = basename($_SERVER['SCRIPT_NAME'] ?? '');
+$flashes    = App\Core\Session::takeFlash();
 
 /* THE BELL'S FIRST PAINT.
  *
@@ -143,14 +173,27 @@ try {
                 <ul>
                     <?php foreach ($groupItems as $item): ?>
                         <?php
-                        $pending = !empty($item['pending']);
-                        $active  = $current === $item['file'] || in_array($current, $item['also'] ?? [], true);
+                        /* nav-PREFIXED, AND THAT PREFIX IS THE WHOLE POINT.
+                         *
+                         * A partial required into a page shares that page's
+                         * variable scope, so every name assigned here lands in
+                         * the caller's. These were $pending and $active — and
+                         * `$pending` is exactly what update-info.php calls its
+                         * list of waiting change requests. head.php runs AFTER
+                         * that list is built, so the array was overwritten with
+                         * a boolean and the page died on
+                         * "foreach() argument must be of type array|object,
+                         * bool given". It went unseen only because nothing
+                         * linked to that page. */
+                        $navPending = !empty($item['pending']);
+                        $navActive  = $navCurrent === $item['file']
+                            || in_array($navCurrent, $item['also'] ?? [], true);
                         ?>
                         <li>
-                            <a class="sidebar__link <?= $active ? 'is-active' : '' ?> <?= $pending ? 'is-pending' : '' ?>"
+                            <a class="sidebar__link <?= $navActive ? 'is-active' : '' ?> <?= $navPending ? 'is-pending' : '' ?>"
                                data-label="<?= e($item['label']) ?>"
-                               href="<?= $pending ? '#' : e($item['href']) ?>"
-                               <?= $pending ? 'aria-disabled="true" title="Coming soon"' : '' ?>>
+                               href="<?= $navPending ? '#' : e($item['href']) ?>"
+                               <?= $navPending ? 'aria-disabled="true" title="Coming soon"' : '' ?>>
                                 <i class="fa-solid <?= e($item['icon']) ?>"></i>
                                 <span><?= e($item['label']) ?></span>
                             </a>
@@ -160,14 +203,19 @@ try {
             <?php endforeach; ?>
         </nav>
 
+        <?php /* Sign-out used to sit here. It moved to the top bar beside the
+                 manager's name, where the officer's has always been, and the
+                 foot now carries what the officer's foot carries: the way out
+                 to the site the public sees.
+
+                 It matters more to a manager than to an officer. This is how
+                 they check that the destination page a visitor reaches — the
+                 one their QR code opens — actually shows what they submitted.
+                 New tab, so a half-typed logbook page is not lost to it. */ ?>
         <div class="sidebar__foot">
-            <form method="post" action="<?= e(base_url('/manager/logout.php')) ?>">
-                <?= csrf_field() ?>
-                <button type="submit" class="sidebar__link" style="width:100%; background:none; border:none; text-align:left;">
-                    <i class="fa-solid fa-right-from-bracket"></i>
-                    <span>Sign out</span>
-                </button>
-            </form>
+            <a href="<?= e(base_url('/')) ?>" target="_blank" rel="noopener">
+                <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i> View public site
+            </a>
         </div>
     </aside>
 
@@ -260,16 +308,67 @@ try {
                         <p class="bell__empty" id="bellEmpty" <?= $bellItems !== [] ? 'hidden' : '' ?>>
                             Nothing yet. When the Office reviews your reports or answers an alert, it appears here.
                         </p>
+
+                        <?php /* THE WAY OUT OF THE DROPDOWN.
+                                 $bellTotal was already being counted here and
+                                 never shown, so the panel could hold four of
+                                 nine and say nothing about the other five. The
+                                 officer's bell has had this footer all along;
+                                 hidden on the same rule, so it appears only
+                                 when there is genuinely more than fits. */ ?>
+                        <footer class="bell__foot" id="bellFoot"
+                                <?= $bellTotal <= count($bellItems) ? 'hidden' : '' ?>>
+                            <a href="<?= e(base_url('/manager/notifications.php')) ?>">
+                                View all notifications
+                            </a>
+                        </footer>
                     </div>
                 </div>
 
-                <div class="topbar__who">
-                    <strong><?= e(ManagerAuth::name()) ?></strong>
-                    <small><?= e(ManagerAuth::destinationName()) ?></small>
-                </div>
-                <div class="topbar__avatar" aria-hidden="true">
-                    <?= e(mb_strtoupper(mb_substr(ManagerAuth::name(), 0, 1))) ?>
-                </div>
+                <?php /* YOUR NAME IS THE WAY TO YOUR SETTINGS, and sign-out sits
+                         beside it — the officer's shell has worked this way all
+                         along, and a manager who learns one shell should not
+                         have to learn the other.
+
+                         The name and the avatar are ONE link. Sign-out is a
+                         SEPARATE control beside it: a click meant for "my
+                         settings" must never end the session by a few pixels.
+
+                         IT STAYS A POST FORM. The officer's sign-out is a plain
+                         link; this one is a CSRF-checked POST, and logout.php
+                         refuses anything else on purpose — a sign-out reachable
+                         by GET can be fired by an <img> on any page a manager
+                         opens, which logs them out mid-report on a phone at a
+                         waterfall. Matching the officer's LOOK is the request;
+                         matching its method would be a downgrade, so the button
+                         is styled as that link rather than replaced by one. */ ?>
+                <a class="topbar__me" href="<?= e(base_url('/manager/account.php')) ?>"
+                   title="Your settings, activity and notifications">
+                    <span class="topbar__who">
+                        <strong><?= e(ManagerAuth::name()) ?></strong>
+                        <small><?= e(ManagerAuth::destinationName()) ?></small>
+                    </span>
+                    <span class="topbar__avatar" aria-hidden="true">
+                        <?= e(mb_strtoupper(mb_substr(ManagerAuth::name(), 0, 1))) ?>
+                    </span>
+                    <span class="visually-hidden">My settings</span>
+                </a>
+
+                <?php /* data-confirm is the shell's own convention — admin.js
+                         catches it on the form and asks through SweetAlert2, so
+                         this is the same dialog every other confirmed action in
+                         the system uses. With JavaScript off the form still
+                         posts and still signs out; the question is a courtesy,
+                         never the thing standing between a click and the act. */ ?>
+                <form method="post" action="<?= e(base_url('/manager/logout.php')) ?>"
+                      class="topbar__out"
+                      data-confirm="Are you sure you want to sign out of TourSync?">
+                    <?= csrf_field() ?>
+                    <button type="submit" class="topbar__signout" title="Sign out">
+                        <i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i>
+                        <span class="visually-hidden">Sign out</span>
+                    </button>
+                </form>
             </div>
         </header>
 
