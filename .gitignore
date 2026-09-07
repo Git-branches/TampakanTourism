@@ -44,6 +44,20 @@ storage/logbooks/*
 storage/imports/*
 !storage/imports/.gitkeep
 
+# Feature 5 and Feature 7 — compliance evidence and tour guide certificates.
+#
+# The same class of file as the two above, and they were missed. Every
+# photograph in storage/inspections is evidence taken at a destination for a
+# submitted compliance report; the certificates are personal documents issued to
+# named guides. Nine inspection photographs were sitting untracked and would
+# have gone into the next commit, and this repository is public.
+#
+# The directories stay so a fresh checkout has somewhere to write.
+storage/inspections/*
+!storage/inspections/.gitkeep
+storage/certificates/*
+!storage/certificates/.gitkeep
+
 # What database/seed-demo.php wrote on THIS machine, by table and row id. It is
 # the record of one laptop's demonstration data and means nothing on another —
 # committing it would offer a --undo that deletes rows belonging to somebody
