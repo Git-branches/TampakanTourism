@@ -23,6 +23,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/bootstrap.php';
 
 use App\Core\Database;
+use App\Core\RateLimiter;
 use App\Core\Sms\LogDriver;
 use App\Core\SmsGateway;
 
@@ -189,9 +190,32 @@ echo "\n--- clean up ---\n";
 Database::run("DELETE FROM announcements WHERE title LIKE 'ZZ %'");
 Database::run("DELETE FROM contact_messages WHERE name LIKE 'ZZ %'");
 
+/* The bell row the submission created goes with the message. Without this the
+   suite left one behind every run — sixty-two of them had collected, all
+   reading "New message" and all pointing at an inbox with nothing in it.
+   entity_id is null on these, so the title is what identifies them. */
+Database::run(
+    "DELETE FROM admin_notifications WHERE type = 'contact_message' AND title LIKE 'New message: ZZ %'"
+);
+
+/* And the hit the probe spent out of the visitor's four-an-hour allowance.
+   Without this the suite could only be run four times in an hour: the fifth
+   was refused by the rate limiter and reported as "the message was stored:
+   FAIL", which reads as a broken contact form rather than a spent quota.
+   Both buckets, and both spellings of the loopback address — the test posts
+   over real HTTP and does not get to choose which one the server records. */
+foreach (['127.0.0.1', '::1', 'unknown'] as $ip) {
+    RateLimiter::forget('contact:' . $ip);
+    RateLimiter::forget('contact-try:' . $ip);
+}
+
 check('announcements are back to where they started',
     (int) Database::scalar('SELECT COUNT(*) FROM announcements'), $before);
 check('no probe message survives',
     (int) Database::scalar("SELECT COUNT(*) FROM contact_messages WHERE name LIKE 'ZZ %'"), 0);
+check('and no bell row is left pointing at it',
+    (int) Database::scalar(
+        "SELECT COUNT(*) FROM admin_notifications WHERE title LIKE 'New message: ZZ %'"
+    ), 0);
 
 test_finish();

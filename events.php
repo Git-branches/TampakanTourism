@@ -131,6 +131,30 @@ require __DIR__ . '/app/views/partials/public-nav.php';
                         <?= e(AnnouncementRepository::TYPES[$a['type']]) ?>
                     </div>
 
+                    <?php /* THE POSTER THE OFFICE UPLOADED.
+                             This page was showing the summary and the body and
+                             nothing else, so an officer could attach a poster to
+                             a fiesta, watch it appear on the homepage card, and
+                             then lose it the moment a visitor pressed Learn
+                             More. banner_path was already on the row and already
+                             editable in the admin; only the reading of it was
+                             missing.
+
+                             Above the text, because for an event the picture IS
+                             the information — a poster carries the schedule, the
+                             sponsors and the look of the thing in one glance.
+
+                             No placeholder when there is none: the badge, the
+                             heading and the details below already say what this
+                             is, and an empty grey rectangle says nothing. */ ?>
+                    <?php if (!empty($a['banner_path'])): ?>
+                        <figure class="event-poster">
+                            <img src="<?= e(base_url($a['banner_path'])) ?>"
+                                 alt="Poster for <?= e($a['title']) ?>"
+                                 loading="lazy">
+                        </figure>
+                    <?php endif; ?>
+
                     <?php if ($a['summary']): ?>
                         <p class="dest-lead"><?= e($a['summary']) ?></p>
                     <?php endif; ?>

@@ -339,12 +339,25 @@ if ($approved === null) {
 
 /* ---- the month nobody approved ---------------------------------------- */
 
+/* A month with NOTHING approved in it, which is not the same as the month
+   holding back the most.
+ *
+ * This used to take the month with the largest unapproved figure and assert the
+ * sheet came out empty. That held only while such a month happened to have no
+ * approved report either. The moment one destination's May report was approved,
+ * May was still the biggest holder-back — and its sheet correctly showed the
+ * 123 visitors that HAD been approved, so a right answer was read as a failure.
+ *
+ * The HAVING clause is the rule the sentence above it always meant. */
 $unapproved = Database::first(
-    "SELECT YEAR(a.visit_date) y, MONTH(a.visit_date) m, SUM(a.total_visitors) v
+    "SELECT YEAR(a.visit_date) y, MONTH(a.visit_date) m,
+            SUM(a.total_visitors) v
        FROM tourist_arrivals a
        LEFT JOIN arrival_reports r ON r.id = a.report_id
-      WHERE a.status = 'valid' AND (a.report_id IS NULL OR r.status <> 'approved')
+      WHERE a.status = 'valid'
       GROUP BY y, m
+     HAVING SUM(CASE WHEN r.status = 'approved' THEN a.total_visitors ELSE 0 END) = 0
+        AND SUM(a.total_visitors) > 0
       ORDER BY v DESC
       LIMIT 1"
 );

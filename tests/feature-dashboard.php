@@ -18,6 +18,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/bootstrap.php';
 
 use App\Core\Database;
+use App\Core\RateLimiter;
 use App\Repositories\DestinationRepository;
 
 echo "\n=== feature 5: dashboard, destinations, mapping, feedback ===\n\n";
@@ -39,12 +40,20 @@ echo "--- the dashboard answers, and only to somebody signed in ---\n";
 
 $anon = test_get('admin/dashboard.php');
 
+/* MATCHED ON STRUCTURE, NOT ON COPY.
+   This used to look for the subtitle "Municipal tourism at a glance".
+   The page absorbed the analytics screen and its subtitle changed to say
+   so, and the suite failed on a sentence rather than on anything being
+   wrong. id="lastUpdated" is the live clock: only this page has it, and
+   it is not something anybody rewrites while editing the words. */
+$MARK = 'id="lastUpdated"';
+
 check('an anonymous visitor is not given the dashboard',
-    str_contains($anon, 'Municipal tourism at a glance'), false);
+    str_contains($anon, $MARK), false);
 
 $dash = test_get_as($sid, 'admin/dashboard.php');
 
-check('the officer gets it', str_contains($dash, 'Municipal tourism at a glance'), true);
+check('the officer gets it', str_contains($dash, $MARK), true);
 check('it renders without diagnostics',
     (bool) preg_match('/Warning:|Fatal error:/', $dash), false);
 
@@ -218,6 +227,16 @@ echo "\n--- clean up ---\n";
 
 Database::run("DELETE FROM feedback WHERE visitor_name LIKE 'ZZ %'");
 Database::run("DELETE FROM destinations WHERE name LIKE 'ZZ %'");
+
+/* And the hit the probe spent out of the visitor's five-per-quarter-hour
+   allowance on the feedback form. Without this a second run inside fifteen
+   minutes was refused by the limiter and reported as "the review was stored:
+   FAIL" — which reads as a broken form rather than a spent quota. The test
+   posts over real HTTP and does not choose which spelling of the loopback
+   address the server records, so all three are cleared. */
+foreach (['127.0.0.1', '::1', 'unknown'] as $ip) {
+    RateLimiter::forget('feedback:' . $ip);
+}
 
 check('feedback is back to where it started',
     (int) Database::scalar('SELECT COUNT(*) FROM feedback'), $before);

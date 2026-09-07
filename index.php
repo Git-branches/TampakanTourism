@@ -323,7 +323,20 @@ foreach (AnnouncementRepository::upcomingEvents(15) as $row) {
         // month, and year below are for people; this one is for search
         // engines and assistive technology.
         'iso'      => date('Y-m-d', $when),
-        'image'    => $row['banner_path'] ? base_url($row['banner_path']) : img('1533174072545-7a4b6ad7a6c3'),
+        /* NULL RATHER THAN A STOCK PHOTOGRAPH.
+         *
+         * This used to fall back to an Unsplash picture of a concert crowd, and
+         * three of the five events on file have no banner — so the section
+         * showed the same foreign concert three times over and read as
+         * placeholder data. It is also not Tampakan, which anybody who lives
+         * there notices first.
+         *
+         * The card draws its own plate when this is null: the date on a green
+         * ground with the event's own icon. A card that plainly has no
+         * photograph looks better than one pretending to have a relevant one,
+         * and it gives the office a reason to upload the real poster. */
+        'image'    => $row['banner_path'] ? base_url($row['banner_path']) : null,
+        'icon'     => AnnouncementRepository::TYPE_STYLE[$row['type']]['icon'] ?? 'fa-calendar-day',
         'day'      => date('d', $when),
         'month'    => date('M', $when),
         'year'     => date('Y', $when),
@@ -393,7 +406,19 @@ foreach ($newsRows as $row) {
         'date'  => format_date($row['publish_at'] ?: $row['created_at']),
         'title' => $row['title'],
         'text'  => $row['summary'] ?: mb_substr(strip_tags($row['body']), 0, 165),
-        'image' => $row['banner_path'] ? base_url($row['banner_path']) : img('1490682143684-14369e18dce8', 900, 600),
+        /* NULL, NOT A STOCK PHOTOGRAPH — AND HERE IT WAS WORSE THAN GENERIC.
+         *
+         * All nine notices on file share one Unsplash sunset, so a closure, an
+         * advisory and a reminder wore the same picture. "Buto Falls closed for
+         * footpath repair" was illustrated with a mountain at golden hour, which
+         * reads as an invitation: the image contradicted the words it sat above.
+         *
+         * The card draws its own plate instead, in the colour the type already
+         * owns — red for a closure, amber for an advisory. The tag chip carries
+         * the words, so the plate carries only the colour and the icon rather
+         * than saying it twice. */
+        'image' => $row['banner_path'] ? base_url($row['banner_path']) : null,
+        'icon'  => AnnouncementRepository::TYPE_STYLE[$row['type']]['icon'] ?? 'fa-bullhorn',
     ];
 }
 
@@ -1057,9 +1082,21 @@ require __DIR__ . '/app/views/partials/public-nav.php';
             <div class="event-item" data-event-type="<?= e($ev['type']) ?>"
                  <?= $eventShows($ev['type'], $eventType) ? '' : 'hidden' ?>>
                 <article class="event-card">
-                    <div class="event-card__media">
-                        <img src="<?= e($ev['image']) ?>" alt="<?= e(strip_tags($ev['title'])) ?> event banner"
-                             loading="lazy" width="1200" height="800">
+                    <div class="event-card__media<?= $ev['image'] === null ? ' is-plate' : '' ?>">
+                        <?php if ($ev['image'] !== null): ?>
+                            <img src="<?= e($ev['image']) ?>" alt="<?= e(strip_tags($ev['title'])) ?> event banner"
+                                 loading="lazy" width="1200" height="800">
+                        <?php else: ?>
+                            <?php /* No banner on file. The kind of event, drawn
+                                     rather than borrowed from a stock library.
+                                     aria-hidden: the kind is already in the card's
+                                     own text, and a screen reader does not need
+                                     to hear a decorative plate say it twice. */ ?>
+                            <span class="event-card__plate" aria-hidden="true">
+                                <i class="fa-solid <?= e($ev['icon']) ?>"></i>
+                                <em><?= e($ev['kind']) ?></em>
+                            </span>
+                        <?php endif; ?>
                         <time class="event-card__date" datetime="<?= e($ev['iso']) ?>">
                             <strong><?= e($ev['day']) ?></strong>
                             <span><?= e($ev['month']) ?></span>
@@ -1222,9 +1259,16 @@ require __DIR__ . '/app/views/partials/public-nav.php';
             <div class="news-item" data-news-type="<?= e($n['type']) ?>"
                  <?= $newsShows($n['type'], $newsType) ? '' : 'hidden' ?>>
                 <article class="news-card">
-                    <div class="news-card__media">
-                        <img src="<?= e($n['image']) ?>" alt="<?= e($n['title']) ?>"
-                             loading="lazy" width="900" height="600">
+                    <div class="news-card__media<?= $n['image'] === null ? ' is-plate news-card__media--' . e($n['type']) : '' ?>">
+                        <?php if ($n['image'] !== null): ?>
+                            <img src="<?= e($n['image']) ?>" alt="<?= e($n['title']) ?>"
+                                 loading="lazy" width="900" height="600">
+                        <?php else: ?>
+                            <?php /* Decorative: the chip below already names the
+                                     type in words, so a screen reader would hear
+                                     it twice. */ ?>
+                            <i class="news-card__plate fa-solid <?= e($n['icon']) ?>" aria-hidden="true"></i>
+                        <?php endif; ?>
                         <?php /* The TYPE, not the label. This was
                                  strtolower($n['tag']) — the human label — so
                                  "Tourism Advisory" became
@@ -1563,7 +1607,17 @@ require __DIR__ . '/app/views/partials/public-nav.php';
                     <?php /* A REAL POST to a real endpoint. This form spent the
                              project's whole life discarding what people wrote
                              into it. */ ?>
-                    <form id="contactForm" class="row g-3" novalidate
+                    <?php /* data-no-busy, and it is not cosmetic.
+                             notify.js marks a submit button busy on every form
+                             it sees submitted, then swallows further clicks on
+                             it. It does that even when the submit was cancelled
+                             — so one click with a field still empty left this
+                             button spinning "Sending…" and refusing every click
+                             after it. The form was dead until the page reloaded.
+                             This form cancels its own submit in both branches
+                             and drives the button itself, which is precisely the
+                             case notify.js documents this attribute for. */ ?>
+                    <form id="contactForm" class="row g-3" novalidate data-no-busy
                           method="post" action="<?= e(base_url('/api/contact/submit.php')) ?>">
                         <?= csrf_field() ?>
 
@@ -2069,12 +2123,83 @@ require __DIR__ . '/app/views/partials/public-nav.php';
 
         event.preventDefault();
         apply(link.dataset.eventFilter, true);
-
-        /* The section, not the top of the page: the visitor was reading here. */
-        const section = document.getElementById('events');
-
-        if (section) { section.scrollIntoView({ block: 'start', behavior: 'smooth' }); }
+        reveal();
     });
+
+    /* SCROLL TO THE RESULT, NOT TO THE HEADING.
+     *
+     * This used to be scrollIntoView({block:'start'}) on #events, which put the
+     * top of the SECTION at the top of the screen. The section opens with a
+     * pill, a heading, a subtitle, the chips and the count — about 550px before
+     * the first card begins — so the cards landed below the fold and were cut:
+     * 360px off the bottom on a 1366x600 laptop, 129px on a phone. The visitor
+     * filtered to three events and had to scroll to see any of them.
+     *
+     * What the click means is "show me these events", so the card is what gets
+     * put on screen. The gap above it keeps the chips and the count in view, so
+     * the control that was just used does not vanish.
+     */
+    /* HOW MUCH OF THE TOP IS NOT ACTUALLY VISIBLE.
+     *
+     * The main nav is position:fixed and 85px tall on a laptop, less once it
+     * collapses on a phone. Measured rather than written down, because a
+     * hardcoded 85 becomes wrong the first time somebody adds a line to the
+     * bar and nothing points back here.
+     *
+     * The first fix put the card 96px from the top of the WINDOW, which is
+     * 11px below an 85px bar — so the card was whole but the chips that had
+     * just been clicked were hidden behind the nav. The screenshot showed it;
+     * my own check had called them visible, because "inside the viewport" and
+     * "not covered by something fixed on top of it" are different questions.
+     */
+    function coveredTop() {
+        let covered = 0;
+
+        document.querySelectorAll('nav, header, .navbar').forEach(el => {
+            const cs = getComputedStyle(el);
+
+            if (cs.position !== 'fixed' && cs.position !== 'sticky') { return; }
+
+            const r = el.getBoundingClientRect();
+
+            /* ITS HEIGHT, NOT ITS CURRENT BOTTOM, and no test on where it is
+               sitting right now.
+                 At the top of the page this bar floats 40px down and carries no
+               .is-scrolled class; once the page moves it snaps to top:0 and
+               shrinks — 96px to 85px on a laptop, 85 to 74 on a desktop. An
+               earlier version of this required r.top <= 1, which is false while
+               the bar is floating, so at scrollY 0 it concluded nothing covered
+               the top and gave the card a 96px gap that the bar then ate. The
+               chips clicked a moment earlier ended up behind it.
+                 The un-scrolled height is the larger of the two, which errs
+               towards a slightly bigger gap. That is the safe direction. */
+            if (r.height >= 20 && r.width >= window.innerWidth * 0.5) {
+                covered = Math.max(covered, r.height);
+            }
+        });
+
+        return covered;
+    }
+
+    function reveal() {
+        const card = grid.querySelector('.event-item:not([hidden])') || grid;
+        const box  = card.getBoundingClientRect();
+        const vh   = window.innerHeight;
+        const top  = coveredTop();
+
+        /* Already whole and clear of the bar: leave the page exactly where the
+           visitor put it. Scrolling a card that is already readable is the
+           jump this was supposed to fix. */
+        if (box.top >= top && box.bottom <= vh) { return; }
+
+        /* Room to leave between the bar and the card, so the chips and the
+           count stay in sight. Capped, and given up entirely on a screen too
+           short to afford it — the card itself comes first. */
+        const room = vh - top - box.height;
+        const gap  = Math.max(0, Math.min(96, room - 16));
+
+        window.scrollTo({ top: window.scrollY + box.top - top - gap, behavior: 'smooth' });
+    }
 })();
 </script>
 

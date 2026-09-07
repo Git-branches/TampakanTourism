@@ -470,23 +470,16 @@ $hasDirections = $d['latitude'] !== null && $d['longitude'] !== null;
         </section>
     <?php endif; ?>
 
-    <!-- ===================== A LOCAL GUIDE ===================== -->
-    <!-- Placed on the QR page and not only on the website because this is the
-         moment it is asked: somebody is standing at the trailhead deciding
-         whether to go up alone. src=qr tells the Office they are already here,
-         which is a different urgency from a request made a week out. -->
-    <section class="lb-card">
-        <h2 class="lb-h2"><i class="fa-solid fa-person-hiking"></i> Want a local guide?</h2>
-        <p>
-            The Municipal Tourism Office can arrange someone who knows
-            <?= e((string) $d['name']) ?> &mdash; the trail, the history, and the safe way round.
-        </p>
-        <a class="lb-btn lb-btn--primary"
-           href="<?= e(base_url('/tour-guide.php?src=qr&d=' . urlencode((string) $d['slug']))) ?>">
-            <i class="fa-solid fa-paper-plane"></i> Request a tour guide
-        </a>
-        <p class="lb-muted">They text you the guide's name and number, usually the same day.</p>
-    </section>
+    <!-- A LOCAL GUIDE was here, and is deliberately gone.
+         The office decided the sign is for information, not for transactions:
+         where you are, who to call in an emergency, the heritage, the way out
+         and what is nearby — plus the one thing it does ask of the visitor,
+         which is a rating. Booking a guide is arranged on the website, where
+         somebody planning a trip is already looking.
+
+         The tour-guide page still accepts `src=qr`, so nothing is broken if a
+         printed sign or an old link still carries it; nothing on this page
+         sends it any more. -->
 
     <!-- ===================== THE PAPER LOGBOOK ===================== -->
     <!-- Said plainly, because the sign no longer asks them to type anything and

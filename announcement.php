@@ -109,6 +109,26 @@ require __DIR__ . '/app/views/partials/public-nav.php';
                         <?= e(AnnouncementRepository::TYPES[$a['type']]) ?>
                     </div>
 
+                    <?php /* THE PICTURE THE OFFICE ATTACHED.
+                             Same omission as the event page had: banner_path was
+                             on the row and editable in the admin, and this page
+                             printed the summary and the body and threw the
+                             picture away. An officer could photograph a washed
+                             out footbridge, attach it to the closure notice, and
+                             the one thing that showed the reader what "closed"
+                             actually meant never reached them.
+
+                             Nothing is drawn when there is none. A notice is
+                             words first; the picture is evidence when it exists
+                             and an empty grey box when it does not. */ ?>
+                    <?php if (!empty($a['banner_path'])): ?>
+                        <figure class="event-poster">
+                            <img src="<?= e(base_url($a['banner_path'])) ?>"
+                                 alt="Photograph attached to <?= e($a['title']) ?>"
+                                 loading="lazy">
+                        </figure>
+                    <?php endif; ?>
+
                     <?php if ($a['summary']): ?>
                         <p class="dest-lead"><?= e($a['summary']) ?></p>
                     <?php endif; ?>

@@ -33,6 +33,33 @@ if (!is_post()) {
 
 Csrf::verify();
 
+/* ANSWERING AN XHR IN JSON, AND EVERYTHING ELSE EXACTLY AS BEFORE.
+ *
+ * Posting this form navigated the whole homepage — hero, carousels, the lot —
+ * and landed back on #contact. The visitor read that as the site restarting
+ * under them, which for a form that only writes one row is a lot of ceremony.
+ *
+ * So a request that asks for JSON gets JSON and the page never moves. The
+ * redirect path below is untouched: same order, same buckets, same messages.
+ * A browser with no JavaScript still posts, still redirects, still sees the
+ * server's answer rendered into the form. */
+$wantsJson = strtolower((string) ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '')) === 'xmlhttprequest';
+
+/**
+ * @param array<string, string> $errors  field name => message
+ */
+$json = static function (bool $ok, ?string $message, array $errors = []): never {
+    header('Content-Type: application/json; charset=utf-8');
+    /* No caching: a proxy holding "your message reached the office" and
+       replaying it for the next visitor would be worse than no answer. */
+    header('Cache-Control: no-store');
+    echo json_encode(
+        ['ok' => $ok, 'message' => $message, 'errors' => $errors],
+        JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+    );
+    exit;
+};
+
 /** Sends them back to the form with what they typed still in it. */
 $bounce = static function (array $errors, string $message): never {
     Session::put('_contact_old', [
@@ -48,13 +75,18 @@ $bounce = static function (array $errors, string $message): never {
     exit;
 };
 
-/* Honeypot and dwell, same two as every other public form here. */
+/* Honeypot and dwell, same two as every other public form here. Both answer as
+   though nothing happened — telling a bot which trap it fell into is how it
+   learns to step over the trap. The JSON is the same shape of nothing the
+   redirect gives a browser: no message, so the page says nothing either. */
 if (trim((string) ($_POST['website'] ?? '')) !== '') {
+    if ($wantsJson) { $json(true, null); }
     redirect(base_url('/#contact'));
 }
 
 $renderedAt = (int) ($_POST['rendered_at'] ?? 0);
 if ($renderedAt > 0 && (time() - $renderedAt) < 3) {
+    if ($wantsJson) { $json(true, null); }
     redirect(base_url('/#contact'));
 }
 
@@ -64,7 +96,9 @@ $ip = (string) ($_SERVER['REMOTE_ADDR'] ?? 'unknown');
    lesson as the guide form. A visitor who mistypes their email twice must not
    be locked out of contacting their municipal office. */
 if (!RateLimiter::allow('contact-try:' . $ip, 20, 3600)) {
-    Session::flash('danger', 'Too many attempts from this connection. Please try again later.');
+    $tooMany = 'Too many attempts from this connection. Please try again later.';
+    if ($wantsJson) { $json(false, $tooMany); }
+    Session::flash('danger', $tooMany);
     redirect(base_url('/#contact'));
 }
 
@@ -81,11 +115,17 @@ if (trim((string) ($_POST['phone'] ?? '')) !== '') {
 }
 
 if ($v->fails()) {
-    $bounce($v->errors(), $v->firstError() ?? 'Please check the form and try again.');
+    $message = $v->firstError() ?? 'Please check the form and try again.';
+    /* The field errors travel too, so the page can mark the offending input
+       rather than only printing one sentence under the button. */
+    if ($wantsJson) { $json(false, $message, $v->errors()); }
+    $bounce($v->errors(), $message);
 }
 
 if (!RateLimiter::allow('contact:' . $ip, 4, 3600)) {
-    Session::flash('danger', 'You have sent several messages already. Please wait for the Office to reply.');
+    $enough = 'You have sent several messages already. Please wait for the Office to reply.';
+    if ($wantsJson) { $json(false, $enough); }
+    Session::flash('danger', $enough);
     redirect(base_url('/#contact'));
 }
 
@@ -100,7 +140,9 @@ try {
     ]);
 } catch (Throwable $e) {
     error_log('Contact message failed: ' . $e->getMessage());
-    $bounce([], 'Your message could not be sent. Please try again, or call the Office directly.');
+    $failed = 'Your message could not be sent. Please try again, or call the Office directly.';
+    if ($wantsJson) { $json(false, $failed); }
+    $bounce([], $failed);
 }
 
 /* On the bell. There is no SMS for an enquiry — until this, a message from the
@@ -116,11 +158,16 @@ Notifications::record(
 );
 
 /* Says what actually happens next, and does not promise a timeframe the office
-   has not agreed to. */
+   has not agreed to. The same sentence either way — a visitor on a phone with
+   JavaScript and one without must be told the same thing. */
+$thanks = 'Thank you — your message has reached the Municipal Tourism Office. They will reply to the '
+    . 'email address you gave.';
+
+if ($wantsJson) { $json(true, $thanks); }
+
 Session::flash(
     'success',
-    'Thank you — your message has reached the Municipal Tourism Office. They will reply to the '
-    . 'email address you gave.'
+    $thanks
 );
 
 redirect(base_url('/#contact'));
