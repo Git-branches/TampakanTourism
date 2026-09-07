@@ -108,16 +108,17 @@ $addColumn($pdo, 'tourist_arrivals', 'synced_at',   'synced_at DATETIME NULL AFT
 $addIndex($pdo, 'tourist_arrivals', 'uniq_arr_client_uuid', 'UNIQUE KEY uniq_arr_client_uuid (client_uuid)');
 
 // -----------------------------------------------------------------------------
-// 2026-08 — Budget planning lines.                                   Feature 4
+// Does this table exist yet?
 //
-// The office's own cost drivers, one row per budget line. Deliberately a table
-// rather than constants in code: these are policy figures the Tourism Officer
-// must be able to revise without a developer, and must be able to defend line
-// by line to the Mayor and to COA.
+// The guard in front of every CREATE TABLE below, which is what lets this file
+// be run twice without exploding on the second pass. Twenty-two blocks call it.
 //
-// unit_cost is DECIMAL, never a float. Money compared or summed as binary
-// floating point eventually disagrees with the ledger by a centavo, and a
-// budget that does not foot is a budget that gets sent back.
+// It was first written under the budget-planning heading that used to be here.
+// That feature was never built — nothing in the system ever read budget_lines
+// or budget_contingency_pct — so both were removed on 2026-09-07, along with
+// the block that created and seeded them. The rows are backed up outside the
+// repository, and the CREATE TABLE is in this file's history if the office
+// ever asks for costing again.
 // -----------------------------------------------------------------------------
 $tableExists = static function (PDO $pdo, string $table) use ($db): bool {
     $q = $pdo->prepare(
@@ -128,74 +129,6 @@ $tableExists = static function (PDO $pdo, string $table) use ($db): bool {
     return (bool) $q->fetchColumn();
 };
 
-if ($tableExists($pdo, 'budget_lines')) {
-    echo "  skip  budget_lines — already present\n";
-} else {
-    $pdo->exec("
-        CREATE TABLE budget_lines (
-            id          INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-            label       VARCHAR(160) NOT NULL,
-            category    VARCHAR(80)  NOT NULL DEFAULT 'Operations',
-
-            -- What the quantity is counted in. The planner multiplies the
-            -- quantity this implies by unit_cost; nothing else varies.
-            basis       ENUM('per_visitor','per_destination_month','per_destination_year','fixed_annual')
-                        NOT NULL DEFAULT 'fixed_annual',
-
-            unit_cost   DECIMAL(12,2) NOT NULL DEFAULT 0.00,
-            notes       VARCHAR(255) NULL,
-            sort_order  SMALLINT UNSIGNED NOT NULL DEFAULT 0,
-            is_active   TINYINT(1) NOT NULL DEFAULT 1,
-            updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-
-            KEY idx_budget_active (is_active, sort_order)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-    ");
-    echo "  ok    budget_lines created\n";
-
-    /* Seeded with the lines a municipal tourism office actually carries, and
-       with every unit cost at zero.
-
-       That is deliberate. Inventing plausible peso figures would produce a
-       screen that looks authoritative and is fiction — the exact failure this
-       whole feature was chosen over an AI to avoid. Zero is the honest
-       starting value: nobody has set it yet, and the screen says so. */
-    $seed = $pdo->prepare(
-        'INSERT INTO budget_lines (label, category, basis, unit_cost, notes, sort_order)
-         VALUES (?, ?, ?, 0.00, ?, ?)'
-    );
-
-    $lines = [
-        ['Solid waste collection and disposal', 'Site operations', 'per_visitor',           'Cost per visitor for collection, hauling, and disposal.'],
-        ['Potable water and sanitation supplies', 'Site operations', 'per_visitor',         'Consumables at comfort rooms and hand-washing points.'],
-        ['First aid and emergency consumables', 'Visitor safety', 'per_visitor',            'Restocking of site first aid kits.'],
-        ['Visitor desk personnel', 'Personnel', 'per_destination_month',                    'Honorarium or wage per destination, per month.'],
-        ['Site maintenance and minor repairs', 'Site operations', 'per_destination_month',  'Trail clearing, railings, signage upkeep.'],
-        ['QR signage replacement', 'Signage', 'per_destination_year',                       'Reprinting and remounting after weathering or damage.'],
-        ['Guide accreditation and training', 'Personnel', 'fixed_annual',                   'Annual accreditation cycle for local guides.'],
-        ['Promotional materials and campaigns', 'Promotion', 'fixed_annual',                'Print, digital, and event promotion for the year.'],
-        ['Internet and system hosting', 'Administration', 'fixed_annual',                   'Hosting and connectivity for this system.'],
-    ];
-
-    foreach ($lines as $i => [$label, $category, $basis, $note]) {
-        $seed->execute([$label, $category, $basis, $note, ($i + 1) * 10]);
-    }
-
-    echo "  ok    budget_lines seeded with " . count($lines) . " lines at zero cost\n";
-}
-
-/* Contingency, as a percentage the office sets. Zero until they choose one —
-   same reasoning as the unit costs above. */
-$hasSetting = $pdo->prepare('SELECT 1 FROM settings WHERE setting_key = ?');
-$hasSetting->execute(['budget_contingency_pct']);
-
-if ($hasSetting->fetchColumn()) {
-    echo "  skip  budget_contingency_pct — already present\n";
-} else {
-    $pdo->prepare('INSERT INTO settings (setting_key, setting_value) VALUES (?, ?)')
-        ->execute(['budget_contingency_pct', '0']);
-    echo "  ok    budget_contingency_pct setting added\n";
-}
 
 // -----------------------------------------------------------------------------
 // 2026-08 — Destination managers become accounts.                    Feature 2
@@ -256,8 +189,8 @@ $addIndex($pdo, 'destination_managers', 'uniq_manager_username',
 // WHERE APPROVED FIGURES GO
 //
 // Nowhere new. On approval the day rows are written into arrival_daily_summary,
-// the rollup the dashboard, Insights, ReportBuilder and the budget planner
-// already read. There is deliberately no second place the same visitors are
+// the rollup the dashboard, Insights and ReportBuilder already read. There is
+// deliberately no second place the same visitors are
 // counted; these tables hold the submission and its audit trail, and the
 // existing summary stays the one source for statistics.
 // -----------------------------------------------------------------------------
