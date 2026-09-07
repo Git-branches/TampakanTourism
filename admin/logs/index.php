@@ -53,9 +53,7 @@ $total   = (int) Database::scalar("SELECT COUNT(*) FROM activity_logs l {$where}
    the window and the clamping now come from the one place that does it. */
 $window  = Paginator::of($total, $_GET['page'] ?? null);
 $perPage = $window['perPage'];
-$page    = $window['page'];
 $offset  = $window['offset'];
-$pages   = $window['pages'];
 
 $rows = Database::all(
     "SELECT l.*, a.full_name, a.username
@@ -76,7 +74,9 @@ $entities = Database::all('SELECT DISTINCT entity_type FROM activity_logs WHERE 
 $notable = ['arrival.void', 'qr.rotate', 'account.create', 'account.reset', 'account.role',
             'account.deactivate', 'destination.archive', 'settings.update', 'auth.locked', 'retention.run'];
 
-$query = http_build_query(array_filter($_GET, static fn($v, $k) => $v !== '' && $k !== 'page', ARRAY_FILTER_USE_BOTH));
+/* $page, $pages and a hand-built $query string lived here to feed this page's
+   own pager. That pager is gone and the shared partial rebuilds the query
+   itself through Paginator::query(), so all three went with it. */
 
 require __DIR__ . '/../_partials/head.php';
 ?>
@@ -163,18 +163,17 @@ require __DIR__ . '/../_partials/head.php';
         </div>
     </div>
 
-    <?php if ($pages > 1): ?>
-        <nav class="pager">
-            <?php
-            $start = max(1, $page - 3);
-            $stop  = min($pages, $page + 3);
-            for ($p = $start; $p <= $stop; $p++): ?>
-                <a href="?<?= e($query) ?>&page=<?= $p ?>" class="<?= $p === $page ? 'is-current' : '' ?>"><?= $p ?></a>
-            <?php endfor; ?>
-        </nav>
-    <?php endif; ?>
 <?php endif; ?>
 
+<?php /* THE SECOND PAGER USED TO BE HERE.
+         This page carried its own <nav class="pager"> of bare page numbers as
+         well as the shared partial below, so every list showed two. The
+         home-made one had no count, no previous/next and no ellipsis, and
+         because .pager is a flex row expecting a count on the left and links on
+         the right, its loose <a>s were spread the full width of the panel —
+         "1        2        3        4" with nothing to say what they were.
+         The shared partial is the one that survives; it rebuilds the query
+         string itself, so the filters carry across pages. */ ?>
 <?php require __DIR__ . '/../../app/views/partials/pager.php'; ?>
 
 <?php require __DIR__ . '/../_partials/foot.php'; ?>

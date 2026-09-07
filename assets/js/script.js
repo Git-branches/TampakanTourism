@@ -605,11 +605,64 @@
         const alert = $('#formAlert');
         if (!form || !alert) return;
 
+        const button    = form.querySelector('button[type="submit"]');
+        const sendLabel = button ? button.innerHTML : '';
+
+        /* HOW LONG THE ANSWER STAYS UP.
+           Long enough to read two sentences without hurrying, short enough that
+           it is gone before the visitor wonders whether it is stuck there. */
+        const LINGER = 5500;
+        const FADE   = 350;          // matches .form-alert.is-leaving
+        let hideTimer = null;
+        let fadeTimer = null;
+
+        const hideAlert = (fade) => {
+            window.clearTimeout(hideTimer);
+            window.clearTimeout(fadeTimer);
+
+            if (!alert.classList.contains('is-visible')) return;
+
+            if (!fade) {                       // typing into the form: go at once
+                alert.classList.remove('is-visible', 'is-leaving');
+                return;
+            }
+
+            alert.classList.add('is-leaving');
+            fadeTimer = window.setTimeout(() => {
+                alert.classList.remove('is-visible', 'is-leaving');
+            }, FADE);
+        };
+
         const showAlert = (type, message) => {
+            window.clearTimeout(hideTimer);
+            window.clearTimeout(fadeTimer);
             alert.className = `form-alert form-alert--${type} is-visible`;
             alert.innerHTML =
                 `<i class="fa-solid ${type === 'success' ? 'fa-circle-check' : 'fa-circle-exclamation'}"></i>
-                 <span>${message}</span>`;
+                 <span></span>`;
+            /* Through a text node: the server's sentence is the server's, but
+               a validation message can carry a field name the visitor typed. */
+            alert.querySelector('span').textContent = message;
+            hideTimer = window.setTimeout(() => hideAlert(true), LINGER);
+        };
+
+        /* An answer the server rendered into the page — the no-JavaScript path,
+           or a reload — was staying up until the visitor typed something else.
+           Nobody types into a form they have just finished sending, so it stayed
+           for good. It gets the same few seconds as any other. */
+        if (alert.classList.contains('is-visible')) {
+            hideTimer = window.setTimeout(() => hideAlert(true), LINGER);
+        }
+
+        const setSending = (on) => {
+            if (!button) return;
+            button.innerHTML = on
+                ? '<i class="fa-solid fa-spinner fa-spin"></i> Sending&hellip;'
+                : sendLabel;
+            /* aria-busy rather than disabled: a disabled submit button is left
+               out of the POST body, and it would strand the visitor on a dead
+               form if the request failed. */
+            button.setAttribute('aria-busy', on ? 'true' : 'false');
         };
 
         form.addEventListener('submit', (event) => {
@@ -617,7 +670,6 @@
             form.classList.add('was-validated');
 
             if (!form.checkValidity()) {
-                // The ONLY branch that stops the submission.
                 event.preventDefault();
                 showAlert('error', 'Please complete all required fields before sending.');
                 const firstInvalid = form.querySelector(':invalid');
@@ -625,24 +677,61 @@
                 return;
             }
 
-            /* Valid: let the browser submit normally. The spinner is honest now
-               — it runs until the page navigates, and the message the visitor
-               reads afterwards comes from the server having actually stored it.
+            /* NO PAGE RELOAD.
+               Posting normally navigated the whole homepage and landed back on
+               #contact — hero, carousels and all — which reads as the site
+               restarting under you for the sake of writing one row. The request
+               goes out on its own and the page stays where it is.
 
-               The button is NOT disabled: a disabled submit button is omitted
-               from the POST body, and disabling it here would also strand the
-               visitor on a dead form if the request failed. */
-            const button = form.querySelector('button[type="submit"]');
-
-            if (button) {
-                button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Sending&hellip;';
+               If fetch is missing, nothing is prevented and the browser submits
+               the form the way it always did. The server still redirects, and
+               still renders the same answer into the page. */
+            if (typeof window.fetch !== 'function') {
+                setSending(true);
+                return;
             }
+
+            event.preventDefault();
+            setSending(true);
+
+            fetch(form.action, {
+                method: 'POST',
+                body: new FormData(form),
+                credentials: 'same-origin',
+                /* What tells the endpoint to answer in JSON instead of
+                   redirecting. Without it the reply is the whole homepage. */
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+            })
+                .then((res) => (res.ok ? res.json() : Promise.reject(res.status)))
+                .then((data) => {
+                    setSending(false);
+
+                    if (!data || data.ok !== true) {
+                        showAlert('error', (data && data.message)
+                            || 'Your message could not be sent. Please try again.');
+                        return;
+                    }
+
+                    /* Nothing to say happens on the two silent paths — the
+                       honeypot and the dwell timer — which is what the reload
+                       showed too. */
+                    if (data.message) showAlert('success', data.message);
+
+                    /* Emptied so a second enquiry starts from a clean form
+                       rather than the last one still sitting in it. */
+                    form.reset();
+                    form.classList.remove('was-validated');
+                })
+                .catch(() => {
+                    setSending(false);
+                    showAlert('error',
+                        'Your message could not be sent — please check your connection and try again, '
+                        + 'or call the Office directly.');
+                });
         });
 
-        // Clear the alert as soon as the visitor starts correcting the form.
-        form.addEventListener('input', () => {
-            alert.classList.remove('is-visible');
-        });
+        /* Clear the alert as soon as the visitor starts correcting the form. */
+        form.addEventListener('input', () => hideAlert(false));
     }
 
 

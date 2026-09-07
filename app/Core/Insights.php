@@ -37,12 +37,19 @@ final class Insights
     {
         $months = max(1, min($months, 120));
 
+        /* N - 1, because the walk below ends ON the current month and counts it.
+           Going back a full N from the first of this month and then including
+           this month as well returned N + 1: "Last 12 months" drew thirteen
+           columns and "Last 3 months" drew four. The window and its label now
+           agree. */
+        $monthsBack = $months - 1;
+
         $rows = Database::all(
             "SELECT DATE_FORMAT(visit_date, '%Y-%m') AS ym,
                     COALESCE(SUM(total_visitors), 0) AS visitors
                FROM tourist_arrivals
               WHERE status = 'valid'
-                AND visit_date >= DATE_SUB(DATE_FORMAT(CURDATE(), '%Y-%m-01'), INTERVAL {$months} MONTH)
+                AND visit_date >= DATE_SUB(DATE_FORMAT(CURDATE(), '%Y-%m-01'), INTERVAL {$monthsBack} MONTH)
               GROUP BY ym
               ORDER BY ym"
         );

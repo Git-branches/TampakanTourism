@@ -24,7 +24,8 @@ declare(strict_types=1);
  * My Account must not be shown six tabs that would refuse them — they get no
  * strip at all, because a strip of one tab is not navigation.
  *
- * Expects $settingsTab: one of office|public|alerts|records|system|accounts|me.
+ * Expects $settingsTab: one of
+ * office|public|alerts|records|system|accounts|notifications|me.
  */
 
 if (!defined('TOURSYNC')) {
@@ -50,6 +51,13 @@ $settingsTabList = [
     'records'  => ['fa-shield-halved',    'Records',         null],
     'system'   => ['fa-server',           'System',          null],
     'accounts' => ['fa-users-gear',       'User Accounts',   'accounts.php'],
+
+    /* The notifications page existed and nothing led to it but the bell's own
+       footer, so it was reachable only while there were more notifications
+       than the dropdown could hold. A real page with no route into it is a
+       page nobody knows the system has. */
+    'notifications' => ['fa-bell',        'Notifications',   'notifications.php'],
+
     'me'       => ['fa-user-gear',        'My Account',      'account.php'],
 ];
 
@@ -62,6 +70,7 @@ $settingsTabHref = [
     'records'  => base_url('/admin/settings/index.php#records'),
     'system'   => base_url('/admin/settings/index.php#system'),
     'accounts' => base_url('/admin/settings/accounts.php'),
+    'notifications' => base_url('/admin/notifications/index.php'),
     'me'       => base_url('/admin/account/index.php'),
 ];
 

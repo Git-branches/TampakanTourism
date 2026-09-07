@@ -247,6 +247,23 @@ final class AlertRepository
             $params[]  = (int) $filters['destination_id'];
         }
 
+        /* What kind of thing it is, as opposed to how urgent it is. The two are
+           separate questions and the screen asks them separately. */
+        if (!empty($filters['category']) && isset(self::CATEGORIES[$filters['category']])) {
+            $clauses[] = 'a.category = ?';
+            $params[]  = $filters['category'];
+        }
+
+        /* The message IS searched here, unlike the contact inbox where the body
+           is paragraphs of prose. An alert is a sentence or two written at a
+           trailhead — "landslide", "no water", the name of a barangay — and
+           that sentence is the thing an officer remembers it by. */
+        if (trim((string) ($filters['search'] ?? '')) !== '') {
+            $term      = '%' . trim((string) $filters['search']) . '%';
+            $clauses[] = '(a.message LIKE ? OR d.name LIKE ? OR m.full_name LIKE ? OR a.from_number LIKE ?)';
+            array_push($params, $term, $term, $term, $term);
+        }
+
         return Database::all(
             'SELECT a.*, d.name AS destination_name, m.full_name AS raised_by_name,
                     ad.full_name AS acknowledged_by_name,
@@ -290,6 +307,53 @@ final class AlertRepository
         $out['urgent_new'] = (int) Database::scalar(
             "SELECT COUNT(*) FROM destination_alerts WHERE status = 'new' AND severity = 'urgent'"
         );
+
+        return $out;
+    }
+
+    /**
+     * How many alerts sit behind each tab on the inbox.
+     *
+     * The tabs are views, not a partition: an acknowledged urgent alert is
+     * under both Urgent and Acknowledged, because both are true of it and an
+     * officer looking under either expects to find it.
+     *
+     * One pass over one grouped query rather than six COUNT(*)s — the numbers
+     * are drawn side by side and must describe the same instant.
+     *
+     * @return array<string, int>
+     */
+    public static function tabCounts(): array
+    {
+        $out = ['all' => 0, 'attention' => 0, 'urgent' => 0,
+                'acknowledged' => 0, 'resolved' => 0, 'dismissed' => 0];
+
+        foreach (Database::all(
+            'SELECT status, severity, COUNT(*) n FROM destination_alerts GROUP BY status, severity'
+        ) as $row) {
+            $n        = (int) $row['n'];
+            $status   = (string) $row['status'];
+            $severity = (string) $row['severity'];
+
+            $out['all'] += $n;
+
+            /* Still waiting to be picked up, and not an emergency — the ordinary
+               queue. An urgent one has its own tab and should not be buried in
+               this number. */
+            if ($status === 'new' && $severity !== 'urgent') {
+                $out['attention'] += $n;
+            }
+
+            /* Urgent stays here until it is closed, acknowledged or not: reading
+               it is not the same as dealing with it. */
+            if ($severity === 'urgent' && in_array($status, ['new', 'acknowledged'], true)) {
+                $out['urgent'] += $n;
+            }
+
+            if (isset($out[$status])) {
+                $out[$status] += $n;
+            }
+        }
 
         return $out;
     }

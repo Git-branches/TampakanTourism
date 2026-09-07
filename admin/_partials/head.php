@@ -75,8 +75,26 @@ $nav = [
         ['label' => 'Dashboard',       'icon' => 'fa-gauge-high',       'href' => 'dashboard.php', 'dir' => 'admin'],
     ]],
     ['group' => 'Tourism Records', 'items' => [
+        /* THE REPORT IS THE RECORD.
+         *
+         * "Visitor Register" used to sit here, and it is gone on purpose. The
+         * office does not travel to each destination to collect logbook pages
+         * any more: the manager photographs or types the page, the report
+         * carries it in the DOT form's own shape, and the officer approves,
+         * returns or rejects it here. Every visitor line is on the report.
+         *
+         * The screen it replaced offered two corrections, and neither is
+         * needed. Nothing the system writes can be flagged — publish() records
+         * every approved line as 'valid' — and a wrong report is corrected by
+         * sending it back, which withdraws its published rows and hands the
+         * page to the manager to fix. A second, row-at-a-time correction path
+         * beside that one was a way for the two to disagree.
+         *
+         * It also held the only search for a visitor by name across every
+         * destination and month. An office monitoring how many people visit
+         * does not need that, and a screen that can find one person by name is
+         * personal data the office is then answerable for. */
         ['label' => 'Reports to Review','icon' => 'fa-inbox',            'href' => 'arrival-reports/index.php', 'dir' => 'arrival-reports'],
-        ['label' => 'Visitor Register','icon' => 'fa-address-card',     'href' => 'arrivals/index.php',     'dir' => 'arrivals'],
         ['label' => 'Destinations',    'icon' => 'fa-mountain-sun',     'href' => 'destinations/index.php', 'dir' => 'destinations'],
         ['label' => 'QR Codes',        'icon' => 'fa-qrcode',           'href' => 'qrcodes/index.php',      'dir' => 'qrcodes'],
         ['label' => 'Feedback',        'icon' => 'fa-comment-dots',     'href' => 'feedback/index.php',     'dir' => 'feedback'],
@@ -107,9 +125,14 @@ $nav = [
        advisory need. app/Core/Insights.php stays: Analytics reads its monthly
        history, trend and moving average, and deleting it would take the charts
        with it. */
+    /* Analytics is no longer here. Its month-by-month history is the Monthly
+       half of Visitor Trends on the dashboard, and age groups and origins are
+       in Reports, which is where anyone who needed them was going next. Two
+       pages answering the same question with different pictures is how an
+       office ends up quoting two figures for one month. The file still
+       responds at its own URL for anything that bookmarked it. */
     ['group' => 'Analysis', 'items' => [
         ['label' => 'Reports',         'icon' => 'fa-file-lines',       'href' => 'reports/index.php',      'dir' => 'reports'],
-        ['label' => 'Analytics',       'icon' => 'fa-chart-line',       'href' => 'analytics/index.php',    'dir' => 'analytics'],
     ]],
     /* "My Account" is deliberately NOT here. It is a tab of Settings for an
        officer, and it is reached from your own name in the topbar by anyone —
@@ -452,7 +475,17 @@ $nav = [
                     <span class="visually-hidden">My account</span>
                 </a>
 
-                <a href="<?= e(base_url('/admin/logout.php')) ?>" class="topbar__signout" title="Sign out">
+                <?php /* Asked first, the same way the manager's is. Sign-out is
+                         one keystroke from the notification bell and one from
+                         the officer's own name, and an officer halfway through
+                         a review who loses the page loses the review with it.
+
+                         data-confirm on a LINK works through admin.js's click
+                         handler, which cancels the navigation, asks, and then
+                         re-clicks with the answer recorded — so with JavaScript
+                         off this is still an ordinary link that signs out. */ ?>
+                <a href="<?= e(base_url('/admin/logout.php')) ?>" class="topbar__signout" title="Sign out"
+                   data-confirm="Are you sure you want to sign out of TourSync?">
                     <i class="fa-solid fa-right-from-bracket"></i>
                 </a>
             </div>

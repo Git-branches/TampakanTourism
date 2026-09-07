@@ -185,7 +185,12 @@ require __DIR__ . '/../_partials/head.php';
                                 </td>
 
                                 <td class="text-end">
-                                    <a href="review.php?id=<?= (int) $r['id'] ?>" class="btn btn-sm btn-outline-secondary">
+                                    <?php /* Opens the review in a dialog over this table rather
+                                             than navigating away and back. The href stays: with
+                                             JavaScript off it is the page it always was. */ ?>
+                                    <a href="review.php?id=<?= (int) $r['id'] ?>" class="btn btn-sm btn-outline-secondary"
+                                       data-modal-page
+                                       data-modal-title="Compliance Review &mdash; <?= e((string) $r['destination_name']) ?>">
                                         <?= in_array($r['status'], ['submitted', 'reviewing'], true) ? 'Review' : 'View' ?>
                                     </a>
                                 </td>
@@ -200,5 +205,7 @@ require __DIR__ . '/../_partials/head.php';
 </section>
 
 <?php require __DIR__ . '/../../app/views/partials/pager.php'; ?>
+
+<?php require __DIR__ . '/../_partials/page-modal.php'; ?>
 
 <?php require __DIR__ . '/../_partials/foot.php'; ?>

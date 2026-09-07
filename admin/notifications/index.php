@@ -56,7 +56,13 @@ $pageTitle    = 'Notifications';
 $pageIcon     = 'fa-bell';
 $pageSubtitle = 'Everything that has come in, newest first';
 
+/* A tab of Settings now. The strip renders for officers only — Auth::require()
+   lets any signed-in admin reach this page, and a Tourism Staff member must not
+   be shown six tabs that would refuse them. That rule lives in the partial. */
+$settingsTab = 'notifications';
+
 require __DIR__ . '/../_partials/head.php';
+require __DIR__ . '/../_partials/settings-tabs.php';
 ?>
 
 <div class="page-actions">

@@ -134,6 +134,22 @@ if (is_post()) {
 
         Reports::reject($id, $adminId, mb_substr($reason, 0, 500));
 
+        /* ASK WHETHER IT HAPPENED, THE WAY APPROVE ALREADY DOES.
+         *
+         * reject() returns nothing and quietly does nothing when the report is
+         * not submitted, under review or approved — a report already sent back,
+         * say. This flashed "Sent back with your reason" regardless, logged it,
+         * and rang the manager's bell about a decision nobody had made. The
+         * officer would then be waiting for a correction that was never asked
+         * for. The status is the only honest answer to "did that work". */
+        $after = Reports::find($id);
+
+        if ($after === null || $after['status'] !== 'rejected') {
+            Session::flash('warning',
+                'That report could not be sent back from its current status. Reload and try again.');
+            redirect(base_url('/admin/arrival-reports/review.php?id=' . $id));
+        }
+
         ActivityLog::record(
             'report.rejected', 'arrival_report', $id,
             'Sent back to ' . $report['destination_name'] . ': ' . mb_substr($reason, 0, 120)
@@ -627,17 +643,28 @@ require __DIR__ . '/../_partials/head.php';
                     n(count($days))
                 );
                 ?>
+                <?php /* OFFERED ONLY WHEN IT CAN WORK.
+                         This button used to stay live on a report that was
+                         already approved or already sent back. approve() takes
+                         only 'submitted' and 'reviewing', so pressing it there
+                         did nothing and answered with a yellow warning — a
+                         control that exists to be refused. The sentence under
+                         it already explained why; now the button agrees. */ ?>
                 <form method="post" data-confirm="<?= e($approveAsk) ?>" data-confirm-tone="normal">
                     <?= csrf_field() ?>
                     <input type="hidden" name="action" value="approve">
 
-                    <button type="submit" class="btn btn-brand btn-sm" <?= $days === [] ? 'disabled' : '' ?>>
+                    <button type="submit" class="btn btn-brand btn-sm"
+                            <?= ($pending && $days !== []) ? '' : 'disabled' ?>>
                         <i class="fa-solid fa-circle-check"></i>
                         <?= $pending ? 'Approve Report' : 'Approve' ?>
                     </button>
 
                     <p class="text-muted small mt-2 mb-0">
-                        <?php if ($pending): ?>
+                        <?php if ($pending && $days === []): ?>
+                            There are no days to write. A report with no logbook lines cannot be
+                            approved &mdash; send it back instead.
+                        <?php elseif ($pending): ?>
                             Writes these <?= n(count($days)) ?> day(s) into the daily summary. Re-approving a
                             corrected report replaces those dates rather than adding to them, so a figure
                             cannot be double-counted.
@@ -650,27 +677,58 @@ require __DIR__ . '/../_partials/head.php';
             </div>
 
             <div class="col-lg-7">
-                <form method="post">
-                    <?= csrf_field() ?>
-                    <input type="hidden" name="action" value="reject">
+                <?php
+                /* SENDING BACK AN APPROVED REPORT IS NOT A MISTAKE.
+                 *
+                 * reject() deliberately accepts 'approved' as well as
+                 * 'submitted' and 'reviewing': it pulls the published arrivals
+                 * back out and clears the days from the summary, which is the
+                 * only way to correct a figure that has already been written
+                 * into the municipality's records. So this stays live there.
+                 *
+                 * It is a report ALREADY sent back that has nothing to do — the
+                 * manager holds it, and pressing this again would change
+                 * nothing while claiming otherwise. */
+                $canReturn = in_array($report['status'], ['submitted', 'reviewing', 'approved'], true);
+                ?>
 
-                    <label for="rejection_reason" class="form-label">
-                        Reason for sending it back
-                    </label>
+                <?php if ($canReturn): ?>
+                    <form method="post">
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="action" value="reject">
 
-                    <textarea id="rejection_reason" name="rejection_reason" class="form-control" rows="3"
-                              maxlength="500" minlength="10" required
-                              placeholder="e.g. Aug 14 shows 320 visitors — please check against the logbook, it looks like a typing slip."></textarea>
+                        <label for="rejection_reason" class="form-label">
+                            Reason for sending it back
+                        </label>
 
-                    <button type="submit" class="btn btn-sm btn-outline-danger mt-2">
-                        <i class="fa-solid fa-rotate-left"></i> Send Back for Correction
-                    </button>
+                        <textarea id="rejection_reason" name="rejection_reason" class="form-control" rows="3"
+                                  maxlength="500" minlength="10" required
+                                  placeholder="e.g. Aug 14 shows 320 visitors — please check against the logbook, it looks like a typing slip."></textarea>
 
-                    <p class="text-muted small mt-2 mb-0">
-                        The manager sees this text on their own screen and can correct the figures and
-                        resubmit without coming to the office.
-                    </p>
-                </form>
+                        <button type="submit" class="btn btn-sm btn-outline-danger mt-2">
+                            <i class="fa-solid fa-rotate-left"></i> Send Back for Correction
+                        </button>
+
+                        <p class="text-muted small mt-2 mb-0">
+                            The manager sees this text on their own screen and can correct the figures and
+                            resubmit without coming to the office.
+                            <?php if ($report['status'] === 'approved'): ?>
+                                <strong>This report is approved</strong> &mdash; sending it back takes its
+                                <?= n($totals['total_visitors']) ?> visitor(s) back out of the records until
+                                it is resubmitted and approved again.
+                            <?php endif; ?>
+                        </p>
+                    </form>
+                <?php else: ?>
+                    <div class="alert alert-light mb-0">
+                        <i class="fa-solid fa-rotate-left"></i>
+                        This report has already been sent back and is with the manager. There is nothing
+                        to return until they correct it and submit it again.
+                        <?php if ($report['rejection_reason']): ?>
+                            <br><span class="text-muted small">Your reason: <?= e((string) $report['rejection_reason']) ?></span>
+                        <?php endif; ?>
+                    </div>
+                <?php endif; ?>
             </div>
         </div>
     </div>

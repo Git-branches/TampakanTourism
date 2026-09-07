@@ -165,10 +165,11 @@ require __DIR__ . '/../_partials/head.php';
     <div class="alert alert-danger">
         <i class="fa-solid fa-circle-exclamation"></i>
         <strong><?= n((int) $record['excluded']) ?> visitor(s) in this month are NOT on this sheet.</strong>
-        They exist in the arrivals records but have no approved report behind them, so this form
+        They exist in the arrival records but have no approved report behind them, so this form
         leaves them out &mdash; every figure here has to trace back to a manager's submission the
-        Office reviewed. Check <a href="<?= e(base_url('/admin/arrivals/index.php')) ?>">Tourist Arrivals</a>
-        for rows with no report, and have the destination submit them properly.
+        Office reviewed. Ask the destination to submit the logbook page for those days in
+        <a href="<?= e(base_url('/admin/arrival-reports/index.php')) ?>">Reports to Review</a>,
+        and they will appear here once it is approved.
     </div>
 <?php endif; ?>
 

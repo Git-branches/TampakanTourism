@@ -1492,3 +1492,121 @@
     })();
 
 })();
+
+/* =========================================================================
+   THE ROW MENU, PLACED IN THE VIEWPORT
+   -------------------------------------------------------------------------
+   Shared, because two lists want it — the message inbox and the alert inbox
+   — and it lived inside one of them. A second copy is a second place for it
+   to drift.
+
+   Applies only to <details class="kebab kebab--pop">. The card version of
+   the same component, on videos and announcements, is untouched: it sits in
+   a grid with room around it and opens upward on purpose.
+   ====================================================================== */
+(function () {
+    'use strict';
+
+    /* ---------------------------------------------------------------
+       The row menu, placed in the viewport
+
+       .panel carries overflow: hidden, so a menu positioned inside a row
+       is cut off at whichever edge it reaches — downward on the last row,
+       upward on the first. It is placed against the viewport instead:
+       below the button when there is room for it, above when there is
+       not, and always aligned to the button's right edge.
+
+       Without this script the menu keeps the plain placement below the
+       button that the stylesheet gives it, which is what a browser with
+       JavaScript blocked has always had.
+       --------------------------------------------------------------- */
+    var GAP = 6;
+    var popped = null;
+
+    function place(details) {
+        var menu = details.querySelector('.kebab__menu');
+        var btn  = details.querySelector('summary');
+        if (!menu || !btn) { return; }
+
+        /* Measured at its natural size before anything is pinned, or the
+           second opening measures the first opening's position. */
+        menu.classList.add('is-floating');
+        menu.style.top = '';
+        menu.style.left = '';
+
+        var b  = btn.getBoundingClientRect();
+        var m  = menu.getBoundingClientRect();
+        var vh = window.innerHeight;
+        var vw = window.innerWidth;
+
+        var below = vh - b.bottom - GAP;
+        var above = b.top - GAP;
+
+        /* Down unless it will not fit and up is roomier. A menu that flips
+           whenever it is merely close to the edge flips distractingly. */
+        var up = below < m.height && above > below;
+        var top = up ? b.top - m.height - GAP : b.bottom + GAP;
+
+        /* Clamped, so a menu taller than the space either way still shows
+           whole rather than running off the screen. */
+        top = Math.max(GAP, Math.min(top, vh - m.height - GAP));
+
+        var left = Math.max(GAP, Math.min(b.right - m.width, vw - m.width - GAP));
+
+        menu.style.top  = top + 'px';
+        menu.style.left = left + 'px';
+    }
+
+    function shut(details) {
+        if (!details) { return; }
+        var menu = details.querySelector('.kebab__menu');
+        if (menu) {
+            menu.classList.remove('is-floating');
+            menu.style.top = '';
+            menu.style.left = '';
+        }
+        details.open = false;
+    }
+
+    /* toggle does not bubble, so it is caught on the way down. */
+    document.addEventListener('toggle', function (event) {
+        var d = event.target;
+        if (!d.classList || !d.classList.contains('kebab--pop')) { return; }
+
+        if (!d.open) {
+            if (popped === d) { popped = null; }
+            shut(d);
+            return;
+        }
+
+        /* One at a time, the way a real menu behaves. */
+        if (popped && popped !== d) { shut(popped); }
+        popped = d;
+        place(d);
+    }, true);
+
+    /* A floating menu is not attached to anything that scrolls, so it would
+       otherwise sit still while the row it belongs to moves away. */
+    ['scroll', 'resize'].forEach(function (ev) {
+        window.addEventListener(ev, function () {
+            if (popped && popped.open) { place(popped); }
+        }, { passive: true, capture: true });
+    });
+
+    /* <details> does not close itself when you click elsewhere or press
+       Escape — that is true of a disclosure triangle, not of a menu. */
+    document.addEventListener('click', function (event) {
+        if (!popped) { return; }
+        if (event.target.closest && event.target.closest('.kebab--pop') === popped) { return; }
+        shut(popped);
+        popped = null;
+    });
+
+    document.addEventListener('keydown', function (event) {
+        if (event.key !== 'Escape' || !popped) { return; }
+        var btn = popped.querySelector('summary');
+        shut(popped);
+        popped = null;
+        if (btn) { btn.focus(); }
+    });
+})();

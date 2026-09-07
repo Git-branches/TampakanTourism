@@ -71,6 +71,27 @@ final class RateLimiter
         return true;
     }
 
+    /**
+     * Empties one bucket.
+     *
+     * A limiter with no way to clear a bucket has no answer for the two cases
+     * that actually arise: an officer letting somebody through who was locked
+     * out by mistake, and a test suite putting back the hit its own probe just
+     * spent. Without this the suite could be run four times in an hour before
+     * the public contact form began refusing it — and a test that fails on its
+     * fifth run is a test that reports a working form as broken.
+     *
+     * Silent when the bucket does not exist: forgetting nothing is success.
+     */
+    public static function forget(string $key): void
+    {
+        $file = self::file($key);
+
+        if (is_file($file)) {
+            @unlink($file);
+        }
+    }
+
     /** Seconds until the oldest hit in the bucket expires. */
     public static function retryAfter(string $key, int $windowSecs): int
     {

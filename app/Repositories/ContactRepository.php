@@ -77,6 +77,22 @@ final class ContactRepository
             $params[] = $term;
         }
 
+        /* The topic the visitor picked on the public form. An exact match, not
+           a LIKE: it comes from a fixed list of six, so a partial match would
+           only ever be a way to get the wrong one. */
+        if (trim((string) ($filters['category'] ?? '')) !== '') {
+            $where[]  = 'm.subject = ?';
+            $params[] = trim((string) $filters['category']);
+        }
+
+        /* Everything since a date. One bound rather than two: the inbox is read
+           newest first, and "the last week" is the question an officer asks —
+           "between the 3rd and the 9th of last month" is a report. */
+        if (trim((string) ($filters['since'] ?? '')) !== '') {
+            $where[]  = 'm.created_at >= ?';
+            $params[] = trim((string) $filters['since']) . ' 00:00:00';
+        }
+
         $sql = 'SELECT m.*, a.full_name AS handled_by_name
                   FROM contact_messages m
                   LEFT JOIN admins a ON a.id = m.handled_by';
@@ -92,6 +108,26 @@ final class ContactRepository
                   LIMIT " . max(1, min(500, $limit));
 
         return Database::all($sql, $params);
+    }
+
+    /**
+     * The topics actually present in the inbox, for the category filter.
+     *
+     * Read from the messages rather than hard-coded from the public form's list
+     * of six: the form's topics have changed once already, and a filter offering
+     * a topic nobody has ever written under returns nothing and looks broken.
+     *
+     * @return array<int, string>
+     */
+    public static function categories(): array
+    {
+        return array_column(
+            Database::all(
+                "SELECT DISTINCT subject FROM contact_messages
+                  WHERE subject <> '' ORDER BY subject"
+            ),
+            'subject'
+        );
     }
 
     /** @return array<string, int> */

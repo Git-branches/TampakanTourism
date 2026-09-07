@@ -2122,6 +2122,26 @@ img { max-width: 100%; height: auto; }
     font-weight: 500;
 }
 .form-alert.is-visible { display: flex; animation: pageIn .4s var(--ease-out) both; }
+
+/* IT LEAVES RATHER THAN VANISHING.
+   The answer takes itself off the screen after a few seconds, and a sentence
+   that blinks out mid-read looks like a fault rather than a timer.
+
+   Must come after .is-visible: both are two-class selectors, so the later rule
+   is the one that wins. And `animation: none` is not optional — .is-visible's
+   keyframes run with fill-mode `both`, and a held animation beats a transition,
+   so without this the opacity never moves. */
+.form-alert.is-leaving {
+    display: flex;
+    opacity: 0;
+    transform: translateY(-4px);
+    animation: none;
+    transition: opacity .35s var(--ease-out), transform .35s var(--ease-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .form-alert.is-leaving { transition-duration: .01ms; transform: none; }
+}
 .form-alert--success {
     background: var(--green-pale);
     color: var(--green-dark);
@@ -6681,3 +6701,116 @@ button.dest-block__more {
     .rail-nav--prev { left: -14px; }
     .rail-nav--next { right: -14px; }
 }
+
+/* ---- an event with no poster on file -----------------------------------
+   The card used to fall back to a stock photograph of a concert crowd, which
+   three of five events shared — so the section read as placeholder data, and
+   the picture was not of Tampakan either. This is drawn instead: the kind of
+   event, on the municipality's own green.
+   ---------------------------------------------------------------------- */
+
+.event-card__media.is-plate {
+    display: flex;
+    /* BOTTOM LEFT, not centred. The date badge is absolutely positioned
+       over the top-right corner (measured: 74px wide, 16px in), and a
+       centred label ran underneath it � "Tourism Event" was painted over
+       and read "TOURISM EVEN". Nothing was clipping it; the badge was
+       simply drawn on top. The corner the badge does not use is free. */
+    align-items: flex-end;
+    justify-content: flex-start;
+    background: linear-gradient(135deg, #1B5E20 0%, #2E7D32 55%, #388E3C 100%);
+}
+
+.event-card__plate {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: .35rem;
+    color: rgba(255, 255, 255, .95);
+    text-align: left;
+    padding: .9rem 1rem;
+    /* Never under the badge, however narrow the card gets. */
+    max-width: calc(100% - 5.5rem);
+}
+.event-card__plate i { font-size: 2.1rem; opacity: .9; }
+.event-card__plate em {
+    font-style: normal;
+    font-size: .78rem;
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    opacity: .88;
+}
+
+/* ---- the poster on the event's own page -------------------------------
+   Height-capped rather than width-capped. A poster photographed on a phone is
+   portrait and 1080x1920; sized only by width it would have filled two screens
+   before the first sentence of the event description.
+   ---------------------------------------------------------------------- */
+
+.event-poster {
+    margin: 0 0 1.25rem;
+    text-align: center;
+}
+.event-poster img {
+    max-width: 100%;
+    max-height: 68vh;
+    width: auto;
+    height: auto;
+    border-radius: 10px;
+    border: 1px solid rgba(0, 0, 0, .08);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .10);
+}
+
+/* ---- a notice with no photograph attached ------------------------------
+   Nine notices, one Unsplash sunset between them — and the same picture on a
+   closure as on a reminder. The worst of it was that a scenic mountain above
+   "Buto Falls closed for footpath repair" reads as an invitation.
+
+   The plate takes the colour the type already owns, so a wall of red closures
+   and amber advisories can be read before a single word is. The colours are
+   the tag chip's own, already contrast-checked against white.
+   ---------------------------------------------------------------------- */
+
+.news-card__media.is-plate {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #37474F;   /* the slate default, for a type with no colour */
+}
+
+/* .is-plate on each of these, and not by habit: the default above is
+   `.news-card__media.is-plate` � two classes � and a bare
+   `.news-card__media--closure` is one, so the slate default won every
+   time and all nine plates came out the same grey. The screenshot showed
+   it; the rule looked right in the file. */
+.news-card__media--closure.is-plate      { background: #C62828; }
+.news-card__media--advisory.is-plate     { background: #B23C00; }
+.news-card__media--schedule.is-plate     { background: #00695C; }
+.news-card__media--announcement.is-plate { background: #01579B; }
+.news-card__media--reminder.is-plate     { background: #37474F; }
+
+/* Quiet on purpose. It is a ground for the tag chip to sit on, not a picture
+   competing with the headline underneath. */
+.news-card__plate {
+    font-size: 2.6rem;
+    color: #FFFFFF;
+    opacity: .26;
+}
+
+/* The tag chip, inverted where it sits on a plate.
+   The chip's background IS the type colour, and the plate behind it is now the
+   same type colour — measured contrast 1.00, identical. The white words stayed
+   readable, but the pill lost its shape and read as text floating on a block.
+   On a photograph the solid pill is what separates it from the picture; on its
+   own colour, the separation has to come from the other direction. */
+
+.news-card__media.is-plate .news-card__tag {
+    background: #FFFFFF;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, .18);
+}
+.news-card__media--closure.is-plate      .news-card__tag { color: #C62828; }
+.news-card__media--advisory.is-plate     .news-card__tag { color: #B23C00; }
+.news-card__media--schedule.is-plate     .news-card__tag { color: #00695C; }
+.news-card__media--announcement.is-plate .news-card__tag { color: #01579B; }
+.news-card__media--reminder.is-plate     .news-card__tag { color: #37474F; }

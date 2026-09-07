@@ -691,7 +691,7 @@ final class InspectionRepository
             return false;
         }
 
-        Database::run(
+        $done = Database::run(
             "UPDATE inspection_reports
                 SET status = 'approved', reviewed_by = ?, reviewed_at = NOW(),
                     office_remarks = ?, valid_until = DATE_ADD(CURDATE(), INTERVAL ? MONTH)
@@ -699,7 +699,20 @@ final class InspectionRepository
             [$adminId, $remarks !== '' ? mb_substr($remarks, 0, 1000) : null, self::VALID_MONTHS, $reportId]
         );
 
-        return true;
+        /* TRUE ONLY IF SOMETHING ACTUALLY CHANGED.
+         *
+         * This used to return true unconditionally. On a report that was
+         * already approved the readiness check passes — every standard IS
+         * approved — and the UPDATE then matches nothing, because the status
+         * guard excludes 'approved'. It still answered "yes, done".
+         *
+         * The caller believed it: a second press wrote another activity log,
+         * flashed "recorded as compliant" again, posted another notification
+         * and SENT THE MANAGER A SECOND SMS, with real credit, for a decision
+         * that had not been taken twice. Nothing in the database moved.
+         *
+         * rowCount is the honest answer to "did this happen". */
+        return $done->rowCount() > 0;
     }
 
     public static function reject(int $reportId, int $adminId, string $remarks): bool

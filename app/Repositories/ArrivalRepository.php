@@ -451,4 +451,245 @@ final class ArrivalRepository
 
         return $out;
     }
+    // -------------------------------------------------------------------------
+    // Dashboard overview figures
+    //
+    // Read only, and every one of them filtered to status = 'valid'. A flagged
+    // record is a record the office has not accepted yet; counting it here would
+    // put a number on the dashboard that the DOT return would later contradict.
+    // -------------------------------------------------------------------------
+
+    /**
+     * One row per day across a window: visitors and the records behind them.
+     *
+     * WHY A SERIES RATHER THAN A TOTAL.
+     *
+     * The Visitor Trends card offers six windows — two daily, four monthly —
+     * and each needs its own figures and the figures of the window before it.
+     * Asked one window at a time that is twelve aggregates on every dashboard
+     * load. Asked once as a day-by-day series, every one of those twelve is a
+     * sum over a slice of the same array, and all six views are provably
+     * counting the same rows: a toggle cannot show a total that disagrees with
+     * the chart above it, because both are made from this.
+     *
+     * ZERO-FILLED. A day with no arrivals is a day with none, not a day that is
+     * missing — omitting it makes a quiet week look like a short one and pulls
+     * every average up.
+     *
+     * @return array<string, array{visitors:int, records:int}> keyed 'Y-m-d'
+     */
+    public static function dailySeries(string $start, string $end): array
+    {
+        $rows = Database::all(
+            "SELECT visit_date                       AS d,
+                    COALESCE(SUM(total_visitors), 0) AS visitors,
+                    COUNT(*)                         AS records
+               FROM tourist_arrivals
+              WHERE status = 'valid' AND visit_date BETWEEN ? AND ?
+              GROUP BY visit_date",
+            [$start, $end]
+        );
+
+        $found = [];
+        foreach ($rows as $row) {
+            $found[(string) $row['d']] = [
+                'visitors' => (int) $row['visitors'],
+                'records'  => (int) $row['records'],
+            ];
+        }
+
+        $out    = [];
+        $cursor = strtotime($start);
+        $last   = strtotime($end);
+
+        while ($cursor <= $last) {
+            $key       = date('Y-m-d', $cursor);
+            $out[$key] = $found[$key] ?? ['visitors' => 0, 'records' => 0];
+            $cursor    = strtotime('+1 day', $cursor);
+        }
+
+        return $out;
+    }
+
+    /**
+     * Visitors, records and party size across one window.
+     *
+     * Returned together rather than as three calls because the dashboard shows
+     * them side by side and they must describe the same set of rows — three
+     * separate queries a second apart can straddle an approval.
+     *
+     * @return array{visitors:int, records:int, avg_party:float, daily_avg:float}
+     */
+    public static function periodTotals(string $start, string $end): array
+    {
+        $row = Database::first(
+            "SELECT COALESCE(SUM(total_visitors), 0) AS visitors,
+                    COUNT(*)                         AS records
+               FROM tourist_arrivals
+              WHERE status = 'valid' AND visit_date BETWEEN ? AND ?",
+            [$start, $end]
+        );
+
+        $visitors = (int) ($row['visitors'] ?? 0);
+        $records  = (int) ($row['records'] ?? 0);
+
+        /* Inclusive of both ends: a one-day window is one day, not zero. */
+        $days = max(1, (int) ((strtotime($end) - strtotime($start)) / 86400) + 1);
+
+        return [
+            'visitors'  => $visitors,
+            'records'   => $records,
+            'avg_party' => $records > 0 ? round($visitors / $records, 1) : 0.0,
+            'daily_avg' => round($visitors / $days, 1),
+        ];
+    }
+
+    /**
+     * The busiest destinations in a window, each against the window before it.
+     *
+     * The comparison is the point. "Jadas Falls, 4,332" is a fact; "Jadas Falls,
+     * 4,332, down 12%" is the one that tells an officer where to look.
+     *
+     * LEFT JOIN on the previous period, so a destination that had no visitors
+     * last month still appears rather than being dropped by the join — its
+     * growth is simply not computable, and the caller is told so with null
+     * rather than a fabricated 100%.
+     *
+     * @return array<int, array{name:string, visitors:int, previous:int, change:?float}>
+     */
+    public static function topDestinations(
+        string $start,
+        string $end,
+        string $prevStart,
+        string $prevEnd,
+        int $limit = 5
+    ): array {
+        $rows = Database::all(
+            "SELECT d.name,
+                    COALESCE(SUM(CASE WHEN a.visit_date BETWEEN ? AND ? THEN a.total_visitors END), 0) AS visitors,
+                    COALESCE(SUM(CASE WHEN a.visit_date BETWEEN ? AND ? THEN a.total_visitors END), 0) AS previous
+               FROM destinations d
+               LEFT JOIN tourist_arrivals a
+                      ON a.destination_id = d.id
+                     AND a.status = 'valid'
+                     AND a.visit_date BETWEEN ? AND ?
+              WHERE d.status = 'active'
+              GROUP BY d.id, d.name
+              ORDER BY visitors DESC, d.name ASC
+              LIMIT " . max(1, min($limit, 20)),
+            [$start, $end, $prevStart, $prevEnd, $prevStart, $end]
+        );
+
+        $out = [];
+
+        foreach ($rows as $r) {
+            $now  = (int) $r['visitors'];
+            $was  = (int) $r['previous'];
+
+            $out[] = [
+                'name'     => (string) $r['name'],
+                'visitors' => $now,
+                'previous' => $was,
+                /* No previous figure means no percentage. Dividing by zero and
+                   calling the answer "up 100%" is arithmetic dressed as insight. */
+                'change'   => $was > 0 ? round((($now - $was) / $was) * 100, 1) : null,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * Visitors by hour of day, for staffing decisions.
+     *
+     * READ FROM arrived_at, WHICH IS THE TIME OF THE VISIT.
+     *
+     * Worth stating because the alternative would make this chart a lie: if
+     * arrived_at carried the moment a manager typed the paper logbook up, this
+     * would show when the office does its data entry rather than when tourists
+     * turn up. Checked against the data — the distribution runs 06:00 to 16:00
+     * and peaks at noon, which is visiting behaviour, not office behaviour.
+     *
+     * All 24 hours are returned, including the empty ones. A gap between 04:00
+     * and 06:00 is information; omitting those rows would draw a chart that
+     * starts at dawn and implies nothing exists before it.
+     *
+     * @return array<int, array{hour:int, label:string, visitors:int}>
+     */
+    public static function hourlyDistribution(string $start, string $end): array
+    {
+        $rows = Database::all(
+            "SELECT HOUR(arrived_at) AS h,
+                    COALESCE(SUM(total_visitors), 0) AS visitors
+               FROM tourist_arrivals
+              WHERE status = 'valid' AND visit_date BETWEEN ? AND ?
+              GROUP BY h",
+            [$start, $end]
+        );
+
+        $byHour = [];
+
+        foreach ($rows as $r) {
+            $byHour[(int) $r['h']] = (int) $r['visitors'];
+        }
+
+        $out = [];
+
+        for ($h = 0; $h < 24; $h++) {
+            $out[] = [
+                'hour'     => $h,
+                'label'    => date('ga', mktime($h, 0)),   // 6am, 12pm, 4pm
+                'visitors' => $byHour[$h] ?? 0,
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * Average visitors per weekday across a window.
+     *
+     * The AVERAGE, not the total: a window of five weeks holds five Mondays and
+     * four Fridays, so totals would make Monday look busier than it is. Divided
+     * by how many of that weekday the window actually contained.
+     *
+     * @return array<int, array{day:string, visitors:float}>
+     */
+    public static function weekdayAverages(string $start, string $end): array
+    {
+        $rows = Database::all(
+            "SELECT DAYOFWEEK(visit_date) AS d,
+                    COALESCE(SUM(total_visitors), 0) AS visitors,
+                    COUNT(DISTINCT visit_date)       AS days
+               FROM tourist_arrivals
+              WHERE status = 'valid' AND visit_date BETWEEN ? AND ?
+              GROUP BY d",
+            [$start, $end]
+        );
+
+        $byDay = [];
+
+        foreach ($rows as $r) {
+            $byDay[(int) $r['d']] = [
+                'visitors' => (int) $r['visitors'],
+                'days'     => max(1, (int) $r['days']),
+            ];
+        }
+
+        /* MySQL's DAYOFWEEK is 1 = Sunday. Started on Monday because the office
+           works a Monday week and a chart that opens on Sunday reads as a
+           weekend that has already happened. */
+        $order = [2 => 'Mon', 3 => 'Tue', 4 => 'Wed', 5 => 'Thu', 6 => 'Fri', 7 => 'Sat', 1 => 'Sun'];
+        $out   = [];
+
+        foreach ($order as $key => $name) {
+            $hit   = $byDay[$key] ?? null;
+            $out[] = [
+                'day'      => $name,
+                'visitors' => $hit === null ? 0.0 : round($hit['visitors'] / $hit['days'], 1),
+            ];
+        }
+
+        return $out;
+    }
 }

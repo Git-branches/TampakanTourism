@@ -11,7 +11,7 @@ Auth::require();
 
 $pageTitle    = 'Analytics';
 $pageIcon     = 'fa-chart-line';
-$pageSubtitle = 'Trends, comparisons, and visitor composition';
+$pageSubtitle = 'Month-by-month history and the destination comparison';
 
 $months  = max(3, min((int) ($_GET['months'] ?? 12), 36));
 $start   = date('Y-m-01', strtotime("-" . ($months - 1) . " months"));
@@ -99,51 +99,22 @@ require __DIR__ . '/../_partials/head.php';
     </div>
 </section>
 
-<div class="chart-row">
-    <section class="panel">
-        <header class="panel__head"><h2><i class="fa-solid fa-chart-column"></i> Destination Comparison</h2></header>
-        <div class="panel__body"><div class="chart-box chart-box--tall"><canvas id="destChart"></canvas></div></div>
-    </section>
+<?php /* Full width now. Visitor Mix used to sit beside this and moved to
+         the dashboard, where it is the compact answer to "who is coming";
+         a lone panel in a two-column row leaves a dead half. */ ?>
+<section class="panel">
+    <header class="panel__head"><h2><i class="fa-solid fa-chart-column"></i> Destination Comparison</h2></header>
+    <div class="panel__body"><div class="chart-box chart-box--tall"><canvas id="destChart"></canvas></div></div>
+</section>
 
-    <section class="panel">
-        <header class="panel__head"><h2><i class="fa-solid fa-chart-pie"></i> Visitor Mix</h2></header>
-        <div class="panel__body"><div class="chart-box"><canvas id="typeChart"></canvas></div></div>
-    </section>
-</div>
-
-<div class="chart-row">
-    <section class="panel">
-        <header class="panel__head"><h2><i class="fa-solid fa-cake-candles"></i> Age Groups</h2></header>
-        <div class="panel__body"><div class="chart-box"><canvas id="ageChart"></canvas></div></div>
-    </section>
-
-    <section class="panel">
-        <header class="panel__head"><h2><i class="fa-solid fa-calendar-week"></i> Day of Week</h2></header>
-        <div class="panel__body"><div class="chart-box chart-box--wide"><canvas id="weekdayChart"></canvas></div></div>
-    </section>
-</div>
-
-<div class="report-grid report-grid--three">
-    <?php foreach ([
-        'cities'    => ['Top Origins — Cities', 'fa-city'],
-        'provinces' => ['Top Origins — Provinces', 'fa-map'],
-        'countries' => ['Top Origins — Countries', 'fa-globe'],
-    ] as $key => $meta):
-        if ($report['origins'][$key] === []) continue; ?>
-        <section class="panel">
-            <header class="panel__head"><h2><i class="fa-solid <?= e($meta[1]) ?>"></i> <?= e($meta[0]) ?></h2></header>
-            <div class="panel__body">
-                <table class="table table-sm mb-0">
-                    <tbody>
-                    <?php foreach ($report['origins'][$key] as $o): ?>
-                        <tr><td><?= e($o['place']) ?></td><td class="text-end num"><?= n($o['visitors']) ?></td></tr>
-                    <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
-        </section>
-    <?php endforeach; ?>
-</div>
+<?php /* Age Groups and the three Top Origins tables were here. They are in
+         Reports, which is where they belong: they are the DOT return's
+         demographics, they are read once a month, and they were the reason
+         this page and the dashboard looked like the same screen twice. */ ?>
+<section class="panel">
+    <header class="panel__head"><h2><i class="fa-solid fa-calendar-week"></i> Day of Week</h2></header>
+    <div class="panel__body"><div class="chart-box chart-box--wide"><canvas id="weekdayChart"></canvas></div></div>
+</section>
 
 <?php endif; ?>
 
@@ -155,9 +126,6 @@ $chartData = json_encode([
         'labels' => array_column(array_slice($report['destinations'], 0, 8), 'name'),
         'values' => array_map('intval', array_column(array_slice($report['destinations'], 0, 8), 'visitors')),
     ],
-    'types'    => ['labels' => ['Local', 'Domestic', 'Foreign', 'Overseas Filipino'], 'values' => array_values($report['types'])],
-    'age'      => ['labels' => array_values(App\Repositories\ArrivalRepository::AGE_BRACKETS + ['not_stated' => 'Not stated']),
-                   'values' => array_values($report['demographics']['age'])],
     'weekday'  => ['labels' => array_column($report['peak']['weekdays'], 'day'),
                    'values' => array_map('intval', array_column($report['peak']['weekdays'], 'visitors'))],
 ], JSON_UNESCAPED_UNICODE);
@@ -202,22 +170,6 @@ $pageScripts = '
             data: { labels: D.dest.labels, datasets: [{ data: D.dest.values, backgroundColor: BLUE, borderRadius: 4 }] },
             options: Object.assign({ indexAxis: "y" }, noLegend,
                 { scales: { x: { beginAtZero: true, ticks: { precision: 0 } }, y: { grid: { display: false }, ticks: { font: { size: 11 } } } } }) });
-    }
-
-    const t = document.getElementById("typeChart");
-    if (t) {
-        new Chart(t, { type: "doughnut",
-            data: { labels: D.types.labels, datasets: [{ data: D.types.values, backgroundColor: [GREEN, BLUE, AMBER, TEAL], borderWidth: 0 }] },
-            options: { responsive: true, maintainAspectRatio: false, cutout: "62%",
-                plugins: { legend: { position: "bottom", labels: { boxWidth: 12, padding: 10, font: { size: 11 } } } } } });
-    }
-
-    const a = document.getElementById("ageChart");
-    if (a) {
-        new Chart(a, { type: "bar",
-            data: { labels: D.age.labels, datasets: [{ data: D.age.values, backgroundColor: TEAL, borderRadius: 4 }] },
-            options: Object.assign({}, noLegend,
-                { scales: { y: { beginAtZero: true, ticks: { precision: 0 } }, x: { grid: { display: false }, ticks: { font: { size: 10 } } } } }) });
     }
 
     const w = document.getElementById("weekdayChart");

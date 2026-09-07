@@ -1586,11 +1586,18 @@ a { text-decoration: none; }
 .chart-box--tall  { height: 320px; }
 .chart-box--wide  { height: 300px; }
 
+/* Fixed for both readings. Monthly bars and the daily line share this box, and
+   a height that moved with the content would shift the whole page under the
+   officer's cursor every time they touched the toggle. 260 keeps the card, its
+   four figures and the two panels below it on one 19-inch screen. */
+.chart-box--trend { height: 260px; }
+
 @media (max-width: 767.98px) {
     .chart-box,
     .chart-box--sm,
     .chart-box--tall,
-    .chart-box--wide { height: 240px; }
+    .chart-box--wide,
+    .chart-box--trend { height: 240px; }
 }
 
 
@@ -3679,10 +3686,47 @@ a { text-decoration: none; }
 
 /* The body scrolls, the head and foot do not — so Save is always reachable
    without scrolling to the end of the form. */
+/* WHY [open] AND NOT PLAIN .sheet.
+ *
+ * .sheet__body carries `flex: 1; overflow-y: auto`, which only makes a
+ * scrolling middle when its PARENT is a flex column of bounded height. That
+ * parent is .sheet__form — so a dialog whose head/body/foot sit straight inside
+ * <dialog>, with no form around them, had no flex context at all: the body grew
+ * past the dialog's max-height and .sheet's `overflow: hidden` simply cut it
+ * off. The Report Details table ended mid-week with no way to reach the rest.
+ *
+ * The dialog itself becomes that flex column. It must be [open] and nothing
+ * else: the browser hides a closed <dialog> with `display: none`, and an author
+ * rule saying `display: flex` on plain .sheet would outrank it and leave every
+ * dialog on the page permanently visible. */
+.sheet[open] {
+    display: flex;
+    flex-direction: column;
+}
+
+/* A flex item will not shrink below its content unless told to, and a table
+   is tall content — without this the body still refuses to scroll.
+ *
+ * Two selectors because the dialogs wrap their parts two different ways: some
+ * in .sheet__form, and the alert inbox's six in a plain <form method="post">.
+ * :has() is what keeps the second one honest — it matches only a form that is
+ * actually the wrapper, never a small form that happens to sit beside the
+ * content. An engine without :has() drops that line alone and those dialogs
+ * behave exactly as they do today, which is to say fine until their content
+ * grows past the screen. */
+.sheet[open] > .sheet__form,
+.sheet[open] > form:has(> .sheet__head) {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+
 .sheet__body {
     padding: 1.15rem;
     overflow-y: auto;
     flex: 1;
+    min-height: 0;
 }
 
 .sheet__foot {
@@ -5611,3 +5655,1676 @@ body.is-manager .mgr-card__count.is-met i { opacity: 1; }
     .mgr-lightbox__frame img { max-width: 96vw; max-height: 74vh; }
     .mgr-lightbox__close { top: .6rem; right: .6rem; }
 }
+
+/* =============================================================================
+   COMPLIANCE REVIEW — one standard at a time
+   -----------------------------------------------------------------------------
+   Every standard used to be its own full-width panel, stacked: guidance,
+   photographs, a decision form and a comment box, five times over. Settling the
+   last one meant scrolling past four already decided.
+
+   A list on the left, one standard on the right. All of them stay in the
+   document — the list is built from them and the switch costs no request — but
+   only the chosen one is drawn.
+
+   Not scoped to a shell class: this is the officer's own screen and the class
+   names belong to it. Nothing else in the system uses .rev.
+   ========================================================================== */
+
+.rev__summary {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: .45rem .9rem;
+    padding: .7rem .9rem;
+    margin-bottom: .8rem;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+}
+.rev__status { margin-right: .2rem; }
+
+.rev__fact {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    font-size: .8rem;
+    color: var(--ink-2);
+    min-width: 0;
+}
+.rev__fact i { color: var(--ink-3); }
+.rev__fact strong { color: var(--ink); }
+.rev__fact--count { white-space: nowrap; }
+
+.rev__outstanding { margin-bottom: .8rem; }
+
+.rev__pickup {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    flex-wrap: wrap;
+    margin-bottom: .8rem;
+}
+
+/* ---- the two columns --------------------------------------------------- */
+
+.rev__work {
+    display: grid;
+    grid-template-columns: minmax(0, 230px) minmax(0, 1fr);
+    gap: .9rem;
+    align-items: start;
+}
+
+.rev__nav {
+    display: flex;
+    flex-direction: column;
+    gap: .3rem;
+    min-width: 0;
+}
+
+.rev__tab {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: .5rem;
+    padding: .5rem .6rem;
+    text-align: left;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    color: var(--ink-2);
+}
+.rev__tab:hover { border-color: var(--green); }
+.rev__tab.is-active {
+    background: var(--green-pale);
+    border-color: var(--green);
+    color: var(--green-dark);
+}
+
+.rev__tabName {
+    grid-column: 2;
+    font-size: .82rem;
+    font-weight: 600;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+.rev__tabState {
+    grid-column: 2;
+    font-size: .7rem;
+    color: var(--ink-3);
+}
+.rev__tab.is-active .rev__tabState { color: var(--green-dark); opacity: .85; }
+
+/* The verdict as a colour, so the reviewer sees what is left without reading
+   five labels. */
+.rev__dot {
+    grid-row: 1 / span 2;
+    width: .55rem;
+    height: .55rem;
+    border-radius: 50%;
+    background: var(--line);
+    flex: none;
+}
+.rev__dot--ok   { background: var(--green); }
+.rev__dot--flag { background: #B3261E; }
+.rev__dot--qr   { background: #B23C00; }
+.rev__dot--void { background: var(--line); }
+
+/* ---- the pane ---------------------------------------------------------- */
+
+.rev__panes { min-width: 0; }
+
+.rev__pane {
+    padding: .9rem 1rem;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    min-width: 0;
+}
+
+.rev__paneHead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .6rem;
+    flex-wrap: wrap;
+    margin-bottom: .5rem;
+}
+.rev__paneHead h3 { margin: 0; font-size: .98rem; font-weight: 600; }
+
+.rev__note { color: var(--ink-2); }
+
+.rev__decide {
+    padding-top: .7rem;
+    margin-top: .2rem;
+    border-top: 1px solid var(--line);
+}
+
+.rev__step {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .6rem;
+    margin-top: .9rem;
+    padding-top: .7rem;
+    border-top: 1px solid var(--line);
+}
+.rev__of { font-size: .76rem; color: var(--ink-3); }
+
+/* ---- the site visit, folded away --------------------------------------- */
+
+.rev__visit {
+    margin-top: .9rem;
+    padding: .6rem .9rem;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+}
+.rev__visit > summary {
+    cursor: pointer;
+    font-size: .85rem;
+    font-weight: 600;
+    color: var(--ink-2);
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+}
+.rev__visit[open] > summary { margin-bottom: .7rem; }
+
+/* ---- the decision ------------------------------------------------------ */
+
+.rev__decision {
+    margin-top: .9rem;
+    padding: .9rem 1rem;
+    background: var(--canvas);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+}
+
+.rev__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: .5rem;
+    flex-wrap: wrap;
+}
+
+/* ---- narrow screens ----------------------------------------------------
+   The list becomes a strip that scrolls sideways. This is the one place a
+   sideways scroller is right: it is a short row of chips, the chosen one is
+   scrolled into view by script, and the alternative — a select — would hide
+   the verdict colours the strip exists to show. */
+
+@media screen and (max-width: 767.98px) {
+    .rev__work { grid-template-columns: minmax(0, 1fr); }
+
+    .rev__nav {
+        flex-direction: row;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: .3rem;
+    }
+    .rev__nav::-webkit-scrollbar { height: 4px; }
+    .rev__nav::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+
+    .rev__tab { flex: 0 0 auto; max-width: 12rem; }
+    .rev__tabName { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .rev__actions { flex-direction: column-reverse; }
+    .rev__actions .btn { width: 100%; }
+}
+
+/* ---- the evidence viewer -----------------------------------------------
+   A dialog: the photograph is opened from inside #pageModal, which is itself a
+   top-layer dialog, and nothing positioned with z-index can sit above that. */
+
+.rev-lightbox {
+    padding: 0;
+    border: 0;
+    width: auto;
+    max-width: 100vw;
+    max-height: 100vh;
+    background: transparent;
+    overflow: visible;
+}
+.rev-lightbox::backdrop { background: rgba(17, 24, 39, .84); }
+
+.rev-lightbox__frame {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .5rem;
+}
+
+/* Sized to the viewport, never to the file: a phone camera hands over a
+   1080x1920 photograph. The ratio is left alone — width and height both auto,
+   so nothing is stretched. */
+.rev-lightbox__frame img {
+    display: block;
+    max-width: min(92vw, 1100px);
+    max-height: 82vh;
+    width: auto;
+    height: auto;
+    border-radius: 6px;
+    background: #111827;
+    box-shadow: 0 18px 60px rgba(0, 0, 0, .45);
+}
+.rev-lightbox__frame figcaption {
+    max-width: min(92vw, 1100px);
+    color: #F3F4F6;
+    font-size: .82rem;
+    text-align: center;
+    overflow-wrap: anywhere;
+}
+
+/* Fixed, not absolute: the dialog shrinks to the photograph, so a button
+   anchored to it would move with every image. */
+.rev-lightbox__close {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    width: 2.4rem;
+    height: 2.4rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, .92);
+    color: #111827;
+    cursor: pointer;
+}
+.rev-lightbox__close:hover { background: #fff; }
+
+@media screen and (max-width: 575.98px) {
+    .rev-lightbox__frame img { max-width: 96vw; max-height: 74vh; }
+    .rev-lightbox__close { top: .6rem; right: .6rem; }
+}
+
+/* =============================================================================
+   THE OFFICE DASHBOARD
+   -----------------------------------------------------------------------------
+   Four questions in order — what needs me, how many are coming, which places
+   are busy, is it rising — and nothing else. The long readings are on Analytics.
+
+   Colour is used for meaning and almost nowhere else: the municipal green marks
+   the thing to act on and the peak in a chart; everything quiet is grey. A
+   dashboard where every card has its own hue is a dashboard where none of them
+   means anything.
+   ========================================================================== */
+
+/* ---- the flagged banner ------------------------------------------------ */
+
+.flagbar {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    padding: .6rem .9rem;
+    margin-bottom: 1rem;
+    background: #FDF3E4;
+    border: 1px solid #E9C88A;
+    border-left: 3px solid #9A5B00;
+    border-radius: var(--radius);
+}
+.flagbar > i { color: #9A5B00; flex: none; }
+.flagbar p { margin: 0; flex: 1 1 auto; min-width: 0; font-size: .85rem; color: #6B4200; }
+.flagbar p strong { color: #4A2D00; }
+.flagbar .btn { flex: none; }
+
+@media screen and (max-width: 575.98px) {
+    .flagbar { flex-wrap: wrap; }
+    .flagbar p { flex: 1 1 100%; order: 2; }
+    .flagbar .btn { order: 3; width: 100%; }
+}
+
+/* ---- the action centre ------------------------------------------------- */
+
+.act {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 132px), 1fr));
+    gap: .55rem;
+}
+
+.act__tile {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    align-items: center;
+    gap: 0 .55rem;
+    padding: .65rem .7rem;
+    min-width: 0;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    color: var(--ink-2);
+    transition: border-color .15s var(--ease), background .15s var(--ease);
+}
+.act__tile:hover { border-color: var(--green); background: var(--green-pale); }
+
+.act__icon {
+    grid-row: 1 / span 2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.1rem;
+    height: 2.1rem;
+    flex: none;
+    border-radius: 50%;
+    background: var(--canvas);
+    color: var(--ink-3);
+    font-size: .8rem;
+}
+
+.act__n {
+    font-size: 1.2rem;
+    font-weight: 700;
+    line-height: 1.1;
+    color: var(--ink-3);
+    font-variant-numeric: tabular-nums;
+}
+.act__label { font-size: .76rem; font-weight: 600; line-height: 1.2; min-width: 0; overflow-wrap: anywhere; }
+.act__sub {
+    grid-column: 2;
+    font-size: .68rem;
+    color: var(--ink-3);
+    line-height: 1.2;
+}
+
+/* Only what has work in it is given weight. A tile of zero still shows — a row
+   that disappears when it empties teaches an officer to wonder if it broke. */
+.act__tile.is-due { border-color: var(--green); }
+.act__tile.is-due .act__n { color: var(--green-dark); }
+.act__tile.is-due .act__icon { background: var(--green-pale); color: var(--green-dark); }
+
+/* ---- the four figures --------------------------------------------------- */
+
+.kpi {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+    gap: .8rem;
+    margin: 1rem 0;
+}
+
+.kpi__card {
+    position: relative;
+    padding: .95rem 1rem 1rem;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    min-width: 0;
+}
+
+/* A hairline of category colour along the top rather than a coloured card:
+   enough to tell them apart at a glance, not enough to shout. */
+.kpi__card::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 3px;
+    border-radius: var(--radius) var(--radius) 0 0;
+    background: var(--line);
+}
+.kpi__card--green::before { background: var(--green); }
+.kpi__card--blue::before  { background: #0277BD; }
+.kpi__card--teal::before  { background: #00695C; }
+.kpi__card--amber::before { background: #B23C00; }
+
+.kpi__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.9rem;
+    height: 1.9rem;
+    border-radius: var(--radius-sm);
+    background: var(--canvas);
+    color: var(--ink-3);
+    font-size: .78rem;
+    margin-bottom: .5rem;
+}
+
+.kpi__value {
+    margin: 0;
+    font-size: 1.85rem;
+    font-weight: 700;
+    line-height: 1.05;
+    letter-spacing: -.02em;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+}
+.kpi__label { margin: .15rem 0 .35rem; font-size: .8rem; font-weight: 600; color: var(--ink-2); }
+
+.kpi__delta {
+    margin: 0;
+    display: flex;
+    align-items: baseline;
+    gap: .3rem;
+    font-size: .74rem;
+    font-weight: 600;
+}
+.kpi__delta span { font-weight: 400; color: var(--ink-3); }
+.kpi__delta.is-up   { color: var(--green-dark); }
+.kpi__delta.is-down { color: #B3261E; }
+.kpi__delta.is-flat { color: var(--ink-3); font-weight: 400; }
+
+/* ---- the pair under the traffic chart ----------------------------------- */
+
+/* The traffic line takes the full width on its own; these two share the row
+   below it in equal halves. Neither is the more important reading, and an
+   uneven split would say one of them was. */
+/* Stretch, not start: the two run to the same depth so the row has one bottom
+   edge instead of a ragged one. */
+.dash-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 1rem;
+    align-items: stretch;
+    margin-bottom: 1rem;
+}
+.dash-row > .panel { margin-bottom: 0; }
+
+@media screen and (max-width: 991.98px) {
+    .dash-row { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ---- the scale and period switches -------------------------------------- */
+
+.rangeset {
+    display: inline-flex;
+    gap: 2px;
+    padding: 2px;
+    background: var(--canvas);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+}
+.rangeset__opt {
+    padding: .22rem .62rem;
+    border-radius: 999px;
+    font-size: .74rem;
+    font-weight: 600;
+    color: var(--ink-3);
+    line-height: 1.4;
+
+    /* These are <button> now, not links: every window is already on the page,
+       so switching is a choice rather than a journey. Reset what a button
+       brings with it so the pill looks the same as it always did. */
+    border: 0;
+    background: none;
+    font-family: inherit;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+}
+.rangeset__opt:hover { color: var(--green-dark); }
+.rangeset__opt.is-active { background: var(--green); color: #fff; }
+.rangeset__opt:focus-visible {
+    outline: 2px solid var(--green);
+    outline-offset: 1px;
+}
+
+/* The scale switch reads as the primary of the two, so it carries a little
+   more weight than the period pills beside it. */
+.rangeset--view .rangeset__opt { padding: .22rem .8rem; }
+
+.trend__controls {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    flex-wrap: wrap;
+
+    /* Held open so the row does not shrink when Monthly's four pills give way
+       to Daily's two — the card must not change height as it switches. */
+    min-height: 1.85rem;
+}
+
+.panel__head--controls { row-gap: .5rem; flex-wrap: wrap; }
+
+/* ---- the four figures under the trend chart ----------------------------- */
+
+.summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr));
+    gap: .2rem 1rem;
+    margin: .9rem 0 0;
+    padding-top: .8rem;
+    border-top: 1px solid var(--line);
+}
+.summary > div { min-width: 0; }
+.summary dt { font-size: .72rem; color: var(--ink-3); margin: 0 0 .1rem; }
+.summary dd {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+}
+.summary dd .is-up   { color: var(--green-dark); }
+.summary dd .is-down { color: #B3261E; }
+.summary__flat { font-size: .8rem; font-weight: 400; color: var(--ink-3); }
+
+/* ---- the ranked destinations -------------------------------------------- */
+
+.rank { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .5rem; }
+
+/* Placed explicitly rather than left to auto-flow. Auto-placement put the
+   visitor count on the second row directly beneath the rank number, so
+   "1" sat above "138" in the same column and read as one figure with a
+   stray digit. Name and count on the first line, the bar under both. */
+.rank__row {
+    display: grid;
+    grid-template-columns: 1.1rem minmax(0, 1fr) auto auto;
+    grid-template-areas:
+        "n name value change"
+        "n bar  bar   bar";
+    align-items: center;
+    gap: .18rem .5rem;
+}
+.rank__row > .rank__n    { grid-area: n; }
+.rank__row > .rank__name { grid-area: name; }
+.rank__row > .rank__v    { grid-area: value; }
+.rank__row > .rank__d    { grid-area: change; }
+.rank__row > .rank__bar  { grid-area: bar; }
+
+.rank__n {
+    font-size: .78rem;
+    font-weight: 700;
+    color: var(--ink-3);
+    font-variant-numeric: tabular-nums;
+}
+.rank__name { font-size: .84rem; font-weight: 600; color: var(--ink); min-width: 0; overflow-wrap: anywhere; }
+.rank__v { font-size: .84rem; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
+.rank__d { font-size: .72rem; font-weight: 600; white-space: nowrap; }
+.rank__d .is-up   { color: var(--green-dark); }
+.rank__d .is-down { color: #B3261E; }
+.rank__d .is-flat { color: var(--ink-3); }
+
+/* Scaled to the leader, not to the panel, so second place looks like second. */
+.rank__bar {
+    display: block;
+    height: 4px;
+    background: var(--canvas);
+    border-radius: 999px;
+    overflow: hidden;
+}
+.rank__bar > span { display: block; height: 100%; background: var(--green); border-radius: 999px; }
+
+/* ---- the visitor mix ---------------------------------------------------- */
+
+/* The doughnut grew with the panel — half a row is wider than the old side
+   column, and a small ring beside a stretched key is mostly white space. */
+.mix {
+    display: grid;
+    grid-template-columns: minmax(0, 10.5rem) minmax(0, 1fr);
+    gap: 1.1rem;
+    align-items: center;
+}
+
+/* An explicit height, not aspect-ratio: with maintainAspectRatio off, Chart.js
+   measures the box, and a box whose height came only from aspect-ratio left the
+   canvas at its 300px fallback — a hand's width of dead space under the ring. */
+.mix__chart {
+    position: relative;
+    width: 10.5rem;
+    max-width: 100%;
+    height: 10.5rem;
+    margin-inline: auto;
+    min-width: 0;
+}
+
+/* These two must stay below .mix__chart — same specificity, so the later rule
+   is the one that wins. Half a laptop row leaves the key about 135px and
+   "Overseas Filipino" wraps in it; a smaller ring buys the label its line. */
+@media screen and (min-width: 992px) and (max-width: 1199.98px) {
+    .mix { grid-template-columns: minmax(0, 8rem) minmax(0, 1fr); gap: .8rem; }
+    .mix__chart { width: 8rem; height: 8rem; }
+    .mix__total b { font-size: 1rem; }
+}
+
+@media screen and (max-width: 400px) {
+    .mix { grid-template-columns: minmax(0, 1fr); justify-items: center; }
+}
+
+/* The total lives in the hole the doughnut leaves, which is the one figure
+   every slice is a fraction of. */
+.mix__total {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    line-height: 1.1;
+}
+.mix__total b { font-size: 1.15rem; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
+.mix__total small { font-size: .64rem; color: var(--ink-3); }
+
+/* Capped, or the wider panel pushes each percentage so far from its label
+   that the eye has to travel the gap to pair them up. */
+.mix__key {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-width: 15rem;
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+}
+.mix__key li { display: flex; align-items: center; gap: .45rem; font-size: .78rem; min-width: 0; }
+.mix__name { flex: 1 1 auto; min-width: 0; color: var(--ink-2); overflow-wrap: anywhere; }
+.mix__pct { font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
+
+.mix__dot { width: .55rem; height: .55rem; border-radius: 50%; flex: none; }
+.mix__dot--local    { background: #2E7D32; }
+.mix__dot--domestic { background: #0288D1; }
+.mix__dot--foreign  { background: #EF6C00; }
+.mix__dot--ofw      { background: #00796B; }
+
+/* ---- the pointer to the deeper pages ------------------------------------ */
+
+.dash-more {
+    margin: 1.1rem 0 0;
+    padding-top: .9rem;
+    border-top: 1px solid var(--line);
+    font-size: .8rem;
+    color: var(--ink-3);
+}
+.dash-more a { font-weight: 600; }
+
+
+/* =============================================================================
+   THE MESSAGE INBOX
+   -----------------------------------------------------------------------------
+   One line per enquiry. The message itself opens in a dialog, because scanning
+   an inbox and reading a letter are different jobs and the screen should be
+   doing one of them at a time. Six messages used to fill several screens.
+   ========================================================================== */
+
+.inbox {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border-top: 1px solid var(--line);
+}
+
+.inbox__row {
+    display: grid;
+    grid-template-columns: 8px minmax(0, 2.4fr) minmax(0, 1.3fr) auto auto 30px;
+    align-items: center;
+    gap: .75rem;
+    padding: .6rem .95rem .6rem .55rem;
+    border-bottom: 1px solid var(--line);
+    transition: background .12s var(--ease);
+}
+.inbox__row:hover { background: var(--canvas); }
+.inbox__row:last-child { border-bottom: 0; }
+
+/* Unread is carried by weight and one dot, not by a coloured row. A list where
+   most rows are tinted has told you nothing about any of them. */
+.inbox__dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: transparent;
+}
+.inbox__row.is-unread .inbox__dot { background: var(--green); }
+.inbox__row.is-unread .inbox__subject { color: var(--ink); font-weight: 700; }
+
+/* The whole subject-and-preview block is the button, so the row opens without
+   a "view" link taking up a column of its own. */
+.inbox__open {
+    display: block;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+.inbox__open:focus-visible {
+    outline: 2px solid var(--green-dark);
+    outline-offset: 3px;
+    border-radius: var(--radius-sm);
+}
+
+.inbox__subject {
+    display: block;
+    font-size: .84rem;
+    font-weight: 600;
+    color: var(--ink-2);
+    line-height: 1.3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* One line, cut with an ellipsis. The row's height must not depend on how much
+   somebody wrote — that is what made the old list unscannable. */
+.inbox__preview {
+    display: block;
+    margin-top: .1rem;
+    font-size: .76rem;
+    color: var(--ink-3);
+    line-height: 1.35;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.inbox__from,
+.inbox__when { min-width: 0; }
+.inbox__when { text-align: right; white-space: nowrap; }
+
+.inbox__row .pill { flex: none; }
+
+/* ---- the row menu, as a popover ----------------------------------------
+   The card version is absolutely positioned inside its card and opens upward.
+   Neither half of that works in a list: .panel carries overflow: hidden, so a
+   menu on the last row is cut off at the bottom edge and a menu on the first
+   row is cut off at the top. Flipping alone does not help — both directions
+   run into the same clip.
+
+   So it leaves the box. The script measures the button and places the menu in
+   the viewport, below when there is room and above when there is not. Position
+   is set from script; everything else about the button and the menu is the
+   component that was already here.
+
+   Above the sticky topbar (30), below the bell panel (60), the dialog (1050)
+   and the toast dock (1080). */
+.kebab--pop .kebab__menu {
+    top: calc(100% + .35rem);
+    bottom: auto;
+}
+.kebab--pop .kebab__menu.is-floating {
+    position: fixed;
+    z-index: 50;
+    margin: 0;
+
+    /* right: 0 comes from the base component. Left alongside a script-set
+       `left` it would stretch the menu between the two edges instead of
+       letting it keep its own width. */
+    right: auto;
+}
+
+/* ---- narrower screens --------------------------------------------------- */
+
+@media screen and (max-width: 991.98px) {
+    /* The sender moves under the subject rather than being cut to initials. */
+    .inbox__row {
+        grid-template-columns: 8px minmax(0, 1fr) auto 30px;
+        grid-template-areas:
+            "dot open  when kebab"
+            "dot from  pill pill";
+        row-gap: .3rem;
+    }
+    .inbox__row > .inbox__dot  { grid-area: dot; align-self: start; margin-top: .35rem; }
+    .inbox__row > .inbox__open { grid-area: open; }
+    .inbox__row > .inbox__from { grid-area: from; }
+    .inbox__row > .inbox__when { grid-area: when; }
+    .inbox__row > .pill        { grid-area: pill; justify-self: end; }
+    .inbox__row > .kebab       { grid-area: kebab; }
+
+    .inbox__from { display: flex; flex-wrap: wrap; gap: 0 .5rem; }
+}
+
+@media screen and (max-width: 575.98px) {
+    .inbox__row { padding: .65rem .6rem .65rem .45rem; gap: .5rem; }
+    .inbox__when .cell-strong,
+    .inbox__when .cell-sub { display: inline; }
+    .inbox__when { font-size: .72rem; }
+}
+
+/* =============================================================================
+   THE MESSAGE DIALOG
+   ========================================================================== */
+
+/* Sized to a letter, not to the screen. A dialog as wide as a desktop makes a
+   two-sentence enquiry look like a legal notice. */
+.sheet--msg { max-width: 42rem; }
+
+.msg-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: .75rem;
+    margin-bottom: .75rem;
+}
+
+.msg-subject {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--ink);
+    line-height: 1.3;
+    min-width: 0;
+}
+
+.msg-meta {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+    gap: .55rem .9rem;
+    margin: 0 0 .9rem;
+    padding: .75rem .85rem;
+    background: var(--canvas);
+    border-radius: var(--radius-sm);
+}
+.msg-meta > div { min-width: 0; }
+.msg-meta dt { font-size: .7rem; color: var(--ink-3); margin: 0 0 .1rem; }
+.msg-meta dd {
+    margin: 0;
+    font-size: .82rem;
+    color: var(--ink);
+    overflow-wrap: anywhere;
+}
+
+/* The message as it was typed. Scrolls rather than growing the dialog past the
+   bottom of the screen, and keeps the sender's own line breaks. */
+.msg-body {
+    max-height: 15rem;
+    overflow-y: auto;
+    padding: .85rem .95rem;
+    margin-bottom: 1rem;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    font-size: .86rem;
+    line-height: 1.6;
+    color: var(--ink-2);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.msg-note-hint {
+    display: flex;
+    align-items: center;
+    gap: .35rem;
+    margin: .35rem 0 0;
+    font-size: .72rem;
+    color: var(--ink-3);
+}
+.msg-note-hint i { font-size: .68rem; }
+
+.msg-note-saved {
+    margin: .6rem 0 0;
+    padding: .5rem .65rem;
+    background: var(--green-pale);
+    border-radius: var(--radius-sm);
+    font-size: .78rem;
+    color: var(--green-dark);
+}
+
+.msg-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .6rem;
+    flex-wrap: wrap;
+}
+.msg-foot__acts { display: flex; gap: .45rem; flex-wrap: wrap; }
+
+@media screen and (max-width: 575.98px) {
+    .msg-foot,
+    .msg-foot__acts { width: 100%; }
+    .msg-foot__acts > .btn { flex: 1 1 auto; }
+}
+
+
+/* A note explaining why the form did not open on last month. Scoped to the
+   manager shell, which is the only place a report is written. */
+body.is-manager .report-suggest {
+    display: flex;
+    align-items: flex-start;
+    gap: .45rem;
+    padding: .55rem .75rem;
+    background: var(--green-pale);
+    border-radius: var(--radius-sm);
+    font-size: .78rem;
+    line-height: 1.45;
+    color: var(--green-dark);
+}
+body.is-manager .report-suggest i { margin-top: .15rem; flex: none; }
+
+/* A .period-presets row of pills stood here for one revision. Report Period is
+   a plain <select> in the form grid now, which needs no rules of its own. */
+
+
+/* =============================================================================
+   THE ALERT INBOX
+   -----------------------------------------------------------------------------
+   A queue read under pressure: which places are shouting, how loudly, and has
+   anybody picked it up. One compact line each, and everything that needs typing
+   opens in a dialog — the page used to carry two text fields per alert, so six
+   alerts meant twelve boxes nobody was filling in.
+   ========================================================================== */
+
+/* Shorter than the dashboard's. Four figures above a working list should not
+   take a fifth of the screen before the list begins. */
+.stat-grid--tight .stat-card { padding: .7rem .9rem; }
+.stat-grid--tight .stat-card__value { font-size: 1.45rem; }
+.stat-grid--tight .stat-card__icon { width: 2.1rem; height: 2.1rem; font-size: .82rem; }
+
+/* ---- tabs and filters, in one block ------------------------------------- */
+
+.alert-controls { padding: .7rem .9rem; }
+
+.alert-tabs {
+    display: flex;
+    gap: .25rem;
+    flex-wrap: wrap;
+    padding-bottom: .7rem;
+    border-bottom: 1px solid var(--line);
+}
+
+.alert-tabs__tab {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    padding: .3rem .7rem;
+    border-radius: 999px;
+    font-size: .8rem;
+    font-weight: 600;
+    color: var(--ink-3);
+    white-space: nowrap;
+}
+.alert-tabs__tab:hover { background: var(--canvas); color: var(--green-dark); }
+.alert-tabs__tab.is-active { background: var(--green); color: #fff; }
+
+.alert-tabs__n {
+    display: inline-block;
+    min-width: 1.4rem;
+    padding: 0 .32rem;
+    border-radius: 999px;
+    background: var(--canvas);
+    color: var(--ink-3);
+    font-size: .7rem;
+    text-align: center;
+}
+.alert-tabs__tab.is-active .alert-tabs__n { background: rgba(255, 255, 255, .22); color: #fff; }
+
+.alert-filters {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    flex-wrap: wrap;
+    padding-top: .7rem;
+}
+.alert-filters .form-select { width: auto; min-width: 9rem; flex: none; }
+.alert-filters .search-field { flex: 1 1 12rem; min-width: 0; }
+.alert-filters__log { margin-left: auto; }
+
+/* ---- the list ------------------------------------------------------------ */
+
+.alert-list { list-style: none; margin: 0 0 1rem; padding: 0; }
+
+/* Two columns: the alert, and the kebab. There used to be a 2.4rem tile on the
+   left holding a mountain glyph — the same glyph on every row, so it told the
+   reader nothing and pushed the destination name off the edge. The name is the
+   first thing scanned; it now starts where the eye already is. */
+.alert-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 30px;
+    align-items: start;
+    /* No row gap: the action row carries its own margin, as it did when it
+       still lived inside the text column. The card must not gain 12px. */
+    gap: 0 .75rem;
+    padding: .8rem .95rem;
+    margin-bottom: .5rem;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+}
+
+/* One coloured edge, not a coloured card. A list where the urgent rows are
+   tinted end to end is a list nobody can read the ordinary rows in. */
+.alert-row.is-urgent { border-left: 3px solid #C62828; }
+
+.alert-row__main { min-width: 0; }
+
+.alert-row__head {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    flex-wrap: wrap;
+    margin: 0 0 .2rem;
+}
+/* A shade larger than it was, now that nothing sits beside it competing for
+   the first glance. Still one line, so the card is no taller. */
+.alert-row__place { font-size: .92rem; font-weight: 700; color: var(--ink); }
+
+.alert-row__meta {
+    margin: 0 0 .35rem;
+    font-size: .73rem;
+    color: var(--ink-3);
+}
+
+.alert-row__text {
+    margin: 0;
+    font-size: .84rem;
+    line-height: 1.5;
+    color: var(--ink-2);
+    overflow-wrap: anywhere;
+}
+
+.alert-row__unverified {
+    margin: 0 0 .35rem;
+    font-size: .74rem;
+    color: #9A5B00;
+}
+
+.alert-row__done,
+.alert-row__reply {
+    margin: .4rem 0 0;
+    padding: .45rem .6rem;
+    border-radius: var(--radius-sm);
+    font-size: .78rem;
+    line-height: 1.45;
+}
+.alert-row__done  { background: var(--green-pale); color: var(--green-dark); }
+.alert-row__reply { background: #E8F1F8; color: #0B4A6F; }
+
+.alert-row__acts {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+    flex-wrap: wrap;
+    margin-top: .6rem;
+}
+
+/* Replying is the one action that writes something outward, so it sits apart
+   from the two that only change a status here. The width freed by the tile is
+   what lets it move right without a second line. */
+.alert-row__acts [data-alert-open="reply"] { margin-left: auto; }
+
+/* ---- pagination ---------------------------------------------------------- */
+
+.alert-pager {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    flex-wrap: wrap;
+    padding: .65rem .9rem;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+}
+.alert-pager__count { margin: 0; font-size: .78rem; color: var(--ink-3); }
+.alert-pager__size { margin: 0; }
+.alert-pager__size .form-select { width: auto; }
+.alert-pager__pages { display: flex; gap: .2rem; margin-left: auto; }
+
+.alert-pager__num,
+.alert-pager__step {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.9rem;
+    height: 1.9rem;
+    padding: 0 .4rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    font-size: .78rem;
+    font-weight: 600;
+    color: var(--ink-2);
+}
+.alert-pager__num:hover,
+.alert-pager__step:hover { border-color: var(--green); color: var(--green-dark); }
+.alert-pager__num.is-active { background: var(--green); border-color: var(--green); color: #fff; }
+.alert-pager__step.is-off { opacity: .4; pointer-events: none; }
+
+/* ---- the dialogs --------------------------------------------------------- */
+
+.sheet--alert { max-width: 34rem; }
+
+/* The four facts every dialog opens on, so nobody acts on the wrong row. */
+.alert-facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr));
+    gap: .5rem .9rem;
+    margin: 0 0 1rem;
+    padding: .7rem .8rem;
+    background: var(--canvas);
+    border-radius: var(--radius-sm);
+}
+.alert-facts > div { min-width: 0; }
+.alert-facts dt { margin: 0 0 .1rem; font-size: .68rem; color: var(--ink-3); }
+.alert-facts dd { margin: 0; font-size: .8rem; color: var(--ink); overflow-wrap: anywhere; }
+
+.alert-hint {
+    margin: .3rem 0 0;
+    font-size: .72rem;
+    line-height: 1.4;
+    color: var(--ink-3);
+}
+
+.alert-body {
+    max-height: 13rem;
+    overflow-y: auto;
+    padding: .8rem .9rem;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    font-size: .85rem;
+    line-height: 1.6;
+    color: var(--ink-2);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.alert-steps { list-style: none; margin: 0; padding: 0; }
+.alert-steps li {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: .75rem;
+    padding: .5rem 0;
+    border-bottom: 1px solid var(--line);
+}
+.alert-steps li:last-child { border-bottom: 0; }
+.alert-steps__what { font-size: .82rem; font-weight: 600; color: var(--ink); }
+.alert-steps__when { font-size: .74rem; color: var(--ink-3); text-align: right; }
+
+/* ---- narrower screens ---------------------------------------------------- */
+
+@media screen and (max-width: 767.98px) {
+    .alert-filters .form-select,
+    .alert-filters .search-field { flex: 1 1 100%; width: 100%; }
+    .alert-filters__log { margin-left: 0; }
+
+    .alert-row { grid-template-columns: minmax(0, 1fr) 30px; gap: 0 .55rem; padding: .7rem; }
+    .alert-row__acts > .btn { flex: 1 1 auto; }
+    /* Nothing to push against once the buttons share the width. */
+    .alert-row__acts [data-alert-open="reply"] { margin-left: 0; }
+
+    .alert-pager { justify-content: center; }
+    .alert-pager__pages { margin-left: 0; width: 100%; justify-content: center; }
+}
+
+
+/* =============================================================================
+   THE MANAGER'S ARRIVAL ENTRIES SCREEN
+   -----------------------------------------------------------------------------
+   Owned by manager/report-form.php alone. The rf- prefix appears nowhere under
+   admin/, so this block cannot reach the officer's finished interface even
+   though the two share this stylesheet.
+
+   The screen used to open on a panel of two calendars, a preset box, a notes
+   field and two paragraphs of rules — all of it settled the moment the draft
+   exists, and all of it above the work. It opens on the work now.
+   ========================================================================== */
+
+/* ---- the period, as one line -------------------------------------------- */
+
+.rf-bar {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    flex-wrap: wrap;
+    padding: .7rem .9rem;
+    margin-bottom: 1rem;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+}
+
+.rf-bar__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.1rem;
+    height: 2.1rem;
+    border-radius: var(--radius-sm);
+    background: var(--green-pale);
+    color: var(--green-dark);
+    font-size: .85rem;
+    flex: none;
+}
+
+.rf-bar__text { display: flex; flex-direction: column; min-width: 0; }
+.rf-bar__label { font-size: .68rem; letter-spacing: .02em; color: var(--ink-3); text-transform: uppercase; }
+.rf-bar__dates { font-size: .86rem; font-weight: 600; color: var(--ink); }
+
+/* Pushed to the far end so the status pill sits beside the dates it describes
+   and the button lands where a button is looked for. */
+.rf-bar__more { margin-left: auto; }
+
+/* ---- the three ways in --------------------------------------------------- */
+
+.rf-ways {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+    gap: .6rem;
+    margin-bottom: 1rem;
+}
+
+.rf-way {
+    display: flex;
+    align-items: center;
+    gap: .7rem;
+    padding: .8rem .9rem;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    text-align: left;
+    text-decoration: none;
+    transition: border-color .15s ease, box-shadow .15s ease;
+}
+.rf-way:hover { border-color: var(--green); box-shadow: var(--shadow); text-decoration: none; }
+.rf-way:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+
+.rf-way__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.3rem;
+    height: 2.3rem;
+    border-radius: var(--radius-sm);
+    font-size: .92rem;
+    flex: none;
+}
+.rf-way__icon--green { background: var(--green-pale); color: var(--green-dark); }
+.rf-way__icon--blue  { background: #E8F1F8; color: #0B4A6F; }
+.rf-way__icon--amber { background: #FDF3E3; color: #9A5B00; }
+
+.rf-way__text { display: flex; flex-direction: column; min-width: 0; }
+.rf-way__text strong { font-size: .86rem; color: var(--ink); }
+.rf-way__text span { font-size: .74rem; color: var(--ink-3); }
+
+.rf-way__go { margin-left: auto; color: var(--ink-3); font-size: .78rem; }
+.rf-way:hover .rf-way__go { color: var(--green); }
+
+/* ---- search and add, in the panel head ----------------------------------- */
+
+.rf-tools {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    flex-wrap: wrap;
+    margin-left: auto;
+}
+
+.rf-search { position: relative; }
+.rf-search .form-control { padding-left: 2rem; width: 15rem; max-width: 100%; }
+
+.rf-search__icon {
+    position: absolute;
+    top: 50%;
+    left: .7rem;
+    transform: translateY(-50%);
+    color: var(--ink-3);
+    font-size: .75rem;
+    pointer-events: none;
+}
+
+/* ---- the list ------------------------------------------------------------ */
+
+.rf-table__n { width: 2.5rem; color: var(--ink-3); }
+.rf-nowrap { white-space: nowrap; }
+
+/* Icon-only, so it needs a square rather than a button's word-shaped padding. */
+.rf-row-act {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.9rem;
+    height: 1.9rem;
+    padding: 0;
+}
+
+/* ---- pagination ---------------------------------------------------------- */
+
+.rf-pager {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    flex-wrap: wrap;
+    margin-top: 1rem;
+    padding-top: .75rem;
+    border-top: 1px solid var(--line);
+}
+.rf-pager__count { margin: 0; font-size: .78rem; color: var(--ink-3); }
+.rf-pager__size { margin: 0; }
+.rf-pager__size .form-select { width: auto; }
+.rf-pager__pages { display: flex; gap: .2rem; margin-left: auto; }
+
+.rf-pager__num,
+.rf-pager__step {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.9rem;
+    height: 1.9rem;
+    padding: 0 .4rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    font-size: .78rem;
+    font-weight: 600;
+    color: var(--ink-2);
+}
+.rf-pager__num:hover,
+.rf-pager__step:hover { border-color: var(--green); color: var(--green-dark); text-decoration: none; }
+.rf-pager__num.is-active { background: var(--green); border-color: var(--green); color: #fff; }
+.rf-pager__step.is-off { opacity: .4; pointer-events: none; }
+
+/* ---- the submit bar ------------------------------------------------------ */
+
+.rf-foot {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    flex-wrap: wrap;
+    padding: .75rem .9rem;
+    margin-top: 1rem;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+}
+.rf-foot__count { margin: 0 auto 0 0; font-size: .78rem; color: var(--ink-3); max-width: 40rem; }
+.rf-foot__count strong { color: var(--ink); }
+
+/* ---- inside Report Details ----------------------------------------------- */
+
+.rf-details__head {
+    display: flex;
+    align-items: baseline;
+    gap: .5rem;
+    flex-wrap: wrap;
+    margin: 1.6rem 0 .3rem;
+    padding-top: 1.1rem;
+    border-top: 1px solid var(--line);
+    font-size: .95rem;
+    font-weight: 700;
+    color: var(--ink);
+}
+.rf-details__head i { color: var(--green); font-size: .82rem; }
+.rf-details__head .text-muted { margin-left: auto; font-weight: 400; }
+
+/* ---- narrower screens ---------------------------------------------------- */
+
+@media screen and (max-width: 767.98px) {
+    .rf-bar { gap: .5rem; }
+    .rf-bar__more { margin-left: 0; width: 100%; }
+
+    .rf-tools { width: 100%; margin-left: 0; }
+    .rf-search { flex: 1 1 auto; }
+    .rf-search .form-control { width: 100%; }
+
+    .rf-pager { justify-content: center; }
+    .rf-pager__pages { margin-left: 0; width: 100%; justify-content: center; }
+
+    .rf-foot__count { margin: 0 0 .2rem; width: 100%; }
+    .rf-foot > .btn { flex: 1 1 auto; }
+}
+
+/* ---- the two standing warnings ------------------------------------------- */
+
+/* They were three-sentence banners stacked full width, and on this screen that
+   put a third of the height in front of the work. Same words, less room. */
+.rf-alert {
+    padding: .6rem .8rem;
+    font-size: .8rem;
+    line-height: 1.5;
+}
+.rf-alert .pill { vertical-align: baseline; }
+
+/* ---- empty states, at this screen's scale -------------------------------- */
+
+/* These carried .empty-public, which lives in style.css — the public
+   stylesheet, which neither the officer's shell nor the manager's loads. So
+   they had no styling at all: a browser-default h3 at 1.5rem, flush left, in a
+   panel beside a working list. They are .empty now, which this file does
+   define; rf-empty is only the size, since these sit inside a panel rather
+   than filling a screen of their own. */
+.rf-empty { padding: 1.4rem 1rem; }
+.rf-empty i { font-size: 1.5rem; margin-bottom: .4rem; }
+.rf-empty h3 { font-size: .95rem; margin: 0 0 .25rem; color: var(--ink-2); }
+.rf-empty p { font-size: .8rem; margin: 0 auto; max-width: 34rem; }
+
+/* ---- the import stepper -------------------------------------------------- */
+
+/* Upload → Preview → Confirm. The flow always worked this way and never said
+   so, which left a manager on the preview screen unsure whether their rows
+   were already in the report or still waiting on them. */
+.rf-steps {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    flex-wrap: wrap;
+    list-style: none;
+    margin: 0 0 1rem;
+    padding: .7rem .9rem;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+}
+
+.rf-steps__step {
+    display: inline-flex;
+    align-items: center;
+    gap: .45rem;
+    font-size: .8rem;
+    font-weight: 600;
+    color: var(--ink-3);
+}
+
+/* The rule between steps, so they read as a sequence and not three chips. */
+.rf-steps__step + .rf-steps__step::before {
+    content: '';
+    width: 1.6rem;
+    height: 1px;
+    margin-right: .45rem;
+    background: var(--line);
+}
+
+.rf-steps__n {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.4rem;
+    height: 1.4rem;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--canvas);
+    font-size: .72rem;
+    flex: none;
+}
+
+.rf-steps__step.is-now { color: var(--green-dark); }
+.rf-steps__step.is-now .rf-steps__n {
+    background: var(--green);
+    border-color: var(--green);
+    color: #fff;
+}
+
+.rf-steps__step.is-done { color: var(--green-dark); }
+.rf-steps__step.is-done .rf-steps__n {
+    background: var(--green-pale);
+    border-color: var(--green);
+    color: var(--green-dark);
+}
+
+@media screen and (max-width: 575.98px) {
+    .rf-steps__step + .rf-steps__step::before { width: .8rem; margin-right: .3rem; }
+    .rf-steps__label { font-size: .74rem; }
+}
+
+/* ---- the manager's sign-out ---------------------------------------------- */
+
+/* The officer's sign-out is an <a>; the manager's is the submit button of a
+   CSRF-checked POST form, because manager/logout.php refuses GET on purpose.
+   Same control to look at, so the button is stripped back to the link it is
+   standing in for. The form is a flex item and must not add width of its own. */
+.topbar__out { display: flex; margin: 0; }
+
+button.topbar__signout {
+    display: inline-flex;
+    align-items: center;
+    background: none;
+    border: 0;
+    cursor: pointer;
+    font: inherit;
+    line-height: 1;
+}
+
+/* ---- the manager's change-request comparison ----------------------------- */
+
+/* Old on the left, proposed on the right. Only the right-hand cell is tinted:
+   two highlighted columns is two columns competing, and the eye needs to be
+   told which one is the request. */
+.rf-diff td { vertical-align: top; font-size: .82rem; line-height: 1.5; }
+.rf-diff__new { background: var(--green-pale); color: var(--green-dark); font-weight: 500; }
+
+.rf-diff__why {
+    padding: .7rem .85rem;
+    background: var(--canvas);
+    border-radius: var(--radius-sm);
+    font-size: .82rem;
+}
+.rf-diff__why strong { display: block; margin-bottom: .2rem; font-size: .72rem; color: var(--ink-3); }
+
+/* =============================================================================
+   DESTINATION UPDATE REQUESTS — the queue beside the decision
+   -----------------------------------------------------------------------------
+   Owned by admin/change-requests/index.php. It was a stack of full-width
+   sections, one per request, each with its own comparison table and its own
+   Approve/Decline pair; reading the third meant scrolling past two others'
+   tables, and nothing on screen said how many were left to answer.
+   ========================================================================== */
+
+.cr-split {
+    display: grid;
+    grid-template-columns: minmax(0, 22rem) minmax(0, 1fr);
+    gap: 1rem;
+    align-items: start;
+}
+
+/* ---- the queue ----------------------------------------------------------- */
+
+.cr-list { position: sticky; top: 1rem; }
+
+.cr-tabs {
+    display: flex;
+    gap: .25rem;
+    flex-wrap: wrap;
+    padding: .6rem .8rem;
+    border-bottom: 1px solid var(--line);
+}
+
+.cr-tabs__tab {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    padding: .25rem .6rem;
+    border-radius: 999px;
+    font-size: .76rem;
+    font-weight: 600;
+    color: var(--ink-3);
+    white-space: nowrap;
+}
+.cr-tabs__tab:hover { background: var(--canvas); color: var(--green-dark); text-decoration: none; }
+.cr-tabs__tab.is-active { background: var(--green); color: #fff; }
+
+.cr-tabs__n {
+    display: inline-block;
+    min-width: 1.25rem;
+    padding: 0 .3rem;
+    border-radius: 999px;
+    background: var(--canvas);
+    color: var(--ink-3);
+    font-size: .68rem;
+    text-align: center;
+}
+.cr-tabs__tab.is-active .cr-tabs__n { background: rgba(255, 255, 255, .22); color: #fff; }
+
+.cr-rows { list-style: none; margin: 0; padding: 0; }
+
+.cr-row {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    padding: .65rem .8rem;
+    border-bottom: 1px solid var(--line-soft);
+    text-decoration: none;
+}
+.cr-row:hover { background: var(--canvas); text-decoration: none; }
+
+/* The one being decided, marked on the edge nearest the panel it fills. */
+.cr-row.is-open { background: var(--green-pale); box-shadow: inset 3px 0 0 var(--green); }
+
+.cr-row__pic {
+    width: 2.6rem;
+    height: 2.6rem;
+    border-radius: var(--radius-sm);
+    object-fit: cover;
+    flex: none;
+}
+.cr-row__pic--none {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--canvas);
+    color: var(--ink-3);
+    font-size: .85rem;
+}
+
+.cr-row__text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.cr-row__text strong { font-size: .84rem; color: var(--ink); }
+.cr-row__text span { font-size: .72rem; color: var(--ink-3); }
+.cr-row__when { font-size: .68rem !important; }
+
+.cr-row__pill { flex: none; align-self: flex-start; }
+
+/* ---- the decision -------------------------------------------------------- */
+
+.cr-facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
+    gap: .5rem .9rem;
+    margin: 0 0 1.1rem;
+    padding: .75rem .85rem;
+    background: var(--canvas);
+    border-radius: var(--radius-sm);
+}
+.cr-facts > div { min-width: 0; }
+.cr-facts dt { margin: 0 0 .1rem; font-size: .68rem; color: var(--ink-3); }
+.cr-facts dd { margin: 0; font-size: .82rem; color: var(--ink); overflow-wrap: anywhere; }
+
+.cr-head {
+    margin: 1.3rem 0 .4rem;
+    font-size: .8rem;
+    font-weight: 700;
+    letter-spacing: .02em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+}
+.cr-head:first-of-type { margin-top: 0; }
+
+.cr-note {
+    padding: .7rem .85rem;
+    border-radius: var(--radius-sm);
+    background: #FDF8EC;
+    border-left: 3px solid #E0B252;
+    font-size: .85rem;
+    line-height: 1.6;
+    color: var(--ink-2);
+}
+.cr-note--mine { background: var(--green-pale); border-left-color: var(--green); }
+
+/* ---- one column below the split ------------------------------------------ */
+
+@media screen and (max-width: 991.98px) {
+    .cr-split { grid-template-columns: minmax(0, 1fr); }
+    .cr-list { position: static; }
+}
+
+/* The decision pair must read as a pair. In this narrower panel the shared
+   .rf-foot let the sentence take the first line and pushed one button below the
+   other, so Decline and Approve stopped looking like one choice. */
+.cr-detail .rf-foot { justify-content: flex-end; }
+.cr-detail .rf-foot__count { flex: 1 1 100%; margin: 0 0 .3rem; max-width: none; }
