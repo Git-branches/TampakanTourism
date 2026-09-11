@@ -298,7 +298,7 @@ require __DIR__ . '/../_partials/head.php';
     <div class="panel__body">
         <?php if ($days === []): ?>
 
-            <div class="empty-public">
+            <div class="empty">
                 <i class="fa-regular fa-calendar"></i>
                 <h3>No structured records</h3>
                 <?php if ($documents !== []): ?>

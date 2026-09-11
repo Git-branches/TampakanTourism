@@ -598,7 +598,7 @@ $importSteps = [
     <?php else: ?>
         <section class="panel">
             <div class="panel__body">
-                <div class="empty-public">
+                <div class="empty">
                     <i class="fa-regular fa-circle-xmark"></i>
                     <h3>Nothing in that file could be imported</h3>
                     <p>Every row had a problem. Fix them in the spreadsheet and upload it again.</p>

@@ -56,7 +56,7 @@ $counts        = Reports::counts($destinationId);
     <div class="panel__body">
         <?php if ($reports === []): ?>
 
-            <div class="empty-public">
+            <div class="empty">
                 <i class="fa-regular fa-file-lines"></i>
                 <h3>No reports yet</h3>
                 <p>

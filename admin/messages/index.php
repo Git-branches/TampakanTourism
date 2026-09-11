@@ -222,7 +222,7 @@ require __DIR__ . '/../_partials/head.php';
            thing you typed is not here. */
         ?>
         <div class="panel__body">
-            <div class="empty-public">
+            <div class="empty">
                 <i class="fa-regular fa-envelope"></i>
                 <h3><?= $isFiltered ? 'Nothing matches that filter' : 'No messages yet' ?></h3>
                 <p>

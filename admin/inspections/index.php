@@ -102,7 +102,7 @@ require __DIR__ . '/../_partials/head.php';
     <div class="panel__body">
         <?php if ($reports === []): ?>
 
-            <div class="empty-public">
+            <div class="empty">
                 <i class="fa-regular fa-folder-open"></i>
                 <h3><?= $status !== '' || $destinationId > 0 ? 'Nothing matches that filter' : 'Nothing waiting' ?></h3>
                 <p>

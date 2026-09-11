@@ -255,7 +255,7 @@ require __DIR__ . '/_partials/head.php';
     <div class="panel__body">
         <?php if ($alerts === []): ?>
 
-            <div class="empty-public">
+            <div class="empty">
                 <i class="fa-regular fa-bell"></i>
                 <h3>Nothing reported yet</h3>
                 <p>Alerts you send appear here with the Office's response.</p>

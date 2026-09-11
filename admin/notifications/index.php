@@ -80,7 +80,7 @@ require __DIR__ . '/../_partials/settings-tabs.php';
 <?php if ($rows === []): ?>
     <section class="panel">
         <div class="panel__body">
-            <div class="empty-public">
+            <div class="empty">
                 <i class="fa-regular fa-bell" aria-hidden="true"></i>
                 <h3>Nothing yet</h3>
                 <p>

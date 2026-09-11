@@ -230,7 +230,7 @@ require __DIR__ . '/../_partials/head.php';
 <?php if ($videos === []): ?>
     <section class="panel">
         <div class="panel__body">
-            <div class="empty-public">
+            <div class="empty">
                 <i class="fa-solid fa-film" aria-hidden="true"></i>
                 <?php if ($filtered): ?>
                     <h3>No results found</h3>

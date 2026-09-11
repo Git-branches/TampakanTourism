@@ -156,7 +156,7 @@ Inbound texts will be refused until the provider is updated with it.">
 
     <div class="panel__body">
         <?php if ($log === []): ?>
-            <div class="empty-public">
+            <div class="empty">
                 <i class="fa-regular fa-message"></i>
                 <h3>Nothing received</h3>
                 <p>Texts sent to the office number appear here, including any that were refused.</p>
