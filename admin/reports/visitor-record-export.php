@@ -102,8 +102,7 @@ fputcsv($out, [
 ]);
 
 fputcsv($out, []);
-fputcsv($out, ['Note: *Total number must be recorded, ** Sex & ***Residence entries are optional. '
-    . 'Total number of this month must be reported.']);
+fputcsv($out, [VisitorRecord::FORM_NOTE]);
 
 if ($t['grand']['unspecified'] > 0) {
     fputcsv($out, ['** ' . $t['grand']['unspecified'] . ' visitor(s) have no recorded sex, '

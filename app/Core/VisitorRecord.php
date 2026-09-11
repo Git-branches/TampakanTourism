@@ -41,6 +41,22 @@ final class VisitorRecord
     public const COLUMNS = ['this_province', 'other_province', 'foreign'];
 
     /**
+     * The note printed under the table, word for word from the paper form.
+     *
+     * ONE COPY, BECAUSE THREE HAD ALREADY DRIFTED. It was written out by hand in
+     * the screen page, the print sheet and the CSV export, and two of the three
+     * had turned the first full stop into a comma. This is a sentence the
+     * Department of Tourism issued; the system does not get to paraphrase it in
+     * one place and not another.
+     *
+     * The asterisks are not decoration — they key to * Grand Total, ** Sex,
+     * *** Place of Residence and **** Total of this Month in the headings, so
+     * the wording and the column titles have to stay in step.
+     */
+    public const FORM_NOTE = 'Note: *Total number must be recorded.  ** Sex & ***Residence entries '
+        . 'are optional.  Total number of this month must be reported.';
+
+    /**
      * Builds one month of the record.
      *
      * @param  int  $year

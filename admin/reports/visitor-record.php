@@ -193,10 +193,10 @@ require __DIR__ . '/../_partials/head.php';
             <?php require __DIR__ . '/_visitor-record-table.php'; ?>
         </div>
 
-        <p class="text-muted small mt-3 mb-0">
-            <strong>Note:</strong> *Total number must be recorded, ** Sex &amp; ***Residence entries are
-            optional. Total number of this month must be reported.
-        </p>
+        <?php /* The note moved into _visitor-record-table.php, which this page
+                 already includes above — so it was being printed twice on this
+                 screen once the shared partial gained it. One copy, from
+                 VisitorRecord::FORM_NOTE. */ ?>
     </div>
 </section>
 

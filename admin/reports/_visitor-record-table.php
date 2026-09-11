@@ -109,6 +109,15 @@ $unspecified = $record['totals']['grand']['unspecified'];
     </p>
 <?php endif; ?>
 
+<?php /* THE FORM'S OWN NOTE, WORD FOR WORD.
+         The headings above already carry *, **, *** and **** — Grand Total,
+         Sex, Place of Residence and Total of this Month — and nothing on the
+         sheet said what they meant. The office's filed copy carries this line
+         under the table, so a reader at the Department of Tourism can tell
+         which columns are required and which are optional. Not conditional:
+         it explains the headings, which are always there. */ ?>
+<p class="vr-note"><?= e(App\Core\VisitorRecord::FORM_NOTE) ?></p>
+
 <div class="vr-signatures">
     <div>
         <span class="vr-signatures__label">Prepared by:</span>

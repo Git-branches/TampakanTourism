@@ -39,10 +39,34 @@ $signatories = VisitorRecord::signatories([
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title>Tourism Attraction Visitor Record — <?= e($record['month_label']) ?></title>
+
+<?php /* A PAGE THAT DECLARES NO ICON GETS THE SERVER'S.
+         This sheet stands outside the admin shell, so it inherited nothing —
+         and the browser fell back to /favicon.ico at the document root, which
+         on this machine is XAMPP's own, dated 2015. The office opened the
+         printable copy of a Department of Tourism return and saw XAMPP's
+         orange logo on the tab. Same icon the rest of the system uses. */ ?>
+<link rel="icon" href="<?= e(asset('img/tampakan_logo.png')) ?>" sizes="any">
+
 <link rel="stylesheet" href="<?= e(asset('css/admin.css')) ?>">
 <style>
-    /* Landscape: fourteen columns do not fit portrait at a legible size. */
-    @page { size: A4 landscape; margin: 10mm; }
+    /* Landscape: fourteen columns do not fit portrait at a legible size.
+     *
+     * MARGIN 0, AND THAT IS WHAT REMOVES THE BROWSER'S OWN HEADER.
+     *
+     * "9/7/26, 11:18 PM", the page title and the localhost URL along the bottom
+     * are not printed by this page — the browser draws them in the margin box
+     * @page reserves. This is a form the Municipal Tourism Office signs and
+     * sends to the Department of Tourism, and a government return should not
+     * arrive with a developer's localhost address across the foot of it.
+     *
+     * Take the margin box away and there is nowhere for them to go. The paper
+     * still gets its border: the 10mm moves onto the body below, which is the
+     * sheet's own padding rather than the page's.
+     *
+     * A reader can still switch them back on with "Headers and footers" in the
+     * print dialog — that tick is theirs, not something CSS can hold shut. */
+    @page { size: A4 landscape; margin: 0; }
 
     body {
         background: #fff;
@@ -70,22 +94,15 @@ $signatories = VisitorRecord::signatories([
 
     .vr-actions { margin-bottom: 1.2rem; }
 
-    /* Deliberately plain and black. It prints on the office's mono laser as
-       clearly as it renders here, and it sits above the table so it cannot be
-       read as a footnote to it. */
-    .vr-caveat {
-        border: 1.5px solid #111;
-        padding: .55rem .75rem;
-        margin-bottom: .9rem;
-        font-size: .78rem;
-        line-height: 1.35;
-    }
-
-    .vr-caveat p { margin: 0; }
-    .vr-caveat p + p { margin-top: .35rem; }
+    /* .vr-caveat was styled here for the boxed warning above the table. The box
+       is gone from this sheet — see the note further down — and its rules went
+       with it rather than being left as CSS for markup nobody renders. */
 
     @media print {
-        body { padding: 0; }
+        /* The sheet's own margin, now that @page has none. Without this the
+           table would start at the very edge of the paper and most printers
+           would clip the first column. */
+        body { padding: 10mm; }
         .vr-actions { display: none; }
 
         /* ONE SHEET, INCLUDING THE SIGNATURES.
@@ -103,7 +120,6 @@ $signatories = VisitorRecord::signatories([
         .vr-head p    { margin-bottom: .4rem; }
         .vr-meta      { margin-bottom: .45rem; }
         .vr-meta div  { margin-bottom: .1rem; }
-        .vr-caveat    { margin-bottom: .5rem; padding: .4rem .6rem; }
         .vr-footnote  { margin-top: .3rem; }
         .vr-signatures { margin-top: 1rem; gap: 1rem 4rem; }
 
@@ -131,6 +147,12 @@ $signatories = VisitorRecord::signatories([
            class="btn btn-sm btn-outline-secondary">Back</a>
     </div>
 
+    <?php /* PUT BACK 2026-09-07, AND IT STAYS.
+             This parenthetical was briefly removed as decoration. It is not: the
+             office's own filed copy carries it directly under the title, so it
+             is part of the form the Department of Tourism receives. Anything on
+             this sheet that appears on the paper form is there because the form
+             has it, not because it reads well. */ ?>
     <div class="vr-head">
         <h1>Tourism Attraction Visitor Record</h1>
         <p>( This recording form can be used instead of just counting the visitors )</p>
@@ -148,35 +170,25 @@ $signatories = VisitorRecord::signatories([
     </div>
 
     <?php
-    /* THE CAVEAT HAS TO BE ON THE PAPER.
+    /* THE CAVEAT IS ON THE SCREEN, NOT ON THE PAPER.
      *
-     * visitor-record.php shows two warnings on screen: that a month has no
-     * approved arrivals, and how many recorded visitors this sheet therefore
-     * leaves out. Neither of them survived onto the printed copy — so a sheet
-     * of dashes for a month with two thousand recorded visitors printed with
-     * nothing on it to say why, got signed, and went to the Department with
-     * every figure blank and no explanation attached.
+     * A box used to print here saying that a month had no approved arrivals, or
+     * how many recorded visitors this sheet leaves out. It was added because a
+     * sheet of dashes for a month with two thousand recorded visitors printed
+     * with nothing on it to say why, got signed, and went to the Department
+     * that way.
      *
-     * The screen is read by the officer. The paper is read by everyone after
-     * them, and it is the paper that leaves the office. */
+     * It is gone from the paper on the office's instruction, and they are
+     * right: this is a Department of Tourism return with a fixed layout, and
+     * nothing belongs on it that is not on the form the Department issued. A
+     * box this system invented, sitting above the table on a signed government
+     * document, is this system editing a form that is not its to edit.
+     *
+     * THE PROTECTION IS NOT LOST — it moved rather than went. The same two
+     * warnings are on visitor-record.php (lines 155 and 164), which is the page
+     * with the Print button on it. The officer is told before they print; the
+     * paper stays exactly what the Department expects to receive. */
     ?>
-    <?php if (!$record['has_data'] || ($record['excluded'] ?? 0) > 0): ?>
-        <div class="vr-caveat">
-            <?php if (!$record['has_data']): ?>
-                <p><strong>No approved arrivals for <?= e($record['month_label']) ?>.</strong>
-                   This form counts only arrivals covered by a report the Office has approved, so
-                   the rows below are blank by design and not for want of visitors.</p>
-            <?php endif; ?>
-
-            <?php if (($record['excluded'] ?? 0) > 0): ?>
-                <p><strong><?= n((int) $record['excluded']) ?> recorded visitor(s) are not counted on
-                   this sheet.</strong> They have no approved report behind them. This sheet is
-                   therefore incomplete for the month and should not be filed until those
-                   submissions have been reviewed.</p>
-            <?php endif; ?>
-        </div>
-    <?php endif; ?>
-
     <?php require __DIR__ . '/_visitor-record-table.php'; ?>
 
 </div>
