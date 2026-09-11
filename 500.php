@@ -17,6 +17,12 @@ http_response_code(500);
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>Service Temporarily Unavailable — Tampakan Tourism</title>
+
+<?php /* A plain path, not asset(). This page deliberately does not bootstrap the
+         application — it is what answers when the database or the config is the
+         thing that failed, so every helper it might call is exactly what cannot
+         be relied on here. */ ?>
+<link rel="icon" href="/TampakanTourism/assets/img/tampakan_logo.png" sizes="any">
 <style>
     body {
         margin: 0;
