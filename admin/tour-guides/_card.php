@@ -472,6 +472,17 @@ $tgidIcon = static function (string $name, string $size, bool $filled = false) u
                including the dialog-print path, and send one blank card out of
                the printer. */
             visibility: visible !important;
+
+            /* AND NO TRANSITION ON THE WAY THERE.
+               The screen rule delays visibility by .3s so the far face does not
+               wink out mid-flip. That delay applies here too: the moment the
+               media becomes print, the front face is still hidden for another
+               three hundred milliseconds — and whether it is visible in the
+               snapshot the printer receives is then a race. Measured straight
+               after the switch it read "hidden / visible": one card and one
+               blank rectangle, which is exactly the failure the rules above
+               were written to prevent. */
+            transition: none !important;
         }
         .tgid-card { -webkit-backface-visibility: visible; backface-visibility: visible; }
         .tgid-card { box-shadow: none; page-break-inside: avoid; }

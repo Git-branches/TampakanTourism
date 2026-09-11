@@ -286,9 +286,51 @@ final class TourGuideRosterRepository
      * officer whether the card in a guide's wallet predates the details on
      * screen.
      */
-    public static function markIssued(int $id): void
+    /**
+     * Records that the card was handed over today. Once.
+     *
+     * THE CONDITION IS IN THE STATEMENT, NOT IN A CHECK ABOVE IT.
+     *
+     * This used to be an unconditional UPDATE behind a button the officer could
+     * press as often as they liked — double-click it, refresh the page that
+     * posted it, leave the record open in two tabs. Every press moved
+     * id_issued_at to the current time, so "issued on" drifted through the
+     * afternoon and the office had no idea which reading was the handover.
+     *
+     * Reading the row first and then updating would narrow the window without
+     * closing it: two requests can both read "not issued yet" before either
+     * writes. Putting the test in the WHERE clause hands the decision to the
+     * database, where the two statements are serialised — the second one
+     * matches no rows and changes nothing.
+     *
+     * @return bool true if this call is the one that recorded it.
+     */
+    public static function markIssued(int $id): bool
     {
-        Database::run('UPDATE tour_guides SET id_issued_at = NOW() WHERE id = ?', [$id]);
+        return Database::affected(
+            'UPDATE tour_guides
+                SET id_issued_at = NOW()
+              WHERE id = ?
+                AND (id_issued_at IS NULL OR DATE(id_issued_at) <> CURDATE())',
+            [$id]
+        ) === 1;
+    }
+
+    /**
+     * Was this guide's card already recorded as issued today?
+     *
+     * Takes the stamp rather than an id so a page that already has the row does
+     * not go back to the database to ask what it is holding.
+     */
+    public static function issuedToday(mixed $stamp): bool
+    {
+        if (!is_string($stamp) || $stamp === '') {
+            return false;
+        }
+
+        $time = strtotime($stamp);
+
+        return $time !== false && date('Y-m-d', $time) === date('Y-m-d');
     }
 
     /**

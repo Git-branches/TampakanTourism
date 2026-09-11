@@ -80,8 +80,18 @@ if (is_post()) {
     }
 
     if ($action === 'issued') {
-        Roster::markIssued($id);
-        Session::flash('success', 'Recorded as issued today.');
+        /* THE SECOND PRESS IS NOT AN ERROR, AND IT IS NOT A SUCCESS EITHER.
+           markIssued() only writes when today has not been recorded yet, so a
+           double-click, a refresh of this POST, or the same record open in two
+           tabs all reach here and only the first one changes anything. Saying
+           "Recorded" to the rest would be a lie the officer acts on; saying
+           nothing would look like the button was broken. */
+        if (Roster::markIssued($id)) {
+            ActivityLog::record('guide.issued', 'tour_guide', $id, 'Card issued to ' . $guide['full_name']);
+            Session::flash('success', 'Recorded as issued today.');
+        } else {
+            Session::flash('info', 'Already recorded as issued today &mdash; nothing was changed.');
+        }
     }
 
     redirect(base_url('/admin/tour-guides/view.php?id=' . $id));
@@ -89,6 +99,9 @@ if (is_post()) {
 
 $pageTitle = (string) $guide['full_name'];
 $pageIcon  = 'fa-id-card';
+
+/* Read from the row already in hand, not from a second query. */
+$issuedToday  = Roster::issuedToday($guide['id_issued_at'] ?? null);
 
 $credentials  = Roster::credentialsFor($id);
 $certificates = Roster::certificatesFor($id);
@@ -141,10 +154,14 @@ $dtStyle = 'font-size:.71rem; letter-spacing:.05em; text-transform:uppercase; co
     <a class="text-muted small" href="<?= e(base_url('/admin/tour-guides/index.php')) ?>">
         <i class="fa-solid fa-arrow-left"></i> Tour Guides
     </a>
+    <?php /* NO EDIT BUTTON HERE ANY MORE.
+             Editing is done from the list, where it opens in a dialog over the
+             row — so this one led out of the record and onto a separate page,
+             which is the journey the dialog was added to remove. The contextual
+             links further down ("Set a date", "Change the status", "Add them")
+             still reach edit.php, because each of those is an answer to
+             something this page has just told the officer is missing. */ ?>
     <div class="d-flex gap-2 flex-wrap">
-        <a class="btn btn-outline-secondary btn-sm" href="<?= e(base_url('/admin/tour-guides/edit.php?id=' . $id)) ?>">
-            <i class="fa-solid fa-pen"></i> Edit
-        </a>
         <button type="button" class="btn btn-brand btn-sm" data-dialog="idCard">
             <i class="fa-solid fa-id-card"></i> Tour Guide ID
         </button>
@@ -486,20 +503,36 @@ $dtStyle = 'font-size:.71rem; letter-spacing:.05em; text-transform:uppercase; co
         <footer class="sheet__foot">
             <button type="button" class="btn btn-sm btn-outline-secondary" data-dialog-close>Close</button>
 
-            <a class="btn btn-sm btn-outline-secondary" target="_blank" rel="noopener"
-               href="<?= e(base_url('/admin/tour-guides/id-card.php?id=' . $id)) ?>">
-                <i class="fa-solid fa-arrow-up-right-from-square"></i> Open in a tab
-            </a>
+            <?php /* "Open in a tab" is gone. It existed because a browser can be
+                     awkward about printing from inside a dialog, but it sent the
+                     officer to a second page that prints the same card — and the
+                     Print ID button here already handles the dialog case.
+                     id-card.php is untouched and still reachable at its own
+                     address for anyone who needs it. */ ?>
 
             <?php /* Posts to this page, the way it always did. It used to live in
                      the standalone card page's toolbar, which the dialog has not
-                     got. */ ?>
-            <form method="post" class="d-inline">
-                <?= csrf_field() ?>
-                <input type="hidden" name="id" value="<?= $id ?>">
-                <input type="hidden" name="action" value="issued">
-                <button type="submit" class="btn btn-sm btn-outline-secondary">Record as issued today</button>
-            </form>
+                     got.
+
+                     ONCE A DAY, AND IT SAYS SO. The button used to stay live
+                     after it had been pressed, so an officer with no way to tell
+                     whether it had worked pressed it again — and each press
+                     moved the recorded time. The state is now on the control
+                     itself. The guard that actually prevents the second write is
+                     in markIssued(); this is the half the officer can see. */ ?>
+            <?php if ($issuedToday): ?>
+                <span class="btn btn-sm btn-outline-secondary disabled" aria-disabled="true"
+                      title="Recorded <?= e(format_date((string) $guide['id_issued_at'], 'M j, Y g:i A')) ?>">
+                    <i class="fa-solid fa-check text-success" aria-hidden="true"></i> Issued Today
+                </span>
+            <?php else: ?>
+                <form method="post" class="d-inline" data-busy-label="Recording&hellip;">
+                    <?= csrf_field() ?>
+                    <input type="hidden" name="id" value="<?= $id ?>">
+                    <input type="hidden" name="action" value="issued">
+                    <button type="submit" class="btn btn-sm btn-outline-secondary">Record as issued today</button>
+                </form>
+            <?php endif; ?>
 
             <?php /* Same ids the component's script binds to. */ ?>
             <button type="button" class="btn btn-sm btn-outline-secondary" id="tgidFlipBtn"

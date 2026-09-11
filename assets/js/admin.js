@@ -1325,7 +1325,20 @@
                    dialog would leave that card lying until the next navigation.
                    Nothing carries this attribute unless it says so, so every
                    existing dialog keeps refilling exactly as before. */
-                if (form.hasAttribute('data-modal-reload')) {
+                var reload = form.getAttribute('data-modal-reload');
+
+                /* "on-success" IS FOR A FORM THAT CAN BE REJECTED.
+                   Plain data-modal-reload closes the dialog whatever came
+                   back, which is right for an upload that either worked or
+                   failed outright. It is wrong for a form with validation:
+                   the guide editor rejected for a missing name would have the
+                   dialog shut on the officer, losing everything they had
+                   typed, and the only trace would be a toast. With this, a
+                   rejection refills the dialog instead — errors beside the
+                   fields, input intact — and only a success closes it and
+                   refreshes the list behind. */
+                if (reload !== null
+                    && (reload !== 'on-success' || (readToast(said) || {}).tone === 'Success')) {
                     /* THE FLASH IS ALREADY SPENT. The fetch above followed the
                        redirect, so the server handed this response its "Photo
                        added" message and cleared it — reloading now would show
@@ -1608,5 +1621,75 @@
         shut(popped);
         popped = null;
         if (btn) { btn.focus(); }
+    });
+})();
+
+
+/* ===========================================================================
+   CREDENTIAL ROWS
+   ===========================================================================
+   The tour guide form used to render four to six empty credential pairs and
+   hope one of them was wanted. Now it renders what exists plus one, and this
+   adds and removes the rest.
+
+   DELEGATED ON document, NOT BOUND TO THE ROWS. The same form is rendered in
+   the tour guide list's <dialog>, on create.php, on edit.php, and — once Edit
+   opens in a modal — inside a fragment fetched after this script ran. A handler
+   attached at load time would miss every one of those but the first.
+
+   Nothing here validates: replaceCredentials() in the repository already drops
+   any row with a blank label, so an empty pair costs a keystroke and never
+   reaches the database.
+   ======================================================================== */
+(function () {
+    'use strict';
+
+    /* The template and the list belong to ONE form. A page can hold two of
+       these — the list's Add sheet and an Edit modal over it — and reaching
+       past the form would let a click in one fill the other. */
+    function scopeOf(el) { return el.closest('form') || document; }
+
+    function addRow(list, tpl) {
+        if (!list || !tpl) { return null; }
+
+        var row = tpl.content.firstElementChild.cloneNode(true);
+        list.appendChild(row);
+        return row;
+    }
+
+    document.addEventListener('click', function (event) {
+        var add = event.target.closest && event.target.closest('[data-cred-add]');
+
+        if (add) {
+            var scope = scopeOf(add);
+            var row   = addRow(scope.querySelector('[data-cred-list]'),
+                               scope.querySelector('[data-cred-template]'));
+
+            /* Straight into the box that was just asked for. */
+            if (row) {
+                var first = row.querySelector('input');
+                if (first) { first.focus(); }
+            }
+            return;
+        }
+
+        var remove = event.target.closest && event.target.closest('[data-cred-remove]');
+
+        if (!remove) { return; }
+
+        var doomed = remove.closest('.cred-row');
+        var list   = remove.closest('[data-cred-list]');
+
+        if (!doomed) { return; }
+
+        doomed.remove();
+
+        /* NEVER NOTHING. Removing the last row would leave the officer with a
+           heading, a hint and no way back in except the Add button — and a form
+           that looks like it has lost the feature. One blank row is the empty
+           state. */
+        if (list && !list.querySelector('.cred-row')) {
+            addRow(list, scopeOf(remove).querySelector('[data-cred-template]'));
+        }
     });
 })();

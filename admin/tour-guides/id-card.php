@@ -59,6 +59,20 @@ $effective = (string) $guide['effective_status'];
         border-left: 4px solid #C62828; border-radius: 6px;
         background: #FDECEA; color: #8E1F1B; font-size: .9rem;
     }
+    /* Reads as a state, not as something else to press. */
+    .issued {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        padding: .4rem .8rem;
+        border: 1px solid #CBD8CD;
+        border-radius: 7px;
+        background: #E8F3E9;
+        color: #1B5E20;
+        font-size: .85rem;
+        font-weight: 600;
+    }
+
     @media print {
         body { background: #fff; padding: 0; }
         .bar, .warn { display: none !important; }
@@ -70,12 +84,21 @@ $effective = (string) $guide['effective_status'];
 <div class="bar">
     <a href="<?= e(base_url('/admin/tour-guides/view.php?id=' . $id)) ?>">&larr; Back to the record</a>
     <button class="primary" onclick="window.print()">Print both sides</button>
-    <form method="post" action="<?= e(base_url('/admin/tour-guides/view.php?id=' . $id)) ?>" style="display:inline">
-        <?= csrf_field() ?>
-        <input type="hidden" name="id" value="<?= $id ?>">
-        <input type="hidden" name="action" value="issued">
-        <button type="submit">Record as issued today</button>
-    </form>
+    <?php /* The same state the record's dialog shows. This page is the other
+             door to the same action, and a button that is live here while it is
+             spent there is how the time got moved twice. */ ?>
+    <?php if (Roster::issuedToday($guide['id_issued_at'] ?? null)): ?>
+        <span class="issued" title="Recorded <?= e(format_date((string) $guide['id_issued_at'], 'M j, Y g:i A')) ?>">
+            &#10003; Issued Today
+        </span>
+    <?php else: ?>
+        <form method="post" action="<?= e(base_url('/admin/tour-guides/view.php?id=' . $id)) ?>" style="display:inline">
+            <?= csrf_field() ?>
+            <input type="hidden" name="id" value="<?= $id ?>">
+            <input type="hidden" name="action" value="issued">
+            <button type="submit">Record as issued today</button>
+        </form>
+    <?php endif; ?>
     <span class="grow">
         2.63 &times; 3.88&nbsp;in portrait. Print at 100%, <strong>no scaling</strong> &mdash;
         &ldquo;fit to page&rdquo; will make the card the wrong size.

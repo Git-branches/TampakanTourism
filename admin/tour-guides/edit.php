@@ -103,6 +103,16 @@ foreach (array_keys($g) as $key) {
 $isEdit      = true;
 $credentials = Roster::credentialsFor($id);
 
-require __DIR__ . '/../_partials/head.php';
+/* ANSWERS TWICE: the whole screen at its own URL, and the form alone when asked
+   with ?modal=1 — which is what the list fetches into its dialog so Edit stops
+   being a page the officer has to navigate to and come back from.
+
+   Additive, and deliberately so. Without ?modal=1 nothing here changes: the
+   page still works at its own address, which is what a middle-click, a
+   bookmark, and a browser with JavaScript off all follow. Same shape as
+   admin/destinations/edit.php. */
+if (!is_modal_request()) { require __DIR__ . '/../_partials/head.php'; }
+
 require __DIR__ . '/_form.php';
-require __DIR__ . '/../_partials/foot.php';
+
+if (!is_modal_request()) { require __DIR__ . '/../_partials/foot.php'; }

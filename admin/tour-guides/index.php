@@ -200,9 +200,6 @@ $cards = [
                 Add the guides the office has accredited. Each one gets an ID number,
                 a printable card, and a QR code a visitor can scan to check them.
             </p>
-            <button type="button" class="btn btn-brand btn-sm" data-dialog="addGuide">
-                <i class="fa-solid fa-user-plus"></i> Add the first guide
-            </button>
         </div>
     <?php else: ?>
         <div class="table-responsive">
@@ -254,10 +251,26 @@ $cards = [
                             <span class="pill pill--<?= $tone ?>"><?= e(Roster::EFFECTIVE[$effective]) ?></span>
                         </td>
                         <td class="text-end">
-                            <a class="btn btn-outline-secondary btn-sm"
-                               href="<?= e(base_url('/admin/tour-guides/view.php?id=' . (int) $g['id'])) ?>">
-                                Open
-                            </a>
+                            <?php /* EDIT OPENS HERE, NOT ON A PAGE OF ITS OWN.
+                                     Changing a guide's valid-until date meant
+                                     leaving the list, editing, being returned to
+                                     the record, and finding the way back — four
+                                     screens for one date. The href is kept
+                                     exactly as it was, so a middle-click, a
+                                     bookmark and a browser with no JavaScript
+                                     all still reach the full page. */ ?>
+                            <div class="d-inline-flex gap-1">
+                                <a class="btn btn-outline-secondary btn-sm"
+                                   href="<?= e(base_url('/admin/tour-guides/edit.php?id=' . (int) $g['id'])) ?>"
+                                   data-modal-page
+                                   data-modal-title="Edit <?= e((string) $g['full_name']) ?>">
+                                    <i class="fa-solid fa-pen" aria-hidden="true"></i> Edit
+                                </a>
+                                <a class="btn btn-outline-secondary btn-sm"
+                                   href="<?= e(base_url('/admin/tour-guides/view.php?id=' . (int) $g['id'])) ?>">
+                                    Open
+                                </a>
+                            </div>
                         </td>
                     </tr>
                 <?php endforeach; ?>
@@ -266,6 +279,15 @@ $cards = [
         </div>
     <?php endif; ?>
 </section>
+
+<?php /* ABOVE THE ADD SHEET, WHICH IS NOT A STYLE CHOICE.
+         Both this dialog and the sheet below render the same _form.php, so
+         while the dialog is open the page holds two elements for each of that
+         form's ids and getElementById answers with the first one. Being above
+         the sheet is what makes that the fetched copy the officer is looking
+         at. The destinations list learned this the hard way with its
+         coordinate picker. */ ?>
+<?php require __DIR__ . '/../_partials/page-modal.php'; ?>
 
 <?php /* The tour guide list's own copy of the add form. Same _form.php that create.php and
          edit.php use, so a field added there appears here without anyone

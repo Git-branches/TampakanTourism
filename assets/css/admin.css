@@ -484,6 +484,22 @@ a { text-decoration: none; }
 .empty i { font-size: 2.1rem; color: var(--line); margin-bottom: .7rem; display: block; }
 .empty p { margin: 0 0 .3rem; font-size: .85rem; max-width: 46ch; margin-inline: auto; }
 .empty strong { color: var(--ink-2); }
+
+/* THE HEADING THESE ACTUALLY CARRY.
+   Eleven empty states across the officer's and the manager's shells were
+   written with .empty-public, which lives in style.css — the PUBLIC stylesheet,
+   which neither shell loads. So they rendered with no styling at all: a
+   browser-default h3, flush left, in a panel beside a working list. They are
+   .empty now, and .empty had no heading rule because the states that already
+   used it carry none. */
+.empty h1,
+.empty h2,
+.empty h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0 0 .35rem;
+    color: var(--ink-2);
+}
 .empty--sm { padding: 1rem .5rem; }
 .empty--sm p { font-size: .82rem; }
 
@@ -7393,4 +7409,92 @@ button.topbar__signout {
     font-size: .72rem;
     line-height: 1.5;
     color: #111;
+}
+
+/* ===========================================================================
+   CREDENTIAL ROWS — the tour guide form
+   ===========================================================================
+   A row is a pair of boxes and the button that removes it. Grid rather than
+   the Bootstrap columns this replaced: the remove button wants its own width
+   and the two fields want the rest, which is one line here and three nested
+   divs there.
+   ======================================================================== */
+.cred-row {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr auto;
+    gap: .4rem;
+    margin-bottom: .4rem;
+}
+
+.cred-row__field { min-width: 0; }
+
+/* Quiet until wanted. It sits beside every row, so a red button down the
+   column would make a list of qualifications look like a list of problems. */
+.cred-row__remove {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 31px;
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--ink-3);
+    line-height: 1;
+}
+
+.cred-row__remove:hover,
+.cred-row__remove:focus-visible {
+    border-color: #E4B4B4;
+    background: #FCF3F3;
+    color: #B3261E;
+}
+
+.cred-foot {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    flex-wrap: wrap;
+    margin-top: .1rem;
+}
+
+.cred-foot__hint { margin: 0; color: var(--ink-3); }
+
+/* Stacked, with the remove button back on its own line beside nothing — at
+   this width two fields and a button in one row leaves each field too narrow
+   to read what is typed in it. */
+@media (max-width: 575.98px) {
+    .cred-row {
+        grid-template-columns: 1fr auto;
+        gap: .35rem;
+        margin-bottom: .7rem;
+    }
+    .cred-row__field:first-child { grid-column: 1 / -1; }
+}
+
+/* ===========================================================================
+   THE ACTION BAR OF A FETCHED PAGE
+   ===========================================================================
+   A page opened in #pageModal — Edit a guide, Edit a destination — brings its
+   own .form-actions bar, which is already sticky and was already sticking. It
+   still read as loose, and the measurement says why: it stuck 18px short of the
+   bottom, because that is .sheet__body's padding, and it spanned only the
+   content width. So text scrolled through the gap beneath it and past both
+   ends of it, which looks exactly like a bar that is not fixed at all.
+
+   Pulled out to the dialog's edges and down onto its floor, and given the same
+   ground as .sheet__foot — so a fetched page's buttons sit where a sheet's own
+   buttons sit.
+
+   Scoped to #pageModalBody: on its own page the bar keeps the page's canvas and
+   the page's spacing, untouched.
+   ======================================================================== */
+#pageModalBody .form-actions {
+    /* Negative by exactly .sheet__body's padding, so the bar ends where the
+       dialog ends rather than one padding short of it. */
+    bottom: -1.15rem;
+    margin: .75rem -1.15rem -1.15rem;
+    padding: .85rem 1.15rem;
+    background: #FAFCFA;
+    border-top: 1px solid var(--line-soft);
 }

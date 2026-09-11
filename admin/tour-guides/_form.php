@@ -24,8 +24,16 @@ $photo   = uploaded_url((string) ($g['photo_path'] ?? ''));
 
 <?php /* enctype on all three: the photograph is part of this form wherever it
          is rendered, and a dialog posts like any other form. */ ?>
+<?php /* data-modal-reload="on-success" matters only when this form is fetched
+         into the list's dialog, which is how Edit now opens. There it closes
+         the dialog and refreshes the list once the guide is saved, so the row
+         behind shows the new name, status and date; a rejected save refills
+         the dialog instead and keeps what was typed. On create.php and on
+         edit.php's own page the attribute is read by nobody and does nothing. */ ?>
 <form method="post" enctype="multipart/form-data" novalidate
-      <?= $inSheet ? 'action="create.php" class="sheet__form"' : 'class="form-grid"' ?>>
+      <?= $inSheet
+            ? 'action="create.php" class="sheet__form"'
+            : 'class="form-grid" data-modal-reload="on-success"' ?>>
     <?= csrf_field() ?>
 
     <?php if ($inSheet): ?>
@@ -172,48 +180,96 @@ $photo   = uploaded_url((string) ($g['photo_path'] ?? ''));
                     </p>
 
                     <?php
-                    /* Plain repeating boxes rather than an add-a-row widget. A guide
-                       carries three or four of these; a handful of empty boxes is
-                       less to explain than a button, and it degrades to nothing when
-                       JavaScript is off.
+                    /* ROWS THE OFFICER ADDS, NOT BOXES THEY ARE GIVEN.
+                       This used to render four to six boxes whether or not anyone
+                       had four credentials to type, so the commonest case — a
+                       guide with two — opened with four empty pairs and the form
+                       looked like a demand for more than the office had. Now it
+                       shows exactly what exists, plus one to type into.
 
-                       The placeholders are the real ones a Tampakan guide holds,
-                       varied down the column rather than four copies of the word
-                       "Qualification". A repeated placeholder teaches nothing; a
-                       worked example teaches the format in one glance. */
+                       Nothing changes on the way in: the two parallel arrays are
+                       posted exactly as before, pairCredentials() still pairs
+                       them, and replaceCredentials() still drops any row whose
+                       label is blank — so an empty credential cannot be saved,
+                       and never could.
+
+                       No id/for pairs: rows are cloned, and a cloned id is a
+                       duplicate id. aria-label carries the same information to a
+                       screen reader without anything to collide.
+
+                       The placeholders are the real ones a Tampakan guide holds.
+                       A repeated placeholder teaches nothing; a worked example
+                       teaches the format in one glance. */
                     $examples = [
                         ['Tour Guide Accreditation', 'DOT Region XII'],
                         ['First Aid and Basic Life Support', 'Philippine Red Cross'],
                         ['Tourism Training', 'TESDA'],
                         ['Local Heritage Orientation', 'Municipal Tourism Office'],
-                        ['Qualification', 'Issued by'],
-                        ['Qualification', 'Issued by'],
                     ];
 
-                    $rows  = $credentials ?? [];
-                    $boxes = $inSheet ? max(4, count($rows) + 1) : max(6, count($rows) + 2);
+                    $rows = $credentials ?? [];
 
-                    for ($i = 0; $i < $boxes; $i++):
-                        $row     = $rows[$i] ?? ['label' => '', 'issuer' => ''];
-                        $example = $examples[$i] ?? ['Qualification', 'Issued by'];
-                    ?>
-                        <div class="row g-2 mb-2">
-                            <div class="col-md-7">
-                                <label class="visually-hidden" for="credlabel<?= $i ?>">Credential <?= $i + 1 ?></label>
-                                <input type="text" class="form-control form-control-sm" id="credlabel<?= $i ?>"
+                    /* One empty row to start, never a column of them. */
+                    $shown = max(1, count($rows));
+
+                    /* Rendered by the same code that JavaScript clones, so the
+                       row an officer adds cannot drift from the rows already
+                       there. $credRow is used again inside the <template>. */
+                    $credRow = static function (array $row, array $example): void { ?>
+                        <div class="cred-row">
+                            <div class="cred-row__field">
+                                <input type="text" class="form-control form-control-sm"
                                        name="credential_label[]" maxlength="160"
+                                       aria-label="Qualification or credential"
                                        placeholder="e.g. <?= e($example[0]) ?>"
-                                       value="<?= e((string) $row['label']) ?>">
+                                       value="<?= e((string) ($row['label'] ?? '')) ?>">
                             </div>
-                            <div class="col-md-5">
-                                <label class="visually-hidden" for="credissuer<?= $i ?>">Issued by</label>
-                                <input type="text" class="form-control form-control-sm" id="credissuer<?= $i ?>"
+                            <div class="cred-row__field">
+                                <input type="text" class="form-control form-control-sm"
                                        name="credential_issuer[]" maxlength="160"
+                                       aria-label="Issued by"
                                        placeholder="e.g. <?= e($example[1]) ?> (optional)"
                                        value="<?= e((string) ($row['issuer'] ?? '')) ?>">
                             </div>
+                            <button type="button" class="btn btn-sm cred-row__remove"
+                                    data-cred-remove aria-label="Remove this credential">
+                                <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                            </button>
                         </div>
-                    <?php endfor; ?>
+                    <?php };
+                    ?>
+
+                    <div class="cred-list" data-cred-list>
+                        <?php for ($i = 0; $i < $shown; $i++): ?>
+                            <?php $credRow($rows[$i] ?? [], $examples[$i] ?? ['Qualification', 'Issued by']); ?>
+                        <?php endfor; ?>
+                    </div>
+
+                    <?php /* The blank the Add button clones. Inert until copied —
+                             a <template>'s contents are not submitted, so the
+                             empty pair inside it never reaches the server. */ ?>
+                    <template data-cred-template>
+                        <?php $credRow([], ['Qualification', 'Issued by']); ?>
+                    </template>
+
+                    <div class="cred-foot">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" data-cred-add>
+                            <i class="fa-solid fa-plus" aria-hidden="true"></i> Add credential
+                        </button>
+                        <span class="form-text cred-foot__hint">Recommended: up to 8 credentials.</span>
+                    </div>
+
+                    <?php /* WITHOUT JAVASCRIPT THE BUTTON IS A DEAD BUTTON.
+                             The old form's one virtue was that its spare boxes
+                             needed no script. Three extra pairs here keep that
+                             true for anyone whose JavaScript failed to load,
+                             and cost nothing to everyone else — the browser
+                             never renders these when scripting is on. */ ?>
+                    <noscript>
+                        <?php for ($i = 0; $i < 3; $i++): ?>
+                            <?php $credRow([], ['Qualification', 'Issued by']); ?>
+                        <?php endfor; ?>
+                    </noscript>
                 </div>
 
                 <?php /* WHERE THE SCANNED DOCUMENTS GO, said here rather than left
