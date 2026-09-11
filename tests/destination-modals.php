@@ -35,7 +35,21 @@ if (!test_server_up()) {
     exit(0);
 }
 
-$dest = Database::first("SELECT id, name FROM destinations WHERE status = 'active' ORDER BY id LIMIT 1");
+/* THE WHOLE ROW, NOT TWO COLUMNS.
+ *
+ * This read only id and name, posted only name, and then restored only name —
+ * and edit.php writes SEVENTEEN fields on every save, blanking any the request
+ * did not carry. So a run of this suite silently emptied a real destination's
+ * coordinates, address, barangay, description, hours, fee and facilities, and
+ * put the name back so nothing looked wrong.
+ *
+ * It cost Jadas Falls everything it had on 2026-09-10 at 14:36, discovered
+ * only because a separate audit noticed the missing map pin.
+ *
+ * A browser cannot do this: an HTML form submits every field it renders, empty
+ * or not. Only a hand-built POST can send three. So the fix is to send what the
+ * browser would, and to put back what was read. */
+$dest = Database::first("SELECT * FROM destinations WHERE status = 'active' ORDER BY id LIMIT 1");
 
 if ($dest === null) {
     echo "  SKIP — no active destination\n";
@@ -120,11 +134,25 @@ echo "\n--- posting to that URL still saves ---\n";
 
 $probe = $name . ' (modal probe)';
 
-$response = test_post('/admin/destinations/edit.php?id=' . $did, $sid, [
-    '_token' => $csrf,
-    'name'   => $probe,
-    'status' => 'active',
-]);
+/* Every field edit.php collects, filled from what is on the record right now,
+   with only the name changed — which is what pressing Save in the browser
+   sends. Anything left out here is a field this test would erase. */
+$fields = ['category_id', 'short_description', 'description', 'history',
+           'operating_hours', 'entrance_fee', 'facilities', 'reminders',
+           'barangay', 'address', 'latitude', 'longitude',
+           'contact_person', 'contact_phone', 'contact_email'];
+
+$payload = ['_token' => $csrf, 'name' => $probe, 'status' => 'active'];
+
+foreach ($fields as $f) {
+    $payload[$f] = (string) ($dest[$f] ?? '');
+}
+
+if ((int) ($dest['is_featured'] ?? 0) === 1) {
+    $payload['is_featured'] = '1';
+}
+
+$response = test_post('/admin/destinations/edit.php?id=' . $did, $sid, $payload);
 
 $is('the post was accepted', $response['code'] === 302 || $response['code'] === 200);
 
@@ -132,10 +160,36 @@ $saved = (string) Database::scalar('SELECT name FROM destinations WHERE id = ?',
 
 $is('the new name reached the database', $saved === $probe);
 
-Database::run('UPDATE destinations SET name = ? WHERE id = ?', [$name, $did]);
+/* Restored from the row that was read, column by column — not just the name.
+   If the post above ever loses a field again, this catches it. */
+Database::run(
+    'UPDATE destinations SET name = ?, category_id = ?, short_description = ?, description = ?,
+            history = ?, operating_hours = ?, entrance_fee = ?, facilities = ?, reminders = ?,
+            barangay = ?, address = ?, latitude = ?, longitude = ?,
+            contact_person = ?, contact_phone = ?, contact_email = ?, is_featured = ?
+      WHERE id = ?',
+    [
+        $name, $dest['category_id'], $dest['short_description'], $dest['description'],
+        $dest['history'], $dest['operating_hours'], $dest['entrance_fee'], $dest['facilities'],
+        $dest['reminders'], $dest['barangay'], $dest['address'], $dest['latitude'],
+        $dest['longitude'], $dest['contact_person'], $dest['contact_phone'],
+        $dest['contact_email'], (int) ($dest['is_featured'] ?? 0), $did,
+    ]
+);
 
-$is('the name was put back', (string) Database::scalar(
-    'SELECT name FROM destinations WHERE id = ?', [$did]) === $name);
+$after = Database::first('SELECT * FROM destinations WHERE id = ?', [$did]);
+
+$is('the name was put back', (string) $after['name'] === $name);
+
+/* The check that would have caught this the first time. */
+$lost = [];
+
+foreach (array_merge(['name'], $fields) as $f) {
+    if ((string) ($after[$f] ?? '') !== (string) ($dest[$f] ?? '')) { $lost[] = $f; }
+}
+
+$is('and so was every other field this test touched: ' . ($lost === [] ? 'none lost' : implode(', ', $lost)),
+    $lost === []);
 
 /* ---------------------------------------------------------------------------
    The list still offers both ways in
