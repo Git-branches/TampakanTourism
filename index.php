@@ -603,6 +603,20 @@ $currentYear = date('Y');
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
     <meta name="theme-color" content="#2E7D32">
 
+    <?php /* THE STILL LOADER, FOR VISITORS WHO ASKED FOR NO MOTION.
+             Everyone else gets the full journey on every opening of Home — the
+             office wants the aeroplane seen each time, so an earlier "first
+             visit of the session only" rule was taken back out.
+             This has to run HERE, before the stylesheet and the body: decided
+             any later — in script.js, at DOMContentLoaded — the animation has
+             already begun painting, and the visitor sees it start and then
+             jump to its finished state. */ ?>
+    <script>
+        if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            document.documentElement.classList.add('tt-still');
+        }
+    </script>
+
     <!-- ===================== SEO metadata ===================== -->
     <title><?= e($site['tagline']) ?> | <?= e($site['municipality']) ?>, South Cotabato</title>
     <meta name="description" content="<?= e($site['description']) ?>">
@@ -663,12 +677,86 @@ $currentYear = date('Y');
 <!-- =========================================================================
      PRELOADER — removed by script.js once the window has loaded
      ====================================================================== -->
+<?php /* JOURNEY -> DESTINATION -> DISCOVERY, in about four seconds from click to
+         homepage, on every opening.
+         The seal holds still and everything moves around it: the rings turn
+         slowly, a dashed route runs three-quarters of the way round, a small
+         aeroplane travels it once and arrives at a pin, and the ridgeline
+         beneath rises into view. Nothing bounces and nothing glows.
+
+         The route, the aeroplane and the pin are one inline SVG so the arc the
+         plane flies and the arc drawn on screen are the same numbers — a path
+         described twice is a path that drifts apart. */ ?>
 <div id="preloader" class="preloader" aria-hidden="true">
+
+    <!-- Behind everything: the ridgeline, revealed upward. -->
+    <svg class="preloader__ridge" viewBox="0 0 1440 220" preserveAspectRatio="none" aria-hidden="true">
+        <path class="preloader__ridge-far"
+              d="M0 220 L0 150 L180 96 L330 148 L470 84 L620 142 L780 70 L940 138 L1090 92 L1250 146 L1440 104 L1440 220 Z"/>
+        <path class="preloader__ridge-near"
+              d="M0 220 L0 182 L150 140 L300 186 L450 132 L600 178 L760 124 L920 176 L1080 138 L1260 184 L1440 148 L1440 220 Z"/>
+    </svg>
+
     <div class="preloader__inner">
-        <div class="preloader__ring">
-            <img src="assets/img/tampakan_logo.png" alt="" class="preloader__logo">
+        <div class="preloader__stage">
+            <?php /* THREE RINGS, ONE COLOUR EACH.
+                     Two of these used to be pseudo-elements carrying two border
+                     colours apiece, which read as one bi-coloured spinner. Real
+                     elements instead: each is a single colour, its own size, its
+                     own speed and its own direction, so they drift past one
+                     another rather than turning as a set. */ ?>
+            <div class="preloader__ring">
+                <i class="preloader__arc preloader__arc--blue"></i>
+                <i class="preloader__arc preloader__arc--green"></i>
+                <i class="preloader__arc preloader__arc--gold"></i>
+                <img src="assets/img/tampakan_logo.png" alt="" class="preloader__logo">
+            </div>
+
+            <svg class="preloader__route" viewBox="0 0 200 200" aria-hidden="true">
+                <?php /* Half a circle, over the top: away at the lower left and
+                         arriving at the upper right. Centred on the seal at
+                         100,100 with radius 72, the two ends sit at 45 degrees
+                         either side — 49.1,150.9 and 150.9,49.1 — which are ends
+                         of a diameter, so the sweep is exactly 180 degrees and
+                         the renderer has no radius to correct.
+                         The gap matters: a closed loop is an orbit, an open one
+                         is a trip. */ ?>
+                <?php /* pathLength normalises the arc to 100 units so the dash
+                         numbers in the CSS are readable ones rather than
+                         whatever 226.19 happens to be. It has to live here:
+                         it is an SVG attribute, not a CSS property. */ ?>
+                <path class="preloader__path"
+                      d="M 49.1 150.9 A 72 72 0 1 1 150.9 49.1"
+                      pathLength="100"
+                      fill="none" stroke-linecap="round"/>
+            </svg>
+
+            <?php /* The pin sits exactly where the arc ends: 150.9, 49.1. */ ?>
+            <span class="preloader__pin" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none">
+                    <path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11Z"
+                          stroke="currentColor" stroke-width="2"
+                          stroke-linejoin="round" fill="rgba(255,255,255,.10)"/>
+                    <circle cx="12" cy="10" r="2.4" fill="currentColor"/>
+                </svg>
+            </span>
+
+            <?php /* Travels the same arc through CSS offset-path, so it banks
+                     into the turn on its own — offset-rotate does the pointing. */ ?>
+            <span class="preloader__plane" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M21.6 11.1 14 9.3 9.9 2.6a.9.9 0 0 0-1.6.1l-1 2.2a.9.9 0 0 0 .1.9l2.9 4.1-3.7-.9-1.5-1.9a.7.7 0 0 0-.7-.2l-1.1.3a.7.7 0 0 0-.4 1l1.2 2.4-1.2 2.4a.7.7 0 0 0 .4 1l1.1.3a.7.7 0 0 0 .7-.2l1.5-1.9 3.7-.9-2.9 4.1a.9.9 0 0 0-.1.9l1 2.2a.9.9 0 0 0 1.6.1L14 14.7l7.6-1.8a.9.9 0 0 0 0-1.8Z"/>
+                </svg>
+            </span>
         </div>
+
         <p class="preloader__text">Tampakan Tourism</p>
+
+        <?php /* The three words the whole animation is acting out, said plainly
+                 underneath it. The arrows are real characters rather than
+                 images so they inherit the colour and scale with the type. */ ?>
+        <p class="preloader__tagline">Journey <span>&rarr;</span> Destination <span>&rarr;</span> Discovery</p>
+
         <span class="preloader__bar"><i></i></span>
     </div>
 </div>

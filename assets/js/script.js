@@ -32,18 +32,46 @@
        Hidden as soon as the window finishes loading. A timeout guarantees the
        page is never left behind the overlay if an asset stalls.
        ====================================================================== */
-    /* How long the loader stays up at minimum, in ms.
-       On localhost the page is ready in tens of milliseconds, so without a
-       floor the loader flashes for a fraction of a second — the ring never
-       completes a revolution and reads as frozen rather than spinning. One
-       full rotation is 900ms, so this guarantees the visitor sees at least
-       one complete turn. It costs nothing on a slow connection, where the
-       real load time already exceeds it. */
-    const PRELOADER_MIN_MS = 1100;
+    /* Fallback floor only — see waitForFlight below for what normally governs
+       this. Used when the plane cannot be asked directly. */
+    const PRELOADER_MIN_MS = 2600;
+
+    /* WHY THE PLANE IS ASKED RATHER THAN TIMED.
+       The loader tells a short story: the seal settles, the route appears, and
+       an aeroplane flies it once and arrives at a pin. Cutting away mid-flight
+       shows a journey that never arrives, which is worse than no journey — so
+       the overlay has to outlast it.
+
+       The obvious way to arrange that is a number here matching the CSS. It was
+       tried and it was wrong twice over. A constant compared against time
+       elapsed since THIS function ran measures from DOMContentLoaded, while the
+       animation starts at first paint; on a page whose DOMContentLoaded lands
+       at 2.4s that held the loader for 4.6 seconds, more than two of them after
+       everything had finished moving. And a number here silently goes stale the
+       moment anyone retunes the animation in style.css.
+
+       So the animation is asked when it will finish, which is a question it can
+       answer exactly and always answers correctly. */
+    function waitForFlight() {
+        const plane = $('.preloader__plane');
+        const anim  = plane && plane.getAnimations
+            ? plane.getAnimations().find(a => a.animationName === 'plane-fly')
+            : null;
+
+        /* No plane, an older browser, or a stylesheet that has moved on: fall
+           back to the flat floor rather than dismissing instantly. */
+        if (!anim) {
+            return new Promise(resolve => window.setTimeout(resolve, PRELOADER_MIN_MS));
+        }
+
+        /* Already landed by the time the page finished loading: resolved
+           immediately, so a slow connection never pays for the animation twice.
+           The catch is for a flight cancelled out from under us. */
+        return anim.finished.catch(() => {});
+    }
 
     function initPreloader() {
         const preloader = $('#preloader');
-        const startedAt = performance.now();
 
         let dismissed = false;
 
@@ -52,7 +80,12 @@
             dismissed = true;
 
             if (preloader) {
-                preloader.classList.add('is-hidden');
+                /* The bar stops at 92% on its own and only reaches the end
+                   here, so it finishes because the page is ready rather than
+                   because a loop came round again. Both classes go on together
+                   — the 0.32s run to 100% plays inside the 0.6s fade, so the
+                   payoff costs the visitor nothing. */
+                preloader.classList.add('is-done', 'is-hidden');
                 // Remove from the accessibility tree once the fade completes.
                 window.setTimeout(() => preloader.remove(), 700);
             }
@@ -64,19 +97,18 @@
             document.dispatchEvent(new CustomEvent('tt:reveal-start'));
         };
 
-        /* A spinner that cannot spin is worse than no spinner: under reduced
-           motion the ring is frozen by the stylesheet, so clear the overlay
-           straight away rather than showing a stalled one. */
-        if (prefersReducedMotion) {
+        /* The still path: the head script in index.php marks <html> with
+           .tt-still when the visitor has asked for reduced motion. There is no
+           flight to wait for — the composition is shown finished, and it goes
+           straight into its fade. prefersReducedMotion is checked as well in
+           case that head script was ever lost. */
+        if (prefersReducedMotion || document.documentElement.classList.contains('tt-still')) {
             dismiss();
             return;
         }
 
-        // Hold until the page is ready AND the minimum display time has passed.
-        window.addEventListener('load', () => {
-            const elapsed = performance.now() - startedAt;
-            window.setTimeout(dismiss, Math.max(PRELOADER_MIN_MS - elapsed, 0));
-        });
+        // Hold until the page is ready AND the plane has landed.
+        window.addEventListener('load', () => { waitForFlight().then(dismiss); });
 
         window.setTimeout(dismiss, 6000);   // safety net if an asset stalls
     }
