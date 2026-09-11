@@ -35,7 +35,11 @@ $editable = [
     'office_municipality' => ['label' => 'Municipality',           'type' => 'text', 'max' => 120],
     'office_province'     => ['label' => 'Province',               'type' => 'text', 'max' => 120],
     'office_address'      => ['label' => 'Office address',         'type' => 'text', 'max' => 255],
-    'office_phone'        => ['label' => 'Telephone',              'type' => 'text', 'max' => 60],
+    /* "Phone number", not "Telephone". The word reads as a landline, and the
+       office's published number — the one on their own Facebook page — is a
+       mobile. An officer looking for where to put 0946 479 8421 skipped this
+       field twice because it did not look like the one. */
+    'office_phone'        => ['label' => 'Phone number',           'type' => 'text', 'max' => 60],
     'office_email'        => ['label' => 'Email address',          'type' => 'email','max' => 160],
 
     /* Printed on the back of the tour guide ID. A page NAME rather than a URL:
