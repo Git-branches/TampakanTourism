@@ -403,8 +403,16 @@ final class DestinationRepository
         }
     }
 
-    /** Facilities arrive as a comma-separated field and are stored as JSON. */
-    private static function encodeFacilities($facilities): ?string
+    /**
+     * Facilities arrive as a comma-separated field and are stored as JSON.
+     *
+     * Public since 2026-09-07. The manager's change-request form needs the same
+     * rule — it was showing them the raw column, so a manager wanting to add a
+     * picnic shed was asked to edit ["GUIDE","COTTAGES"] by hand — and a second
+     * copy of this in that page would be a second place for the rule to drift.
+     * Widening a private helper breaks no caller.
+     */
+    public static function encodeFacilities($facilities): ?string
     {
         if (is_array($facilities)) {
             $list = $facilities;

@@ -56,6 +56,17 @@ if (is_post()) {
 
     $reason = trim((string) ($_POST['reason'] ?? ''));
 
+    /* FACILITIES GO BACK INTO THE SHAPE THE COLUMN HOLDS.
+     *
+     * The field is shown as "Guide, Cottages" because that is what a person can
+     * edit; the column holds ["GUIDE","COTTAGES"], and approve() writes the
+     * stored value straight in. Encoding here means the proposal, the diff and
+     * the published column are all the same shape — otherwise approving would
+     * quietly turn a JSON column into a comma string. */
+    if (isset($_POST['facilities'])) {
+        $_POST['facilities'] = (string) DestinationRepository::encodeFacilities($_POST['facilities']);
+    }
+
     /* Only what actually differs from the live record. A manager who opens the
        page, corrects one line and submits should not file a proposal listing
        eleven unchanged fields for the officer to read through. */
@@ -280,53 +291,130 @@ require __DIR__ . '/_partials/head.php';
             public website and on your QR page.
         </div>
 
-        <p class="text-muted">
-            Edit anything below to how it should read, then press <strong>Review Changes</strong> to see
-            exactly what you are asking the Office to change.
-        </p>
-
         <?php /* What is NOT on this form, and why: status, address, coordinates,
                  the QR token, the destination's name — and the PHOTOGRAPHS.
                  Archiving a site, moving its map pin or rotating the token
                  behind a printed sign are office decisions with effects outside
                  the destination. The gallery is the Municipal Tourism Staff's
                  alone; there is deliberately no upload, replace or remove here,
-                 and the server never accepts one from this page. */ ?>
+                 and the server never accepts one from this page.
+
+                 Two paragraphs of preamble stood here as well, saying what the
+                 notice above and the Review Changes button already say. */ ?>
         <p class="text-muted small">
-            To change the destination's <strong>name, location, photographs, or whether it is open to
-            the public</strong>, contact the Office directly &mdash; those are not editable here.
+            Edit only what is wrong &mdash; everything you leave alone stays as it is published.
+            The destination's <strong>name, location, photographs</strong> and whether it is open are
+            not editable here; ask the Office directly for those.
         </p>
 
         <form method="post" id="proposeForm">
             <?= csrf_field() ?>
 
-            <div class="row g-3">
-                <?php foreach (Changes::FIELDS as $field => $rules):
-                    $current = (string) ($destination[$field] ?? ''); ?>
-                    <div class="col-<?= $rules['type'] === 'textarea' ? '12' : 'md-6' ?>">
-                        <label class="form-label" for="<?= e($field) ?>"><?= e($rules['label']) ?></label>
+            <?php
+            /* ELEVEN FIELDS IN FOUR GROUPS, IN THE ORDER A VISITOR MEETS THEM.
+             *
+             * They were one flat wall a thousand pixels tall, in whatever order
+             * the repository's allow-list happened to be written, so a manager
+             * looking for the entrance fee read past a full description to find
+             * it. Grouping costs nothing and turns a wall into four short
+             * questions.
+             *
+             * The names are the same, the allow-list is the same, and a field
+             * missing from this map would simply not be drawn — so the loop
+             * below is built FROM Changes::FIELDS and the map only orders it. */
+            $groups = [
+                'What the page says'   => ['icon' => 'fa-align-left',
+                                           'fields' => ['short_description', 'description']],
+                'Visiting'             => ['icon' => 'fa-clock',
+                                           'fields' => ['operating_hours', 'entrance_fee', 'facilities']],
+                'Before they set off'  => ['icon' => 'fa-triangle-exclamation',
+                                           'fields' => ['reminders', 'safety_notes']],
+                'Who to contact'       => ['icon' => 'fa-phone',
+                                           'fields' => ['contact_person', 'contact_phone',
+                                                        'local_hotline', 'contact_email']],
+            ];
 
-                        <?php if ($rules['type'] === 'textarea'): ?>
-                            <textarea class="form-control" id="<?= e($field) ?>" name="<?= e($field) ?>"
-                                      rows="4" maxlength="<?= (int) $rules['max'] ?>"><?= e($current) ?></textarea>
-                        <?php else: ?>
-                            <input type="text" class="form-control" id="<?= e($field) ?>" name="<?= e($field) ?>"
-                                   maxlength="<?= (int) $rules['max'] ?>" value="<?= e($current) ?>">
-                        <?php endif; ?>
-                    </div>
-                <?php endforeach; ?>
+            /* Anything in the allow-list that no group claims still has to be
+               editable, or widening FIELDS later would silently drop a field. */
+            $claimed = array_merge(...array_column($groups, 'fields'));
+            $orphans = array_diff(array_keys(Changes::FIELDS), $claimed);
 
-                <div class="col-12">
-                    <label class="form-label" for="reason">
-                        Why are you changing this? <span class="text-danger">*</span>
-                    </label>
-                    <textarea class="form-control <?= isset($errors['reason']) ? 'is-invalid' : '' ?>"
-                              id="reason" name="reason" rows="3" maxlength="600"
-                              placeholder="The entrance fee went up in August, and the upper comfort room is closed for repairs until October."><?= e((string) ($_POST['reason'] ?? '')) ?></textarea>
-                    <?php if (isset($errors['reason'])): ?>
-                        <div class="field-error"><?= e($errors['reason']) ?></div>
-                    <?php endif; ?>
+            if ($orphans !== []) {
+                $groups['Other details'] = ['icon' => 'fa-list', 'fields' => array_values($orphans)];
+            }
+
+            /** What the field should show: the column, except facilities. */
+            $shown = static function (string $field) use ($destination): string {
+                if ($field === 'facilities') {
+                    /* The column holds JSON. A manager asked to edit
+                       ["GUIDE","COTTAGES"] by hand will either not touch it or
+                       break it. Same list the officer's own form shows. */
+                    return implode(', ', DestinationRepository::decodeFacilities($destination['facilities'] ?? null));
+                }
+
+                return (string) ($destination[$field] ?? '');
+            };
+            ?>
+
+            <?php foreach ($groups as $groupLabel => $group): ?>
+                <h3 class="uf-group">
+                    <i class="fa-solid <?= e($group['icon']) ?>" aria-hidden="true"></i>
+                    <?= e($groupLabel) ?>
+                </h3>
+
+                <div class="row g-3 mb-1">
+                    <?php foreach ($group['fields'] as $field): ?>
+                        <?php
+                        if (!isset(Changes::FIELDS[$field])) { continue; }
+
+                        $rules = Changes::FIELDS[$field];
+                        $value = $shown($field);
+
+                        /* A 300-character short description was a one-line input
+                           it could not fit in — the text ran off the right edge
+                           and the manager could not read what they were editing. */
+                        $tall = $rules['type'] === 'textarea' || $field === 'short_description';
+                        ?>
+                        <div class="col-<?= $tall ? '12' : 'md-6' ?>">
+                            <label class="form-label uf-label" for="<?= e($field) ?>">
+                                <?= e($rules['label']) ?>
+                                <?php /* Filled in by the browser the moment this
+                                         field differs from what is published. */ ?>
+                                <span class="uf-changed" hidden>changed</span>
+                            </label>
+
+                            <?php if ($tall): ?>
+                                <textarea class="form-control" id="<?= e($field) ?>" name="<?= e($field) ?>"
+                                          rows="2"
+                                          maxlength="<?= (int) $rules['max'] ?>"><?= e($value) ?></textarea>
+                            <?php else: ?>
+                                <input type="text" class="form-control" id="<?= e($field) ?>" name="<?= e($field) ?>"
+                                       maxlength="<?= (int) $rules['max'] ?>" value="<?= e($value) ?>">
+                            <?php endif; ?>
+
+                            <?php if ($field === 'facilities'): ?>
+                                <p class="uf-hint">Separate each one with a comma &mdash; parking, comfort room, cottages.</p>
+                            <?php endif; ?>
+                        </div>
+                    <?php endforeach; ?>
                 </div>
+            <?php endforeach; ?>
+
+            <?php /* NOT A TWELFTH FIELD. It was the last box in the same grid as
+                     the destination's own details, so it read as another thing
+                     about the place. It is a message to a person, and it is the
+                     first thing the officer reads. */ ?>
+            <div class="uf-note">
+                <label class="form-label" for="reason">
+                    <i class="fa-solid fa-comment-dots" aria-hidden="true"></i>
+                    Your note to the Tourism Office <span class="text-danger">*</span>
+                </label>
+                <textarea class="form-control <?= isset($errors['reason']) ? 'is-invalid' : '' ?>"
+                          id="reason" name="reason" rows="2" maxlength="600"
+                          placeholder="The entrance fee went up in August, and the upper comfort room is closed for repairs until October."><?= e((string) ($_POST['reason'] ?? '')) ?></textarea>
+                <?php if (isset($errors['reason'])): ?>
+                    <div class="field-error"><?= e($errors['reason']) ?></div>
+                <?php endif; ?>
             </div>
 
             <?php /* REVIEW BEFORE SEND.
@@ -408,7 +496,10 @@ $published = [];
 foreach (Changes::FIELDS as $field => $rules) {
     $published[$field] = [
         'label' => $rules['label'],
-        'value' => (string) ($destination[$field] ?? ''),
+        /* The SHOWN value, not the column. Facilities is a comma list in the
+           field and JSON in the database; comparing the field against the
+           column would mark it changed the moment the page loaded. */
+        'value' => $shown($field),
     ];
 }
 ?>
@@ -448,6 +539,72 @@ foreach (Changes::FIELDS as $field => $rules) {
     /* The same normalising the server does before comparing, so a textarea's
        CRLF does not read as an edit here and then vanish there. */
     var tidy = function (s) { return String(s == null ? '' : s).replace(/\r\n/g, '\n').trim(); };
+
+    /* WHAT HAVE I CHANGED SO FAR.
+     *
+     * The only way to find out used to be to press Review Changes. On a form of
+     * eleven fields, a manager who edited three, went to check something and
+     * came back had no way to see which three. Each edited field is marked as
+     * it is typed and the button carries the running count. */
+    var marks = function () {
+        var n = 0;
+
+        Object.keys(published).forEach(function (field) {
+            var el = form.elements[field];
+            if (!el) { return; }
+
+            var box  = el.closest('.col-12, [class*="col-md"]');
+            var chip = box ? box.querySelector('.uf-changed') : null;
+            var was  = tidy(published[field].value);
+            var now  = tidy(el.value);
+
+            if (now !== was) {
+                n++;
+                el.classList.add('is-edited');
+                if (chip) { chip.hidden = false; }
+            } else {
+                el.classList.remove('is-edited');
+                if (chip) { chip.hidden = true; }
+            }
+        });
+
+        open.innerHTML = n === 0
+            ? '<i class="fa-solid fa-list-check"></i> Review Changes'
+            : '<i class="fa-solid fa-list-check"></i> Review ' + n + (n === 1 ? ' change' : ' changes');
+
+        return n;
+    };
+
+    /* A BOX THE SIZE OF WHAT IS IN IT.
+     *
+     * Four fixed rows each, and two of them empty, put about five hundred
+     * pixels of blank box between the manager and the Send button. They start
+     * at the height of their content and grow as it is typed, so a destination
+     * with no safety notes yet does not scroll past an empty one.
+     *
+     * Height is set from scrollHeight, which needs the box collapsed first or
+     * it can only ever grow. */
+    var fit = function (el) {
+        if (el.tagName !== 'TEXTAREA') { return; }
+        el.style.height = 'auto';
+        el.style.height = Math.max(el.scrollHeight, 44) + 'px';
+    };
+
+    Object.keys(published).forEach(function (field) {
+        var el = form.elements[field];
+        if (!el) { return; }
+
+        el.addEventListener('input', function () { marks(); fit(el); });
+        el.addEventListener('change', marks);
+        fit(el);
+    });
+
+    var note = form.elements.reason;
+    if (note) { note.addEventListener('input', function () { fit(note); }); fit(note); }
+
+    /* Once on load: a form redrawn after a validation failure comes back with
+       the manager's edits still in it, and they should still be marked. */
+    marks();
 
     var diff = function () {
         var out = [];

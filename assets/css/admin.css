@@ -7328,3 +7328,69 @@ button.topbar__signout {
    other, so Decline and Approve stopped looking like one choice. */
 .cr-detail .rf-foot { justify-content: flex-end; }
 .cr-detail .rf-foot__count { flex: 1 1 100%; margin: 0 0 .3rem; max-width: none; }
+
+/* ---- the manager's proposal form ----------------------------------------- */
+
+/* Four short questions instead of one wall of eleven fields. */
+.uf-group {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    margin: 1.5rem 0 .6rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--line);
+    font-size: .78rem;
+    font-weight: 700;
+    letter-spacing: .03em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+}
+.uf-group:first-of-type { margin-top: .4rem; padding-top: 0; border-top: 0; }
+.uf-group i { color: var(--green); font-size: .8rem; }
+
+.uf-label { display: flex; align-items: center; gap: .4rem; }
+
+/* Said beside the field, so "what have I touched" is answered by looking
+   rather than by pressing Review and reading back. */
+.uf-changed {
+    padding: .05rem .4rem;
+    border-radius: 999px;
+    background: var(--green-pale);
+    color: var(--green-dark);
+    font-size: .62rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+
+.form-control.is-edited {
+    border-color: var(--green);
+    background: #FAFFFB;
+}
+
+.uf-hint { margin: .25rem 0 0; font-size: .72rem; color: var(--ink-3); }
+
+/* The note is a message to a person, not a twelfth thing about the place. */
+.uf-note {
+    margin-top: 1.5rem;
+    padding: .9rem 1rem;
+    background: var(--canvas);
+    border-radius: var(--radius-sm);
+}
+.uf-note .form-label { display: flex; align-items: center; gap: .4rem; margin-bottom: .35rem; }
+.uf-note .form-label i { color: var(--green); }
+
+/* Height is JavaScript's job here — see the fit() in update-info.php. Resize
+   stays available; the handle is how somebody makes a box bigger than its text
+   when they are about to paste something long into it. */
+#proposeForm textarea { overflow-y: hidden; min-height: 44px; }
+
+/* The DOT form's own note, under the table. Plain black and a shade smaller
+   than the body — it is part of the printed return, not a hint from this
+   system, so it must read the same on the office's mono laser as it does here. */
+.vr-note {
+    margin: .5rem 0 0;
+    font-size: .72rem;
+    line-height: 1.5;
+    color: #111;
+}
