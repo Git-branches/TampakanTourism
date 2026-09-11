@@ -777,7 +777,11 @@ final class Chatbot
         $o = $kb['office'];
 
         $facts = [[self::say($fil, 'Address', 'Adres'), $o['address']]];
-        if ($o['phone'] !== '') { $facts[] = [self::say($fil, 'Telephone', 'Telepono'), $o['phone']]; }
+        /* "Phone", not "Telephone" — the number this answers with is a mobile,
+           and a visitor reading "Telephone" beside 0946 479 8421 has to work
+           out that it is the same thing. Filipino keeps Telepono, which is what
+           anybody here would say out loud for either kind. */
+        if ($o['phone'] !== '') { $facts[] = [self::say($fil, 'Phone', 'Telepono'), $o['phone']]; }
         if ($o['email'] !== '') { $facts[] = [self::say($fil, 'Email', 'Email'), $o['email']]; }
         $facts[] = [self::say($fil, 'Open', 'Bukas'), $o['hours']];
 
@@ -791,12 +795,25 @@ final class Chatbot
         );
     }
 
+    /**
+     * WHAT THE QR CODE ACTUALLY DOES — which is no longer what this said.
+     *
+     * It described a visitor logbook that opens on scan and syncs from the
+     * phone when signal returns. Neither exists: the office decided arrivals
+     * are recorded by the destination's own manager, and d/index.php now opens
+     * "THIS IS NOT A LOGBOOK". A visitor who asked the chatbot how to register
+     * was being told to look for something nobody built any more.
+     *
+     * The keyword list above still catches "logbook", "register" and
+     * "magparehistro" on purpose — people will keep asking in those words, and
+     * the point is that they now get a true answer instead of no answer.
+     */
     private static function logbook(bool $fil): array
     {
         return self::answer(
             self::say($fil,
-                'Every destination has a QR code on a sign at the site. Scan it with your phone camera and the visitor logbook opens for that exact place — you never have to pick it from a list. It works even with no signal: your entry is held on your phone and sent automatically once you are back in coverage.',
-                'May QR code sa karatula ng bawat destinasyon. I-scan mo ito gamit ang camera ng telepono mo at bubukas ang logbook para sa mismong lugar na iyon — hindi mo na kailangang pumili sa listahan. Gumagana ito kahit walang signal: iniimbak sa telepono mo ang entry at awtomatikong ipapadala pagbalik ng koneksyon.'),
+                'Every destination has a QR code on a sign at the site. Scan it with your phone camera and that place opens straight away — emergency numbers at the top, then opening hours, entrance fee, facilities, directions and the heritage of the spot. There is nothing for you to sign: the destination\'s own manager records arrivals for the Tourism Office, so you can simply enjoy the visit.',
+                'May QR code sa karatula ng bawat destinasyon. I-scan mo ito gamit ang camera ng telepono mo at agad bubukas ang lugar na iyon — nasa itaas ang mga emergency number, sunod ang oras ng bukas, bayad, pasilidad, direksyon at ang kasaysayan ng lugar. Wala kang pipirmahan: ang manager mismo ng destinasyon ang nagtatala ng mga dumating para sa Tourism Office, kaya magpahinga ka na lang at mag-enjoy.'),
             [], [[self::say($fil, 'Browse destinations', 'Tingnan ang mga destinasyon'), destinations_url()]],
             self::topSuggestions($fil), 'logbook'
         );

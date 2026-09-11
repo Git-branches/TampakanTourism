@@ -238,13 +238,32 @@ final class QrService
      * Written for someone standing at a trailhead with one bar of signal, so
      * it says what to do and what happens next, in that order.
      */
+    /**
+     * What the printed sign tells a visitor to do.
+     *
+     * THESE HAVE TO MATCH THE PAGE, AND FOR A WHILE THEY DID NOT.
+     *
+     * Steps three and four used to read "tap Log My Visit" and "fill in the
+     * short form". The QR page stopped carrying a logbook when the office
+     * decided arrivals are recorded by the destination manager instead — its
+     * own header now opens "THIS IS NOT A LOGBOOK" — but the poster kept
+     * sending people to look for a button that is not there.
+     *
+     * A wrong instruction on a screen is a bad minute. This one is laminated
+     * and bolted to a post at a waterfall: a visitor hunts for the button,
+     * does not find it, and concludes the code is broken. Nobody at the office
+     * hears about it.
+     *
+     * The order below is the page's order, and that order is a safety
+     * decision — see d/index.php. Emergency first, everything else under it.
+     */
     public static function posterInstructions(): array
     {
         return [
             'Open your phone camera and point it at the code.',
             'Tap the link that appears on screen.',
-            'Read about this destination, then tap "Log My Visit".',
-            'Fill in the short form and submit. That is all.',
+            'Emergency numbers are at the top — police, medical and rescue, one tap each.',
+            'Below them: opening hours, fees, facilities, directions and the story of this place.',
         ];
     }
 }

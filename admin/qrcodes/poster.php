@@ -36,6 +36,7 @@ if (!QrService::isPublishable()) {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Cannot print yet — TourSync</title>
+        <link rel="icon" href="<?= e(asset('img/tampakan_logo.png')) ?>" sizes="any">
         <style>
             body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 1.5rem;
                    font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; background: #F4F6F4; color: #16211A; }
@@ -97,6 +98,10 @@ $instructions = QrService::posterInstructions();
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title>QR Poster — <?= count($destinations) === 1 ? e($destinations[0]['name']) : 'All Destinations' ?></title>
+
+<?php /* This is the sheet that gets printed and mounted at the destination, so
+         the tab it is printed from should not carry XAMPP's logo. */ ?>
+<link rel="icon" href="<?= e(asset('img/tampakan_logo.png')) ?>" sizes="any">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -246,8 +251,13 @@ $instructions = QrService::posterInstructions();
     <p class="poster__office">Municipal Tourism Office</p>
     <p class="poster__muni">Municipality of Tampakan &middot; South Cotabato</p>
 
-    <p class="poster__prompt">Welcome! Please log your visit.</p>
-    <p class="poster__sub">It takes less than a minute and helps us serve visitors better.</p>
+    <?php /* "Please log your visit" was the old ask, from when this code led to
+             a visitor logbook. It does not any more — the manager records
+             arrivals now — so the sign asks for nothing and offers something
+             instead. A sign that asks a tired visitor for a favour gets
+             ignored; one that offers the emergency numbers gets scanned. */ ?>
+    <p class="poster__prompt">Scan before you set off.</p>
+    <p class="poster__sub">Emergency numbers, opening hours and the story of this place &mdash; on your phone.</p>
 
     <div class="poster__code" data-qr="<?= e(QrService::url($d['qr_token'])) ?>"></div>
 
