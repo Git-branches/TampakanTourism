@@ -113,15 +113,25 @@ $instructions = QrService::posterInstructions();
         color: #1C2529;
     }
 
+    /* WIDER THAN ONE POSTER, AND IT HAS TO BE.
+       This was capped at 148mm — the width of a single A5 sheet, about 559px —
+       which was fine when the bar held six words. The moment it also carried
+       the note about the browser's own headers, the text filled the whole cap,
+       crushed the buttons against the right edge and wrapped them onto their
+       own line looking broken. It is a toolbar, not a page element: it spans
+       the working area, and the buttons never shrink. */
     .print-bar {
-        max-width: 148mm;
+        max-width: 1500px;
         margin: 0 auto 1.2rem;
         display: flex;
-        gap: .6rem;
+        gap: .6rem 1.2rem;
+        flex-wrap: wrap;
         justify-content: space-between;
         align-items: center;
     }
-    .print-bar p { font-size: .82rem; color: #4A5761; }
+    .print-bar p { font-size: .82rem; color: #4A5761; max-width: 62ch; }
+    .print-bar > div { display: flex; gap: .6rem; flex-shrink: 0; }
+    .print-bar button, .print-bar a { white-space: nowrap; flex-shrink: 0; }
     .print-bar button, .print-bar a {
         font: inherit;
         font-size: .84rem;
@@ -135,6 +145,26 @@ $instructions = QrService::posterInstructions();
         color: #fff;
     }
     .print-bar a { background: #fff; color: #2E7D32; border: 1px solid #CBD8CD; }
+
+    /* ---- Many posters, on screen only ----
+       zoom rather than transform: scale. A scaled element keeps its original
+       footprint in the layout, so ten of them would still reserve ten full A5
+       heights and the scrolling would be exactly as long with smaller pictures
+       in it. zoom reflows, so the grid really does get shorter. It is also why
+       the poster's millimetre sizes still hold: zoom scales them with
+       everything else, and print resets it to 1. */
+    @media screen {
+        .poster-sheets--many {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.4rem;
+            justify-items: center;
+            align-items: start;
+            max-width: 1500px;
+            margin: 0 auto;
+        }
+        .poster-sheets--many .poster { zoom: .58; margin: 0; }
+    }
 
     /* ---- The poster itself: A5 portrait ---- */
     .poster {
@@ -165,6 +195,7 @@ $instructions = QrService::posterInstructions();
     .poster__muni { font-size: 8pt; color: #7B8791; margin-bottom: 6mm; }
 
     .poster__prompt {
+        margin-top: auto;       /* half the slack, above the middle block */
         font-size: 15pt;
         font-weight: 700;
         color: #1C2529;
@@ -179,7 +210,19 @@ $instructions = QrService::posterInstructions();
         margin-bottom: 5mm;
         line-height: 0;
     }
-    .poster__code img, .poster__code canvas { display: block; }
+    /* SIZED IN MILLIMETRES, GENERATED MUCH LARGER.
+       The library drew the code at 190px and it was placed at its natural size
+       — about 50mm, and 190 dots of it however good the printer. Generated at
+       512 and laid out in mm, the same square carries enough pixels to stay
+       crisp on paper, and 56mm is a comfortable scan from arm's length at a
+       trailhead. pixelated keeps the module edges square when the browser
+       scales it; smoothing them is what makes a code hard to read. */
+    .poster__code img, .poster__code canvas {
+        display: block;
+        width: 56mm;
+        height: 56mm;
+        image-rendering: pixelated;
+    }
 
     /* The destination name is printed beneath the code on purpose: if someone
        covers a sign with a sticker pointing elsewhere, a visitor can see that
@@ -192,7 +235,14 @@ $instructions = QrService::posterInstructions();
     }
     .poster__place { font-size: 9.5pt; color: #4A5761; margin-bottom: 6mm; }
 
-    .poster__steps { text-align: left; width: 100%; margin-bottom: auto; }
+    /* THE SHEET WAS TOP-LOADED WITH A HOLE ABOVE THE FOOTER.
+       One auto margin, on the steps, pushed every bit of slack into a single
+       band of nothing between the last instruction and the rule at the bottom —
+       about a third of an A5 page. Two auto margins split that slack above and
+       below the middle block instead, so the seal stays at the top, the footer
+       stays at the bottom, and the poster reads as composed rather than as a
+       page that ran out. */
+    .poster__steps { text-align: left; width: 100%; margin-bottom: 0; }
     .poster__steps li {
         list-style: none;
         display: flex;
@@ -218,7 +268,7 @@ $instructions = QrService::posterInstructions();
         width: 100%;
         border-top: 1px solid #E2E8E4;
         padding-top: 3mm;
-        margin-top: 6mm;
+        margin-top: auto;       /* the other half, below the steps */
         font-size: 7.5pt;
         color: #7B8791;
         display: flex;
@@ -226,22 +276,102 @@ $instructions = QrService::posterInstructions();
     }
 
     @media print {
+        /* No margin box at all: it is what makes the page exactly the poster,
+           and in Chrome it is also what lets the browser drop its own header
+           and footer. The browser still has the final say — see the hint in
+           the print bar. */
         @page { size: A5 portrait; margin: 0; }
-        body { background: #fff; padding: 0; }
-        .print-bar { display: none; }
-        .poster { box-shadow: none; margin: 0; width: 100%; min-height: 100vh; }
+
+        html, body {
+            background: #fff;
+            padding: 0;
+            margin: 0;
+            /* The chain that gives .poster a page to be 100% of. */
+            height: 100%;
+        }
+
+        .print-bar { display: none !important; }
+
+        /* The screen's grid and its shrink are undone: on paper each poster is
+           a full A5 sheet again, one per page.
+
+           height: 100% IS NOT TIDINESS, IT IS THE PAGINATION.
+           .poster takes its height as a percentage, and a percentage needs a
+           parent with a resolved height. This wrapper was added between the
+           poster and <body> and defaulted to auto, which broke that chain —
+           each poster fell back to its natural height, overshot, and ten
+           posters came out of the printer as twenty pages. Passing the page
+           height through restores it. */
+        .poster-sheets,
+        .poster-sheets--many { display: block; max-width: none; margin: 0; height: 100%; }
+        .poster-sheets--many .poster { zoom: 1; }
+
+        /* ONE POSTER, ONE PAGE.
+           This was min-height: 100vh, and vh is the viewport rather than the
+           sheet — a hair taller than A5 once rounded, which is why a single
+           poster came out of the printer as "1/2" with a blank second page.
+           A percentage of the page box cannot overdraw it the same way.
+
+           break-after puts each poster on its own sheet when the office prints
+           the whole set, and the last one drops it again so the run does not
+           end on a blank page. */
+        .poster {
+            box-shadow: none;
+            margin: 0;
+            width: 100%;
+            height: 100%;
+            min-height: 0;
+            overflow: hidden;
+            break-inside: avoid;
+            break-after: page;
+            page-break-after: always;   /* older engines */
+        }
+
+        .poster:last-of-type {
+            break-after: auto;
+            page-break-after: auto;
+        }
+
+        /* The step numbers are white on green discs. Browsers drop background
+           colours when printing unless told not to, which would leave the
+           numbers white on white. */
+        .poster__steps span {
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
     }
 </style>
 </head>
 <body>
 
 <div class="print-bar">
-    <p><?= count($destinations) ?> poster<?= count($destinations) === 1 ? '' : 's' ?> · A5 portrait · print or save as PDF</p>
+    <?php /* THE ONE THING THIS PAGE CANNOT DO FOR THEM.
+             The date, the localhost address and "1/2" that were coming out on
+             the printed sign are drawn by the browser, not by anything here —
+             no stylesheet can remove them. @page margin: 0 makes Chrome drop
+             them by default, but the officer can turn them back on without
+             realising, and then the sign that gets laminated has
+             localhost/TampakanTourism across the top. So the tick box is named
+             here, next to the button, rather than left to be discovered. */ ?>
+    <p>
+        <?= count($destinations) ?> poster<?= count($destinations) === 1 ? '' : 's' ?> · A5 portrait · print or save as PDF
+        <span style="display:block; color:#7B8791; font-size:.76rem; margin-top:.15rem;">
+            If a date or web address appears on the sheet, untick
+            <strong>Headers and footers</strong> in the print dialogue &mdash; that part is the browser&rsquo;s, not ours.
+        </span>
+    </p>
     <div>
         <a href="index.php">Back</a>
         <button onclick="window.print()">Print</button>
     </div>
 </div>
+
+<?php /* SIDE BY SIDE ON SCREEN, ONE PER SHEET ON PAPER.
+         Ten posters stacked at full A5 height is about eight thousand pixels of
+         scrolling to check a set before printing it, and nobody checks the tenth
+         one. The modifier is only added when there is more than one: a single
+         poster is shown at its real size, because then the page IS the proof. */ ?>
+<div class="poster-sheets<?= count($destinations) > 1 ? ' poster-sheets--many' : '' ?>">
 
 <?php foreach ($destinations as $d): ?>
 <div class="poster">
@@ -277,13 +407,15 @@ $instructions = QrService::posterInstructions();
 </div>
 <?php endforeach; ?>
 
+</div><?php /* .poster-sheets */ ?>
+
 <script src="<?= e(asset('js/vendor/qrcode.min.js')) ?>"></script>
 <script>
 document.querySelectorAll('[data-qr]').forEach(function (el) {
     new QRCode(el, {
         text: el.dataset.qr,
-        width: 190,
-        height: 190,
+        width: 512,
+        height: 512,
         correctLevel: QRCode.CorrectLevel.H
     });
 });
