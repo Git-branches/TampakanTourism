@@ -81,6 +81,47 @@ if (!headers_sent()) {
     header('Permissions-Policy: geolocation=(self), camera=(), microphone=()');
     header_remove('X-Powered-By');
 
+    /* CONTENT SECURITY POLICY
+       -------------------------------------------------------------------------
+       The origins named here are the ones the pages actually load from, read out
+       of the templates rather than guessed: Bootstrap and SweetAlert from
+       jsDelivr, Font Awesome from cdnjs, Leaflet from unpkg, the type from Google
+       Fonts, the map tiles from OpenStreetMap, and video embeds from YouTube's
+       no-cookie host. Anything else — including an injected <script src> pointing
+       at an attacker's server — is refused by the browser.
+
+       'unsafe-inline' IS STILL HERE, AND IT IS A COMPROMISE. Roughly forty pages
+       carry an inline <script> or a style attribute, and several are generated
+       from PHP. Removing it means giving every one of them a nonce, which is a
+       larger change than a security pass should make the week before a client
+       demo — and a half-done nonce breaks the coordinate picker, the charts and
+       the modals. So this policy is worth having for what it does block (foreign
+       script hosts, framing, form hijacking, plugins) while the inline work is
+       done properly afterwards. See the report's MUST FIX list. */
+    $csp = [
+        "default-src 'self'",
+        "base-uri 'self'",
+        "object-src 'none'",
+        "frame-ancestors 'none'",
+        "form-action 'self'",
+        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com",
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com https://unpkg.com",
+        "font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com",
+        /* images.unsplash.com is here because the site genuinely uses it: img()
+           in helpers.php falls back to a stock photograph when a destination has
+           none of its own, and one hero background in style.css does the same.
+           Blocking it would leave grey boxes across the homepage. Worth moving
+           to self-hosted artwork later — it is a third party watching who reads
+           the page — but that is a content job, not a header. */
+        "img-src 'self' data: blob: https://*.tile.openstreetmap.org https://unpkg.com https://cdn.jsdelivr.net https://images.unsplash.com",
+        "connect-src 'self'",
+        "media-src 'self' blob:",
+        "frame-src 'self' https://www.youtube-nocookie.com https://www.youtube.com",
+        "worker-src 'self' blob:",
+    ];
+
+    header('Content-Security-Policy: ' . implode('; ', $csp));
+
     if ($isProduction) {
         header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
     }

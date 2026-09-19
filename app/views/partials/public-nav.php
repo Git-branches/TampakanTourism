@@ -138,12 +138,12 @@ $activeMatch = match ($current) {
                 <?php endforeach; ?>
 
                 <!-- Admin entry point. The dashboard itself is a separate module
-                     with its own gate; this is only the door. -->
+                     with its own gate; this is only the door. 
                 <li class="nav-item nav-item--cta">
                     <a class="btn btn-admin" href="<?= e(base_url('/admin/login.php')) ?>">
                         <i class="fa-solid fa-lock"></i>
-                        <?= Auth::check() ? 'Admin Panel' : 'Admin Login' ?>
-                    </a>
+                        <?= Auth::check() ? 'Admin Panel' : 'Staff Login' ?>
+                    </a>-->
                 </li>
             </ul>
         </div>

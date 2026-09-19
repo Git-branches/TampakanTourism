@@ -126,6 +126,19 @@ body {
     -moz-osx-font-smoothing: grayscale;
 }
 
+/* THE WIDEST BOOTSTRAP GUTTER, NARROWED WHERE IT DOES NOT FIT.
+   .g-5 sets a 3rem gutter, which a row pays for with -1.5rem margins either side
+   — but a .container only has 0.75rem of padding to absorb them. On a phone the
+   map and About rows therefore ran 12px past both edges of the screen. The
+   overflow-x above does not save it there: on mobile, clipping the body does
+   not stop the layout viewport itself growing to the widest row. So the gutter
+   is brought back to what the container can hold, and only below 576px, where
+   these rows have already stacked into one column and the gap between columns
+   is not there to see. */
+@media (max-width: 575.98px) {
+    .container > .row.g-5 { --bs-gutter-x: 1.5rem; }
+}
+
 /* Fade the whole document in once the preloader clears */
 body.is-ready main,
 body.is-ready footer { animation: pageIn .7s var(--ease-out) both; }
@@ -1605,8 +1618,13 @@ img { max-width: 100%; height: auto; }
     color: var(--green);
 }
 
-/* Custom pin marker */
-.map-pin {
+/* Custom pin marker — the ORIGINAL homepage icon, which carried a Font Awesome
+   glyph inside the teardrop. Scoped to its colour variants on 2026-09-12: the
+   maps now draw their pins as `.map-pin > span` (see the tourist map section
+   further down), and this block was drawing a second, empty 34px teardrop
+   behind every one of them. Kept rather than deleted — the variants are still
+   valid markup, and this is the styling for them. */
+.map-pin[class*="map-pin--"] {
     display: grid;
     place-items: center;
     width: 34px;
@@ -3121,6 +3139,22 @@ body [data-aos^="tt-"][data-aos] {
 [data-aos="tt-in-right"].aos-animate {
     opacity: 1;
     transform: translate3d(0, 0, 0);
+}
+
+/* ON A PHONE THE SIDES COME IN FROM BELOW.
+   Converging from left and right only reads as converging when the two halves
+   sit side by side. Below 768px they stack, so each one simply started 52px
+   outside the screen — and that off-screen start is what widened the homepage
+   to 430px on a 390px phone: the contact card, waiting for its entrance, sat
+   with its right edge past the viewport, and the whole page could be dragged
+   sideways. A short rise keeps the motion and never leaves the screen.
+   The .aos-animate rule above is (0,2,0) and wins over this (0,1,0) whatever
+   the order, so every element still ends where it should. */
+@media (max-width: 767.98px) {
+    [data-aos="tt-in-left"],
+    [data-aos="tt-in-right"] {
+        transform: translate3d(0, 24px, 0);
+    }
 }
 
 /* ---- tt-zoom — gallery tiles and secondary imagery -------------------- */
@@ -7089,3 +7123,255 @@ button.dest-block__more {
 .news-card__media--schedule.is-plate     .news-card__tag { color: #00695C; }
 .news-card__media--announcement.is-plate .news-card__tag { color: #01579B; }
 .news-card__media--reminder.is-plate     .news-card__tag { color: #37474F; }
+
+/* =============================================================================
+   COOKIE NOTICE
+   -----------------------------------------------------------------------------
+   Bottom-left, because the chat button owns the bottom-right corner. It is a
+   notice rather than a gate: the page behind it stays readable and usable, and
+   it never covers the whole screen.
+   ========================================================================== */
+.cookie-note {
+    position: fixed;
+    left: 1rem;
+    bottom: 1rem;
+    z-index: 1080;
+    width: min(30rem, calc(100vw - 2rem));
+    background: #fff;
+    border: 1px solid #dfe7e0;
+    border-radius: 14px;
+    box-shadow: 0 18px 44px -18px rgba(16, 34, 20, .45);
+    padding: 1rem 1.15rem;
+    display: grid;
+    gap: .75rem;
+    font-size: .88rem;
+    color: #46554c;
+}
+.cookie-note[hidden] { display: none; }
+
+.cookie-note__title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #16211b;
+    margin: 0 0 .35rem;
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+}
+.cookie-note__title i { color: #2e7d32; }
+.cookie-note__text { margin: 0; line-height: 1.55; }
+
+.cookie-note__details { margin-top: .6rem; }
+.cookie-note__details summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: #1b5e20;
+    font-size: .84rem;
+}
+.cookie-note__table-wrap { overflow-x: auto; margin-top: .55rem; }
+.cookie-note__table { width: 100%; border-collapse: collapse; font-size: .78rem; min-width: 26rem; }
+.cookie-note__table th,
+.cookie-note__table td { text-align: left; padding: .35rem .5rem; border-top: 1px solid #eef3ef; vertical-align: top; }
+.cookie-note__table thead th { border-top: 0; color: #6c7c73; font-weight: 600; text-transform: uppercase; font-size: .68rem; letter-spacing: .06em; }
+.cookie-note__table code { font-size: .78rem; color: #16211b; }
+.cookie-note__small { margin: .55rem 0 0; font-size: .78rem; color: #6c7c73; line-height: 1.5; }
+
+.cookie-note__actions { display: flex; gap: .5rem; justify-content: flex-end; flex-wrap: wrap; }
+.cookie-note__more,
+.cookie-note__ok { border-radius: 8px; font-weight: 600; }
+.cookie-note__more { background: #fff; border: 1px solid #dfe7e0; color: #46554c; }
+.cookie-note__more:hover { border-color: #bcd3c1; color: #16211b; }
+.cookie-note__ok { background: #2e7d32; border: 1px solid #2e7d32; color: #fff; }
+.cookie-note__ok:hover { background: #1b5e20; border-color: #1b5e20; color: #fff; }
+
+/* On a phone the card spans the width, and sits above the chat button. */
+@media (max-width: 575.98px) {
+    .cookie-note { left: .75rem; right: .75rem; bottom: 5.25rem; width: auto; }
+    .cookie-note__actions { justify-content: stretch; }
+    .cookie-note__more, .cookie-note__ok { flex: 1 1 auto; }
+}
+
+/* =============================================================================
+   TOURIST MAP — PHOTO MARKERS AND THE POPUP CARD  (map.php)
+   -----------------------------------------------------------------------------
+   The homepage preview keeps the plain coloured pin. These are for the full map,
+   where a marker carries the destination's own cover photograph: a visitor
+   recognises Ernesto Farm Resort by its sign long before they read the label.
+   Compact on purpose — 44px, which is a comfortable tap target and still small
+   enough that a dozen of them do not cover the municipality.
+   ========================================================================== */
+.map-photo-pin { background: none; border: 0; }
+
+.map-photo-pin__ring {
+    display: block;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 3px solid var(--green);
+    background: var(--white);
+    overflow: hidden;
+    box-shadow: 0 3px 10px rgba(16, 34, 20, .32);
+    transition: transform .18s ease;
+}
+.map-photo-pin__ring img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* The picture is gone from disk: show the ring as a coloured dot rather than a
+   torn-image icon. Set by the img's own onerror. */
+.map-photo-pin__ring.is-empty { background: var(--green-pale); }
+.map-photo-pin__ring.is-empty img { display: none; }
+
+/* The little tail that points at the coordinate, so a circle still reads as a
+   pin rather than as a floating badge. */
+.map-photo-pin__stem {
+    display: block;
+    width: 3px;
+    height: 8px;
+    margin: -1px auto 0;
+    border-radius: 0 0 2px 2px;
+}
+
+.map-photo-pin:hover .map-photo-pin__ring,
+.map-photo-pin:focus-visible .map-photo-pin__ring { transform: translateY(-2px) scale(1.06); }
+
+/* ---- The popup card -------------------------------------------------------- */
+.map-pop-shell .leaflet-popup-content-wrapper {
+    padding: 0;
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 14px 34px -12px rgba(16, 34, 20, .45);
+}
+/* A SET WIDTH, NOT auto. Leaflet writes its own width on this element from the
+   popup's maxWidth; overriding it with auto let the card shrink to its longest
+   word, which wrapped "Albertas Events Place" onto two lines and squeezed the
+   description into a column three words wide. */
+.map-pop-shell .leaflet-popup-content { margin: 0; width: 248px !important; }
+.map-pop-shell .leaflet-popup-tip { box-shadow: none; }
+
+.map-pop--card { min-width: 0; }
+.map-pop__photo { display: block; width: 100%; height: 116px; object-fit: cover; }
+.map-pop__body { padding: .7rem .85rem .85rem; }
+.map-pop--card h3 { margin: .15rem 0 .3rem; line-height: 1.25; }
+.map-pop__excerpt {
+    margin: 0 0 .6rem;
+    font-size: .8rem;
+    line-height: 1.5;
+    color: var(--gray-600);
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.map-pop__btn {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    padding: .42rem .8rem;
+    border-radius: 8px;
+    background: var(--green);
+    color: var(--white);
+    font-size: .82rem;
+    font-weight: 600;
+    text-decoration: none;
+}
+.map-pop__btn:hover { background: var(--green-dark); color: var(--white); }
+.map-pop__btn i { font-size: .72rem; }
+
+/* The preview's popup names the place and stops there — the full map is one
+   click away and does the rest. */
+.map-pop--mini { padding: .1rem .15rem; }
+
+@media (max-width: 575.98px) {
+    .map-pop-shell .leaflet-popup-content { width: 216px !important; }
+    .map-pop__photo { height: 96px; }
+}
+
+/* =============================================================================
+   THE MAP AT DIFFERENT ZOOMS
+   -----------------------------------------------------------------------------
+   A 44px photo marker and a 248px card are right when the screen holds the
+   municipality. Zoomed out to the province they are not: the same card covers a
+   third of Mindanao, and the photographs turn into a row of stickers over the
+   land the visitor is trying to read.
+ 
+   So the map wears its zoom band as a class — set in TourSyncMap.watchZoom() —
+   and everything sizes off it. Scaling happens on transforms with the origin at
+   the marker's tip, so a pin never drifts off its coordinate, and each step is
+   eased rather than snapped.
+   ========================================================================== */
+.map-photo-pin__inner {
+    display: block;
+    transform-origin: 50% 100%;      /* the tip, which is the anchor */
+    transition: transform .22s var(--ease, ease);
+    will-change: transform;
+}
+
+.map-pin span {
+    transform-origin: 50% 100%;
+    transition: transform .22s var(--ease, ease);
+}
+
+/* The popup's own dimensions move with the band too. */
+.map-pop-shell .leaflet-popup-content,
+.map-pop__photo,
+.map-pop__excerpt { transition: width .2s ease, height .2s ease, opacity .2s ease; }
+
+/* ---- Zoomed in: the destination is the subject, so show it properly -------- */
+.map-zoom--in .map-photo-pin__inner { transform: scale(1.14); }
+.map-zoom--in .map-pop-shell .leaflet-popup-content { width: 268px !important; }
+.map-zoom--in .map-pop__photo { height: 132px; }
+
+/* ---- Normal: the size the card was designed at ----------------------------- */
+.map-zoom--mid .map-photo-pin__inner { transform: scale(1); }
+
+/* ---- Zoomed out: smaller pin, tighter card, shorter description ------------ */
+.map-zoom--out .map-photo-pin__inner { transform: scale(.76); }
+.map-zoom--out .map-pin span { transform: rotate(-45deg) scale(.82); }
+.map-zoom--out .map-pop-shell .leaflet-popup-content { width: 204px !important; }
+.map-zoom--out .map-pop__photo { height: 80px; }
+.map-zoom--out .map-pop__body { padding: .55rem .65rem .65rem; }
+.map-zoom--out .map-pop--card h3 { font-size: .9rem; }
+.map-zoom--out .map-pop__excerpt { -webkit-line-clamp: 2; line-clamp: 2; font-size: .76rem; }
+.map-zoom--out .map-pop__rating { display: none; }
+
+/* ---- Far out: the marker is a locator, and the card says only what it is ---- */
+.map-zoom--far .map-photo-pin__inner { transform: scale(.56); }
+.map-zoom--far .map-pin span { transform: rotate(-45deg) scale(.7); }
+.map-zoom--far .map-pop-shell .leaflet-popup-content { width: 168px !important; }
+.map-zoom--far .map-pop__photo { height: 54px; }
+.map-zoom--far .map-pop__body { padding: .45rem .55rem .6rem; }
+.map-zoom--far .map-pop--card h3 { font-size: .85rem; margin-bottom: .35rem; }
+.map-zoom--far .map-pop__cat,
+.map-zoom--far .map-pop__rating { display: none; }
+
+/* The description goes, not the name and not the button: at this zoom the
+   popup answers "what is this place" and "take me to it", and nothing else. */
+.map-zoom--far .map-pop__excerpt { display: none; }
+.map-zoom--far .map-pop__btn { width: 100%; justify-content: center; padding: .38rem .5rem; font-size: .78rem; }
+
+/* Even at its smallest the marker stays a tap target: 44 × .56 is 25px of ring,
+   which is still identifiable and still clickable on a phone. */
+.map-zoom--far .map-photo-pin__ring { border-width: 2.5px; }
+
+/* ON A PHONE THE CARD COMPETES WITH THE WHOLE SCREEN.
+   The desktop widths above are read against a 1366px map; on a 390px one the
+   zoomed-in card measured 268px wide and covered 44% of the map — the very
+   thing the sizing is meant to prevent. Each band gets a smaller ceiling here,
+   and the bands still step down in the same order. */
+@media (max-width: 575.98px) {
+    .map-zoom--in .map-pop-shell .leaflet-popup-content  { width: 216px !important; }
+    .map-zoom--in .map-pop__photo                        { height: 104px; }
+    .map-zoom--mid .map-pop-shell .leaflet-popup-content { width: 208px !important; }
+    .map-zoom--out .map-pop-shell .leaflet-popup-content { width: 182px !important; }
+    .map-zoom--out .map-pop__photo                       { height: 72px; }
+    .map-zoom--far .map-pop-shell .leaflet-popup-content { width: 156px !important; }
+    .map-zoom--far .map-pop__photo                       { height: 48px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .map-photo-pin__inner,
+    .map-pin span,
+    .map-pop-shell .leaflet-popup-content,
+    .map-pop__photo { transition: none; }
+}

@@ -480,14 +480,25 @@ $nav = [
                          the officer's own name, and an officer halfway through
                          a review who loses the page loses the review with it.
 
-                         data-confirm on a LINK works through admin.js's click
-                         handler, which cancels the navigation, asks, and then
-                         re-clicks with the answer recorded — so with JavaScript
-                         off this is still an ordinary link that signs out. */ ?>
-                <a href="<?= e(base_url('/admin/logout.php')) ?>" class="topbar__signout" title="Sign out"
-                   data-confirm="Are you sure you want to sign out of TourSync?">
-                    <i class="fa-solid fa-right-from-bracket"></i>
-                </a>
+                         A CSRF-CHECKED POST NOW, NOT A LINK. It was a plain
+                         link, which meant a sign-out reachable by GET — any
+                         <img> or link aimed at logout.php, on any page an
+                         officer opened, would end their session mid-review. The
+                         manager's shell was already a POST form for exactly that
+                         reason; this matches it, and logout.php now refuses
+                         anything else. It looks the same: the button reuses the
+                         styling button.topbar__signout already has. With
+                         JavaScript off the form still posts and still signs
+                         out — the question is a courtesy, not the gate. */ ?>
+                <form method="post" action="<?= e(base_url('/admin/logout.php')) ?>"
+                      class="topbar__out"
+                      data-confirm="Are you sure you want to sign out of TourSync?">
+                    <?= csrf_field() ?>
+                    <button type="submit" class="topbar__signout" title="Sign out">
+                        <i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i>
+                        <span class="visually-hidden">Sign out</span>
+                    </button>
+                </form>
             </div>
         </header>
 

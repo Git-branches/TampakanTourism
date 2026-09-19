@@ -177,11 +177,26 @@ final class DestinationRepository
     }
 
     /** Markers for the Leaflet map. Coordinates only — no contact details. */
+    /**
+     * Every pinned destination, for both maps.
+     *
+     * ONE QUERY FOR BOTH PAGES. The homepage draws a preview from it and
+     * map.php serves it as GeoJSON; keeping two queries is how the two maps
+     * would start disagreeing about which destinations exist.
+     *
+     * The cover photo is picked exactly as the destination cards pick theirs —
+     * cover first, then order, then id — so a marker never shows a different
+     * picture from the card the visitor just clicked.
+     */
     public static function mapMarkers(): array
     {
         return Database::all(
             "SELECT d.id, d.name, d.slug, d.latitude, d.longitude,
-                    c.name AS category_name, c.slug AS category_slug
+                    d.barangay, d.short_description,
+                    c.name AS category_name, c.slug AS category_slug,
+                    (SELECT p.file_path FROM destination_photos p
+                      WHERE p.destination_id = d.id
+                      ORDER BY p.is_cover DESC, p.sort_order ASC, p.id ASC LIMIT 1) AS cover_photo
                FROM destinations d
                LEFT JOIN categories c ON c.id = d.category_id
               WHERE d.status = 'active'

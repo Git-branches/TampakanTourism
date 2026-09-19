@@ -15,6 +15,7 @@ use App\Core\ActivityLog;
 use App\Core\Auth;
 use App\Core\Csrf;
 use App\Core\Session;
+use App\Core\TwoFactor;
 use App\Core\Validator;
 use App\Repositories\AdminRepository;
 
@@ -142,7 +143,76 @@ if (is_post()) {
         Session::flash('success', 'Password changed. It takes effect on your next sign-in.');
         redirect(base_url('/admin/account/index.php'));
     }
+
+    // ---- Two-step verification --------------------------------------------
+    /* THE SECRET IS NOT SAVED UNTIL A CODE PROVES IT WORKS. Between "start" and
+       "enable" it lives in the session only. A mistyped scan then costs the
+       officer one more attempt, instead of locking them out of their own account
+       at the next sign-in with a secret their phone cannot produce codes for. */
+    if ($action === 'totp_start') {
+        $_SESSION['_totp_setup'] = TwoFactor::beginSetup();
+        redirect(base_url('/admin/account/index.php#two-step'));
+    }
+
+    if ($action === 'totp_cancel') {
+        unset($_SESSION['_totp_setup']);
+        redirect(base_url('/admin/account/index.php#two-step'));
+    }
+
+    if ($action === 'totp_enable') {
+        $secret = (string) ($_SESSION['_totp_setup'] ?? '');
+
+        if ($secret === '') {
+            Session::flash('warning', 'That setup expired. Start again.');
+            redirect(base_url('/admin/account/index.php#two-step'));
+        }
+
+        if (\App\Core\Totp::match($secret, (string) ($_POST['code'] ?? '')) === null) {
+            flash_back(['code' => 'That code is not right. It changes every 30 seconds — try the current one.'],
+                [], 'index.php#two-step');
+        }
+
+        $codes = TwoFactor::enable($id, $secret);
+        unset($_SESSION['_totp_setup']);
+
+        /* Shown once, on the next render, and never stored in a place the page
+           can read again. Not flashed as a message: they belong on the screen as
+           a list to copy, not in a toast that fades. */
+        $_SESSION['_totp_codes'] = $codes;
+
+        Session::flash('success', 'Two-step verification is on. Save the recovery codes below.');
+        redirect(base_url('/admin/account/index.php#two-step'));
+    }
+
+    if ($action === 'totp_disable') {
+        if (!password_verify((string) ($_POST['totp_password'] ?? ''), $me['password_hash'])) {
+            flash_back(['totp_password' => 'That is not your current password.'], [], 'index.php#two-step');
+        }
+
+        TwoFactor::disable($id);
+        Session::flash('warning', 'Two-step verification is off. Your password is now the only thing protecting this account.');
+        redirect(base_url('/admin/account/index.php#two-step'));
+    }
+
+    if ($action === 'totp_codes') {
+        if (!password_verify((string) ($_POST['totp_password'] ?? ''), $me['password_hash'])) {
+            flash_back(['totp_password' => 'That is not your current password.'], [], 'index.php#two-step');
+        }
+
+        $_SESSION['_totp_codes'] = TwoFactor::issueRecoveryCodes($id);
+
+        Session::flash('success', 'New recovery codes. The old ones no longer work.');
+        redirect(base_url('/admin/account/index.php#two-step'));
+    }
 }
+
+/* Read once and cleared, so a refresh does not show the codes again. */
+$freshCodes = $_SESSION['_totp_codes'] ?? [];
+unset($_SESSION['_totp_codes']);
+
+$twoStep    = TwoFactor::status($id);
+$setupKey   = (string) ($_SESSION['_totp_setup'] ?? '');
+$setupUri   = $setupKey === '' ? '' : TwoFactor::uriFor($setupKey, (string) $me['username']);
 
 $neverChanged = $me['password_changed_at'] === null;
 
@@ -377,6 +447,130 @@ require __DIR__ . '/../_partials/head.php';
             </div>
         </section>
 
+        <?php /* ================= TWO-STEP VERIFICATION ================= */ ?>
+        <section class="panel" id="two-step">
+            <?php section_head('fa-mobile-screen-button', 'Two-Step Verification',
+                'A code from your phone, on top of your password.') ?>
+            <div class="panel__body">
+
+                <?php if ($freshCodes !== []): ?>
+                    <?php /* SHOWN ONCE. They are hashed in the database the way a
+                             password is, so this screen is the only time they can be
+                             read — a second visit cannot print them again. */ ?>
+                    <div class="alert alert-warning">
+                        <p class="mb-2"><strong>Save these recovery codes now.</strong> Each one signs you in
+                            once if your phone is lost. They will not be shown again.</p>
+                        <ul class="recovery-codes">
+                            <?php foreach ($freshCodes as $code): ?>
+                                <li class="mono"><?= e($code) ?></li>
+                            <?php endforeach; ?>
+                        </ul>
+                        <p class="mb-0 small">Print this list, or write it down and keep it where the office
+                            keeps its keys — not in the same place as the password.</p>
+                    </div>
+                <?php endif; ?>
+
+                <?php if ($twoStep['enabled']): ?>
+
+                    <p class="mb-2">
+                        <span class="pill pill--ok"><i class="fa-solid fa-circle-check"></i> On</span>
+                        since <?= e(format_date((string) $twoStep['confirmed_at'], 'M j, Y')) ?>.
+                        You have <strong><?= (int) $twoStep['codes_left'] ?></strong> recovery code(s) left.
+                    </p>
+
+                    <p class="field-hint mb-3">
+                        Every sign-in will ask for the six digits from your authenticator app after
+                        your password.
+                    </p>
+
+                    <form method="post" class="row g-2 align-items-end" autocomplete="off">
+                        <?= csrf_field() ?>
+                        <div class="col-sm-7">
+                            <label for="totp_password" class="form-label">Your password <span class="req">*</span></label>
+                            <input type="password" id="totp_password" name="totp_password" required
+                                   autocomplete="current-password"
+                                   class="form-control <?= has_error('totp_password') ? 'is-invalid' : '' ?>">
+                            <?php if (has_error('totp_password')): ?>
+                                <div class="field-error"><?= e(error_for('totp_password')) ?></div>
+                            <?php endif; ?>
+                        </div>
+                        <div class="col-sm-5 d-flex gap-2">
+                            <button type="submit" name="action" value="totp_codes" class="btn btn-sm btn-outline-secondary">
+                                <i class="fa-solid fa-rotate"></i> New codes
+                            </button>
+                            <button type="submit" name="action" value="totp_disable"
+                                    class="btn btn-sm btn-outline-danger"
+                                    data-confirm="Turn two-step verification off? Your password becomes the only thing protecting this account.">
+                                <i class="fa-solid fa-xmark"></i> Turn off
+                            </button>
+                        </div>
+                    </form>
+
+                <?php elseif ($setupKey !== ''): ?>
+
+                    <p class="mb-2"><strong>1.</strong> Scan this with Google Authenticator, Microsoft
+                        Authenticator, or any TOTP app.</p>
+
+                    <div class="totp-setup">
+                        <div class="totp-setup__qr" id="totpQr"
+                             data-uri="<?= e($setupUri) ?>" aria-label="Setup QR code"></div>
+
+                        <div class="totp-setup__key">
+                            <p class="field-hint mb-1">Cannot scan? Type this key into the app instead:</p>
+                            <p class="mono totp-setup__secret"><?= e(chunk_split($setupKey, 4, ' ')) ?></p>
+                        </div>
+                    </div>
+
+                    <form method="post" class="row g-2 align-items-end mt-2" autocomplete="off">
+                        <?= csrf_field() ?>
+                        <div class="col-sm-6">
+                            <label for="code" class="form-label"><strong>2.</strong> Enter the six digits it shows <span class="req">*</span></label>
+                            <input type="text" id="code" name="code" required inputmode="numeric"
+                                   maxlength="6" placeholder="000000"
+                                   class="form-control <?= has_error('code') ? 'is-invalid' : '' ?>">
+                            <?php if (has_error('code')): ?>
+                                <div class="field-error"><?= e(error_for('code')) ?></div>
+                            <?php endif; ?>
+                        </div>
+                        <div class="col-sm-6 d-flex gap-2">
+                            <button type="submit" name="action" value="totp_enable" class="btn btn-brand btn-sm">
+                                <i class="fa-solid fa-check"></i> Switch it on
+                            </button>
+                            <?php /* formnovalidate: Cancel sits in the same form as the
+                                     required code box, and without this the browser
+                                     refuses to submit it while the box is empty — which
+                                     is exactly when somebody presses Cancel. */ ?>
+                            <button type="submit" name="action" value="totp_cancel" formnovalidate
+                                    class="btn btn-sm btn-outline-secondary">
+                                Cancel
+                            </button>
+                        </div>
+                    </form>
+
+                <?php else: ?>
+
+                    <p class="mb-2">
+                        <span class="pill pill--muted">Off</span>
+                        Your password is currently the only thing protecting this account.
+                    </p>
+
+                    <p class="field-hint mb-3">
+                        With this on, signing in also asks for a six-digit code from your phone. Somebody
+                        who learns your password still cannot get in. Setting it up takes a minute and
+                        needs an authenticator app.
+                    </p>
+
+                    <form method="post">
+                        <?= csrf_field() ?>
+                        <button type="submit" name="action" value="totp_start" class="btn btn-brand btn-sm">
+                            <i class="fa-solid fa-mobile-screen-button"></i> Set up two-step verification
+                        </button>
+                    </form>
+
+                <?php endif; ?>
+            </div>
+        </section>
+
         <section class="panel">
             <?php section_head('fa-shield-halved', 'Security Notes', 'How TourSync protects a sign-in.') ?>
             <div class="panel__body">
@@ -389,10 +583,36 @@ require __DIR__ . '/../_partials/head.php';
                         <span>Sessions end after 30 minutes idle, or 8 hours regardless.</span></li>
                     <li><i class="fa-solid fa-clipboard-list"></i>
                         <span>Every sign-in and administrative change is recorded in the activity log.</span></li>
+                    <li><i class="fa-solid fa-mobile-screen-button"></i>
+                        <span>Two-step verification can be switched on above. The code changes every
+                              30 seconds and each one works once.</span></li>
                 </ul>
             </div>
         </section>
     </div>
 </div>
+
+<?php if ($setupKey !== ''): ?>
+    <?php /* The same library the tour guide ID card uses, served from this project
+             rather than a CDN — the enrolment secret should not travel to a third
+             party's script, and the Content-Security-Policy would refuse it. */ ?>
+    <script src="<?= e(asset('js/vendor/qrcode.min.js')) ?>"></script>
+    <script>
+    (function () {
+        var box = document.getElementById('totpQr');
+
+        if (!box || typeof QRCode === 'undefined') { return; }
+
+        new QRCode(box, {
+            text: box.dataset.uri,
+            width: 184,
+            height: 184,
+            colorDark: '#16211B',
+            colorLight: '#ffffff',
+            correctLevel: QRCode.CorrectLevel.M
+        });
+    })();
+    </script>
+<?php endif; ?>
 
 <?php require __DIR__ . '/../_partials/foot.php'; ?>

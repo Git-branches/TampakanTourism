@@ -348,22 +348,43 @@ foreach (AnnouncementRepository::upcomingEvents(15) as $row) {
 /* -----------------------------------------------------------------------------
  | Map markers  —  LIVE. Only destinations with coordinates appear.
  * -------------------------------------------------------------------------- */
+/* The preview carries the slug as well as the label: the colour of a pin is
+   chosen from the slug on both maps, so a category added later is the same
+   colour here as it is on map.php without either page being edited. */
+$markerRows = DestinationRepository::mapMarkers();   // read once; used twice below
+
 $mapMarkers = array_map(static fn(array $row): array => [
-    'name' => $row['name'],
-    'lat'  => (float) $row['latitude'],
-    'lng'  => (float) $row['longitude'],
-    'type' => $row['category_name'] ?: 'Destination',
-], DestinationRepository::mapMarkers());
+    'name'     => $row['name'],
+    'lat'      => (float) $row['latitude'],
+    'lng'      => (float) $row['longitude'],
+    'type'     => $row['category_name'] ?: 'Destination',
+    'category' => $row['category_slug'] ?: 'other',
+], $markerRows);
 
 /* The office marker is always shown, so an empty map still orients the visitor. */
 if ($mapMarkers === []) {
     $mapMarkers[] = [
-        'name' => 'Municipal Tourism Office',
-        'lat'  => $site['lat'],
-        'lng'  => $site['lng'],
-        'type' => 'Office',
+        'name'     => 'Municipal Tourism Office',
+        'lat'      => $site['lat'],
+        'lng'      => $site['lng'],
+        'type'     => 'Municipal Tourism Office',
+        'category' => 'other',
     ];
 }
+
+/* THE LEGEND IS BUILT FROM WHAT IS ON THE MAP, not from a hand-written list.
+   The list it replaces named "Government Offices", which is not a category the
+   system has, and omitted four that it does — including the two added when the
+   Office's own destination file was loaded. A legend that disagrees with the
+   pins beside it is worse than no legend. */
+$mapLegend = [];
+
+foreach ($markerRows as $row) {
+    $slug = $row['category_slug'] ?: 'other';
+    $mapLegend[$slug] = $row['category_name'] ?: 'Other';
+}
+
+asort($mapLegend);
 
 /* -----------------------------------------------------------------------------
  | News and advisories  —  LIVE, and the full feed rather than a teaser of three.
@@ -904,7 +925,7 @@ require __DIR__ . '/app/views/partials/public-nav.php';
                 <?php endif; ?>
                 <div class="glass-strip__item">
                     <i class="fa-solid fa-map-pin"></i>
-                    <div><strong>13 Barangays</strong><span>Across the municipality</span></div>
+                    <div><strong>14 Barangays</strong><span>Across the municipality</span></div>
                 </div>
                 <div class="glass-strip__item">
                     <i class="fa-solid fa-road"></i>
@@ -1244,20 +1265,27 @@ require __DIR__ . '/app/views/partials/public-nav.php';
             <div class="col-lg-5">
                 <span class="eyebrow eyebrow--light"><i class="fa-solid fa-map-location-dot"></i> Find Your Way</span>
                 <h2 class="section-title section-title--light">Interactive <span class="text-grad-light">Tourist Map</span></h2>
+                <?php /* A PREVIEW, AND IT SAYS SO. The full map — photographs on
+                         every marker, category filters and "Where am I?" — lives on
+                         one page rather than being half-built on two. */ ?>
                 <p class="section-sub section-sub--light">
-                    Every accredited destination, viewpoint, homestay, and cultural site in Tampakan, pinned and
-                    ready to navigate. Select a marker for directions, opening hours, and guide contacts.
+                    <?= n(count($mapMarkers)) ?> destination<?= count($mapMarkers) === 1 ? '' : 's' ?>
+                    pinned across the municipality. This is a quick look at where they are;
+                    the full map has photographs, category filters, and directions from where you stand.
                 </p>
 
+                <?php /* Built from the pins actually on the map — see $mapLegend. */ ?>
                 <ul class="map-legend">
-                    <li><span class="dot dot--green"></span> Nature &amp; Eco-Tourism</li>
-                    <li><span class="dot dot--blue"></span> Waterfalls &amp; Rivers</li>
-                    <li><span class="dot dot--amber"></span> Culture &amp; Heritage</li>
-                    <li><span class="dot dot--red"></span> Government Offices</li>
+                    <?php foreach ($mapLegend as $slug => $label): ?>
+                        <li>
+                            <span class="dot" style="background: <?= e(map_category_colour($slug)) ?>"></span>
+                            <?= e($label) ?>
+                        </li>
+                    <?php endforeach; ?>
                 </ul>
 
                 <a href="<?= e(base_url('/map.php')) ?>" class="btn btn-primary-grad btn-lg mt-2">
-                    <i class="fa-solid fa-expand"></i> Open Full Tourist Map
+                    <i class="fa-solid fa-expand"></i> Explore Full Map
                 </a>
             </div>
 
@@ -1268,7 +1296,8 @@ require __DIR__ . '/app/views/partials/public-nav.php';
                          data-center-lat="<?= $site['lat'] ?>"
                          data-center-lng="<?= $site['lng'] ?>"
                          data-markers='<?= e(json_encode($mapMarkers, JSON_UNESCAPED_UNICODE)) ?>'
-                         aria-label="Interactive map of Tampakan tourist destinations"></div>
+                         data-colours='<?= e(json_encode(map_category_colours(), JSON_UNESCAPED_SLASHES)) ?>'
+                         aria-label="Map preview of Tampakan tourist destinations"></div>
                 </div>
             </div>
         </div>
@@ -1878,12 +1907,15 @@ require __DIR__ . '/app/views/partials/public-nav.php';
                 <ul class="footer__legal">
                     <li><a href="#privacy" data-bs-toggle="modal" data-bs-target="#privacyModal">Privacy Policy</a></li>
                     <li><a href="#terms" data-bs-toggle="modal" data-bs-target="#termsModal">Terms &amp; Conditions</a></li>
+                    <li><a href="#" data-cookie-open>Cookies</a></li>
                     <li><a href="#contact">Sitemap</a></li>
                 </ul>
             </div>
         </div>
     </div>
 </footer>
+
+<?php require __DIR__ . '/app/views/partials/cookie-notice.php'; ?>
 
 <!-- Back-to-top button -->
 <a href="#top" id="backToTop" class="back-to-top" aria-label="Back to top">

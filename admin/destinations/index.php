@@ -30,7 +30,8 @@ $filters = [
     'dir'         => (string) ($_GET['dir'] ?? 'desc'),
 ];
 
-$result     = DestinationRepository::paginate($filters, (int) ($_GET['page'] ?? 1), Paginator::PER_PAGE);
+/* Eight, not the house six: the grid is four across, so a page is two full rows. */
+$result     = DestinationRepository::paginate($filters, (int) ($_GET['page'] ?? 1), 8);
 $pager      = Paginator::adopt($result);
 $categories = CategoryRepository::all();
 
@@ -139,7 +140,8 @@ require __DIR__ . '/../_partials/head.php';
 
     <div class="dest-grid">
         <?php foreach ($result['rows'] as $d): ?>
-            <article class="dest-tile <?= $d['status'] === 'archived' ? 'is-archived' : '' ?>">
+            <article class="dest-tile <?= $d['status'] === 'archived' ? 'is-archived' : '' ?>"
+                     data-destination-id="<?= (int) $d['id'] ?>">
 
                 <div class="dest-tile__media">
                     <?php if (!empty($d['cover_photo'])): ?>
@@ -160,7 +162,7 @@ require __DIR__ . '/../_partials/head.php';
                         <span class="tag"><?= e($d['category_name']) ?></span>
                     <?php endif; ?>
 
-                    <h3><?= e($d['name']) ?></h3>
+                    <h3 title="<?= e($d['name']) ?>"><?= e($d['name']) ?></h3>
 
                     <p class="dest-tile__meta">
                         <i class="fa-solid fa-location-dot"></i>

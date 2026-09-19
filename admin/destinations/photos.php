@@ -69,6 +69,11 @@ if (is_post()) {
 
 $photos = DestinationRepository::photos($id);
 
+/* The image the list card shows. photos() sorts exactly as the list's cover_photo
+   subquery does — cover first, then order — so the first row is that image,
+   flagged as cover or not. */
+$coverPath = $photos !== [] ? (string) $photos[0]['file_path'] : '';
+
 /* Skips the shell when this page was asked for as a dialog fragment.
    Additive: without ?modal=1 nothing here changes at all. */
 if (!is_modal_request()) { require __DIR__ . '/../_partials/head.php'; }
@@ -89,31 +94,39 @@ if (!is_modal_request()) { require __DIR__ . '/../_partials/head.php'; }
 <section class="panel">
     <header class="panel__head"><h2><i class="fa-solid fa-upload"></i> Upload Photos</h2></header>
     <div class="panel__body">
-        <form method="post" enctype="multipart/form-data" class="row g-2 align-items-end">
+        <?php /* ONE ROW: the picker and its button side by side, the hint under both.
+                 It was a 9/3 grid aligned to the bottom — the button sat a full
+                 column away and lined up with the hint rather than the picker. */ ?>
+        <form method="post" enctype="multipart/form-data" class="photo-upload">
             <?= csrf_field() ?>
             <input type="hidden" name="id" value="<?= $id ?>">
             <input type="hidden" name="action" value="upload">
 
-            <div class="col-md-9">
-                <label for="photos" class="form-label">Choose images</label>
+            <label for="photos" class="form-label">Choose images</label>
+            <div class="photo-upload__row">
                 <input type="file" id="photos" name="photos[]" multiple
                        accept="image/jpeg,image/png,image/webp" class="form-control" required
                        data-max-mb="<?= n(upload_limit_mb()) ?>">
-                <p class="field-hint">
-                    JPG, PNG, or WebP, up to <?= n(\App\Core\Uploader::maxMegabytes()) ?> MB each. Every image is decoded and re-encoded on
-                    upload — that strips anything hidden in the file and resizes it for the web.
-                </p>
-            </div>
-            <div class="col-md-3">
-                <button type="submit" class="btn btn-brand w-100">
+                <button type="submit" class="btn btn-brand photo-upload__btn">
                     <i class="fa-solid fa-upload"></i> Upload
                 </button>
             </div>
+            <p class="field-hint">
+                JPG, PNG, or WebP, up to <?= n(\App\Core\Uploader::maxMegabytes()) ?> MB each. Every image is decoded and re-encoded on
+                upload — that strips anything hidden in the file and resizes it for the web.
+            </p>
         </form>
     </div>
 </section>
 
-<section class="panel">
+<?php /* What the list card behind the dialog should now say. admin.js reads it
+         each time the dialog is refilled — after an upload, a new cover or a
+         delete — so the card changes with the gallery instead of on the next
+         page load. On the full page nothing reads it. */ ?>
+<section class="panel" data-photo-summary
+         data-destination-id="<?= $id ?>"
+         data-photo-count="<?= count($photos) ?>"
+         data-cover-src="<?= $coverPath !== '' ? e(base_url($coverPath)) : '' ?>">
     <header class="panel__head"><h2><i class="fa-solid fa-images"></i> Gallery</h2></header>
     <div class="panel__body">
         <?php if ($photos === []): ?>

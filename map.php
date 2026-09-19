@@ -103,6 +103,7 @@ require __DIR__ . '/app/views/partials/page-head.php';
 
             <div id="fullMap" class="full-map"
                  data-endpoint="<?= e(base_url('/api/destinations/map.php')) ?>"
+                 data-colours='<?= e(json_encode(map_category_colours(), JSON_UNESCAPED_SLASHES)) ?>'
                  data-center-lat="6.4333" data-center-lng="124.9167"></div>
 
             <p class="map-note">
@@ -132,32 +133,23 @@ require __DIR__ . '/app/views/partials/page-head.php';
     const el = document.getElementById('fullMap');
     if (!el || typeof L === 'undefined') return;
 
+    /* The tile layer, the colour table and the two marker shapes are shared with
+       the homepage preview — see TourSyncMap in assets/js/script.js. What is on
+       this page and not on the homepage is what makes this the FULL map:
+       photographs on the markers, the filters above, and "Where am I?". */
+    const MAP = window.TourSyncMap;
+
+    MAP.useColours(el.dataset.colours);
+
     const map = L.map(el).setView(
         [parseFloat(el.dataset.centerLat), parseFloat(el.dataset.centerLng)], 12
     );
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-        maxZoom: 19
-    }).addTo(map);
+    MAP.tiles(map, 19);
 
-    /* One colour per category, so the map reads at a glance rather than
-       needing a legend lookup for every pin. */
-    const COLOURS = {
-        'nature': '#2E7D32', 'waterfalls': '#0288D1', 'adventure': '#EF6C00',
-        'culture': '#6A1B9A', 'eco-tourism': '#00796B', 'agri-tourism': '#827717',
-        'historical': '#5D4037', 'other': '#455A64'
-    };
-
-    function pin(colour) {
-        return L.divIcon({
-            className: 'map-pin',
-            html: '<span style="background:' + colour + '"></span>',
-            iconSize: [26, 26],
-            iconAnchor: [13, 26],
-            popupAnchor: [0, -24]
-        });
-    }
+    /* Markers and popup follow the zoom: full size where the municipality fills
+       the screen, compact when it does not. */
+    MAP.watchZoom(map, el);
 
     const markers = [];
 
@@ -169,20 +161,48 @@ require __DIR__ . '/app/views/partials/page-head.php';
                 // GeoJSON is [lng, lat]; Leaflet wants [lat, lng].
                 const coords = [f.geometry.coordinates[1], f.geometry.coordinates[0]];
 
+                /* Its own photograph when it has one, the plain coloured pin when
+                   it does not. Nothing invents a picture for a destination the
+                   Office has not photographed yet. */
+                const icon = p.photo
+                    ? MAP.photoIcon(p.photo, p.category_slug, p.name)
+                    : MAP.dotIcon(p.category_slug);
+
                 const stars = p.rating
                     ? '<span class="map-pop__rating">' +
                       '<i class="fa-solid fa-star"></i> ' + p.rating +
                       ' <small>(' + p.reviews + ')</small></span>'
                     : '';
 
-                const marker = L.marker(coords, { icon: pin(COLOURS[p.category_slug] || COLOURS.other) })
+                const place = [p.category, p.barangay ? 'Barangay ' + p.barangay : '']
+                    .filter(Boolean).map(MAP.text.bind(MAP)).join(' · ');
+
+                const photo = p.photo
+                    ? '<img class="map-pop__photo" src="' + MAP.text(p.photo) + '" alt="' + MAP.text(p.name) + '" ' +
+                      'onerror="this.remove()">'
+                    : '';
+
+                const excerpt = p.excerpt
+                    ? '<p class="map-pop__excerpt">' + MAP.text(p.excerpt) + '</p>'
+                    : '';
+
+                /* riseOnHover, because two destinations in the same barangay sit
+                   almost on top of each other at low zoom: the one being pointed
+                   at comes to the front instead of staying half-hidden. */
+                const marker = L.marker(coords, { icon: icon, title: p.name, riseOnHover: true })
                     .addTo(map)
                     .bindPopup(
-                        '<div class="map-pop">' +
-                          '<span class="map-pop__cat">' + p.category + '</span>' +
-                          '<h3>' + p.name + '</h3>' + stars +
-                          '<a class="map-pop__link" href="' + p.url + '">View details &rarr;</a>' +
-                        '</div>'
+                        '<div class="map-pop map-pop--card">' +
+                          photo +
+                          '<div class="map-pop__body">' +
+                            '<span class="map-pop__cat">' + place + '</span>' +
+                            '<h3>' + MAP.text(p.name) + '</h3>' + stars + excerpt +
+                            '<a class="map-pop__btn" href="' + MAP.text(p.url) + '">' +
+                              'View Destination <i class="fa-solid fa-arrow-right"></i>' +
+                            '</a>' +
+                          '</div>' +
+                        '</div>',
+                        { maxWidth: 268, minWidth: 244, className: 'map-pop-shell' }
                     );
 
                 marker._category = p.category_slug;

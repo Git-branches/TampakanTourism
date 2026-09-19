@@ -17,8 +17,10 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../bootstrap.php';
 
+use App\Core\ActivityLog;
 use App\Core\Csrf;
 use App\Core\ManagerAuth;
+use App\Core\RateLimiter;
 use App\Core\Session;
 use App\Core\Validator;
 
@@ -34,10 +36,22 @@ if (is_post()) {
     $v = new Validator($_POST);
     $v->require('username', 'password');
 
-    if ($v->passes()) {
+    /* The same per-device ceiling as the officer's door, for the same reason:
+       the per-account lockout cannot see one password being tried against every
+       manager username in turn. A correct sign-in clears the bucket. */
+    $throttle = 'login-manager:' . ($_SERVER['REMOTE_ADDR'] ?? 'unknown');
+
+    if (!RateLimiter::allow($throttle, 20, 900)) {
+        $wait = max(1, (int) ceil(RateLimiter::retryAfter($throttle, 900) / 60));
+        ActivityLog::record('manager.throttled', 'manager', null,
+            'Sign-in throttled for ' . ($_SERVER['REMOTE_ADDR'] ?? 'unknown'));
+
+        $errors['form'] = "Too many sign-in attempts from this device. Try again in {$wait} minute(s).";
+    } elseif ($v->passes()) {
         $failure = ManagerAuth::attempt((string) $v->value('username'), (string) $_POST['password']);
 
         if ($failure === null) {
+            RateLimiter::forget($throttle);
             /* Back to whatever they were reaching for — a manager who followed
                a link to a specific report should land on that report. */
             $intended = Session::get('_manager_intended', '');

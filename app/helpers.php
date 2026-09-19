@@ -584,3 +584,45 @@ if (!function_exists('upload_limit_mb')) {
         return (int) floor(upload_limit_bytes() / 1048576);
     }
 }
+
+if (!function_exists('map_category_colours')) {
+    /**
+     * One colour per destination category, for every map that draws pins.
+     *
+     * DEFINED ONCE, IN PHP. The homepage preview, the full map's markers and the
+     * legend beside them all read from here — the legend is rendered server-side
+     * and the pins are drawn by Leaflet, so the table is handed to the browser on
+     * the map element rather than written out a second time in JavaScript. Two
+     * copies is how the preview came to show Adventure in green while the full
+     * map showed it in orange.
+     *
+     * A category with no entry takes 'other', which is deliberate: an unlisted
+     * colour should read as "not classified", not as somebody else's category.
+     *
+     * @return array<string, string>
+     */
+    function map_category_colours(): array
+    {
+        return [
+            'nature'          => '#2E7D32',
+            'waterfalls'      => '#0288D1',
+            'adventure'       => '#EF6C00',
+            'culture'         => '#6A1B9A',
+            'eco-tourism'     => '#00796B',
+            'agri-tourism'    => '#827717',
+            'historical'      => '#5D4037',
+            'mountain-peaks'  => '#455A64',
+            'resorts-leisure' => '#00838F',
+            'other'           => '#455A64',
+        ];
+    }
+}
+
+if (!function_exists('map_category_colour')) {
+    function map_category_colour(?string $slug): string
+    {
+        $colours = map_category_colours();
+
+        return $colours[(string) $slug] ?? $colours['other'];
+    }
+}

@@ -36,6 +36,14 @@ foreach (DestinationRepository::mapMarkers() as $d) {
             'url'      => base_url('/destination.php?slug=' . $d['slug']),
             'rating'   => $summary['average'] > 0 ? $summary['average'] : null,
             'reviews'  => $summary['total'],
+
+            /* The picture the marker wears, and the two lines its popup shows.
+               null rather than a placeholder path: the map decides what to draw
+               when a destination has no photograph, and a made-up URL here
+               would be a broken image on every one of them. */
+            'photo'    => $d['cover_photo'] ? base_url((string) $d['cover_photo']) : null,
+            'barangay' => (string) ($d['barangay'] ?? ''),
+            'excerpt'  => mb_strimwidth((string) ($d['short_description'] ?? ''), 0, 120, '…'),
         ],
     ];
 }

@@ -290,12 +290,37 @@ $dtStyle = 'font-size:.71rem; letter-spacing:.05em; text-transform:uppercase; co
                         <?php else: ?>
                             <ul class="list-unstyled mb-2 small">
                                 <?php foreach ($certificates as $c): ?>
-                                    <?php $lapsed = $c['expires_on'] !== null && (string) $c['expires_on'] < date('Y-m-d'); ?>
-                                    <li class="d-flex align-items-start gap-2 mb-2">
-                                        <i class="fa-regular fa-file-lines text-muted mt-1"></i>
+                                    <?php
+                                    $lapsed  = $c['expires_on'] !== null && (string) $c['expires_on'] < date('Y-m-d');
+                                    $certUrl = base_url('/admin/tour-guides/certificate.php?id=' . (int) $c['id']);
+                                    $isPdf   = (string) $c['mime_type'] === 'application/pdf';
+
+                                    /* One line of context for the viewer's caption, built
+                                       once so the title link and the eye say the same thing. */
+                                    $certCaption = trim(implode(' · ', array_filter([
+                                        (string) $c['title'],
+                                        (string) ($c['issuer'] ?? ''),
+                                        $c['expires_on'] ? ($lapsed ? 'expired ' : 'valid to ')
+                                            . format_date((string) $c['expires_on'], 'M Y') : '',
+                                    ])));
+                                    ?>
+                                    <?php /* flex-nowrap: admin.css wraps every .d-flex.gap-2, which
+                                             dropped the eye and the bin under a long title. */ ?>
+                                    <li class="d-flex flex-nowrap align-items-start gap-2 mb-2">
+                                        <i class="fa-regular <?= $isPdf ? 'fa-file-pdf' : 'fa-file-image' ?> text-muted mt-1"
+                                           aria-hidden="true"></i>
                                         <span class="flex-grow-1">
-                                            <a target="_blank" rel="noopener"
-                                               href="<?= e(base_url('/admin/tour-guides/certificate.php?id=' . (int) $c['id'])) ?>">
+                                            <?php /* OPENS IN A VIEWER, NOT A NEW PAGE.
+                                                     The title used to open certificate.php in a
+                                                     new tab: a bare file, the raw address in the
+                                                     bar, and the record left behind in another
+                                                     tab. It opens over the record now. The href
+                                                     is kept, so a middle-click and a browser with
+                                                     no JavaScript still reach the file. */ ?>
+                                            <a target="_blank" rel="noopener" href="<?= e($certUrl) ?>"
+                                               data-cert-view
+                                               data-cert-kind="<?= $isPdf ? 'pdf' : 'image' ?>"
+                                               data-cert-caption="<?= e($certCaption) ?>">
                                                 <?= e((string) $c['title']) ?>
                                             </a>
                                             <span class="cell-sub d-block">
@@ -309,6 +334,17 @@ $dtStyle = 'font-size:.71rem; letter-spacing:.05em; text-transform:uppercase; co
                                                 <?php endif; ?>
                                             </span>
                                         </span>
+                                        <?php /* The eye is the obvious way in for anyone who does
+                                                 not think to click a title. Same viewer, same
+                                                 file, same fallback href. */ ?>
+                                        <a class="btn btn-sm btn-link text-secondary p-0" target="_blank" rel="noopener"
+                                           href="<?= e($certUrl) ?>"
+                                           data-cert-view
+                                           data-cert-kind="<?= $isPdf ? 'pdf' : 'image' ?>"
+                                           data-cert-caption="<?= e($certCaption) ?>"
+                                           title="View" aria-label="View this certificate">
+                                            <i class="fa-regular fa-eye" aria-hidden="true"></i>
+                                        </a>
                                         <form method="post" class="d-inline">
                                             <?= csrf_field() ?>
                                             <input type="hidden" name="id" value="<?= $id ?>">
@@ -326,51 +362,78 @@ $dtStyle = 'font-size:.71rem; letter-spacing:.05em; text-transform:uppercase; co
                             </ul>
                         <?php endif; ?>
 
-                        <?php /* FOLDED AWAY UNTIL WANTED. An always-open upload form
-                                 is 200px of controls competing with the record, on
-                                 most of the visits where nobody is filing anything. */ ?>
-                        <details>
-                            <?php /* list-style:none so the native triangle does not sit
-                                     beside a drawn plus — two markers for one control. */ ?>
-                            <summary class="small" style="cursor:pointer; color:var(--green); list-style:none">
-                                <i class="fa-solid fa-chevron-right" style="font-size:.7em"></i>
-                                Add a certificate
-                            </summary>
+                        <?php /* IN A MODAL, NOT UNFOLDED INTO THE RECORD.
+                                 This was a disclosure that opened the upload form
+                                 inline, pushing the rest of the column down while
+                                 the officer filled it in. It is now a sheet over the
+                                 record, the same one Add tour guide and Add video
+                                 use: the fields, the action, the token and the
+                                 multipart upload are exactly as they were — only
+                                 where the form appears has changed. A submit still
+                                 posts to this page and comes back with its flash. */ ?>
+                        <button type="button" class="btn btn-sm btn-link p-0" data-dialog="addCertificate"
+                                style="color:var(--green)">
+                            <i class="fa-solid fa-plus" aria-hidden="true"></i> Add a certificate
+                        </button>
 
-                            <form method="post" enctype="multipart/form-data" class="row g-2 mt-1">
+                        <dialog class="sheet" id="addCertificate" aria-labelledby="addCertificateTitle">
+                            <form method="post" enctype="multipart/form-data" class="sheet__form">
                                 <?= csrf_field() ?>
                                 <input type="hidden" name="id" value="<?= $id ?>">
                                 <input type="hidden" name="action" value="certificate">
 
-                                <div class="col-12">
-                                    <label class="form-label small mb-1" for="cert_title">Name <span class="text-danger">*</span></label>
-                                    <input type="text" class="form-control form-control-sm" id="cert_title"
-                                           name="title" maxlength="160" required placeholder="First Aid Training">
+                                <header class="sheet__head">
+                                    <h2 id="addCertificateTitle">
+                                        <i class="fa-solid fa-file-circle-plus" aria-hidden="true"></i> Add a certificate
+                                    </h2>
+                                    <button type="button" class="sheet__close" data-dialog-close aria-label="Close">
+                                        <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                                    </button>
+                                </header>
+
+                                <div class="sheet__body">
+                                    <p class="text-muted small mb-3">
+                                        A scanned document filed against
+                                        <strong><?= e((string) $guide['full_name']) ?></strong>.
+                                        Kept for office staff only — never shown on the public verification page.
+                                    </p>
+
+                                    <div class="row g-3">
+                                        <div class="col-12">
+                                            <label class="form-label" for="cert_title">Name <span class="text-danger">*</span></label>
+                                            <input type="text" class="form-control" id="cert_title"
+                                                   name="title" maxlength="160" required placeholder="First Aid Training">
+                                        </div>
+                                        <div class="col-12">
+                                            <label class="form-label" for="cert_issuer">Issued by</label>
+                                            <input type="text" class="form-control" id="cert_issuer"
+                                                   name="issuer" maxlength="160" placeholder="Philippine Red Cross">
+                                        </div>
+                                        <div class="col-6">
+                                            <label class="form-label" for="cert_issued">Date issued</label>
+                                            <input type="date" class="form-control" id="cert_issued" name="issued_on">
+                                        </div>
+                                        <div class="col-6">
+                                            <label class="form-label" for="cert_expires">Expires</label>
+                                            <input type="date" class="form-control" id="cert_expires" name="expires_on">
+                                        </div>
+                                        <div class="col-12">
+                                            <label class="form-label" for="cert_file">File <span class="text-danger">*</span></label>
+                                            <input type="file" class="form-control" id="cert_file" name="file"
+                                                   accept="image/jpeg,image/png,application/pdf" required>
+                                            <div class="form-text">JPG, PNG or PDF, up to 8&nbsp;MB.</div>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div class="col-12">
-                                    <label class="form-label small mb-1" for="cert_issuer">Issued by</label>
-                                    <input type="text" class="form-control form-control-sm" id="cert_issuer"
-                                           name="issuer" maxlength="160" placeholder="Philippine Red Cross">
-                                </div>
-                                <div class="col-6">
-                                    <label class="form-label small mb-1" for="cert_issued">Date issued</label>
-                                    <input type="date" class="form-control form-control-sm" id="cert_issued" name="issued_on">
-                                </div>
-                                <div class="col-6">
-                                    <label class="form-label small mb-1" for="cert_expires">Expires</label>
-                                    <input type="date" class="form-control form-control-sm" id="cert_expires" name="expires_on">
-                                </div>
-                                <div class="col-12">
-                                    <label class="form-label small mb-1" for="cert_file">File <span class="text-danger">*</span></label>
-                                    <input type="file" class="form-control form-control-sm" id="cert_file" name="file"
-                                           accept="image/jpeg,image/png,application/pdf" required>
-                                    <div class="form-text">JPG, PNG or PDF, up to 8&nbsp;MB. Office staff only.</div>
-                                </div>
-                                <div class="col-12">
-                                    <button class="btn btn-brand btn-sm" type="submit">File certificate</button>
-                                </div>
+
+                                <footer class="sheet__foot">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" data-dialog-close>Cancel</button>
+                                    <button type="submit" class="btn btn-sm btn-brand">
+                                        <i class="fa-solid fa-upload" aria-hidden="true"></i> File certificate
+                                    </button>
+                                </footer>
                             </form>
-                        </details>
+                        </dialog>
                     </div>
                 </div>
             </div>
@@ -576,6 +639,108 @@ $dtStyle = 'font-size:.71rem; letter-spacing:.05em; text-transform:uppercase; co
 
     window.addEventListener('afterprint', clear);
     window.addEventListener('focus', clear);
+})();
+</script>
+
+<?php /* THE CERTIFICATE VIEWER.
+         The same dialog and styling the inspection review uses for evidence
+         photos (.rev-lightbox, global in admin.css), with its own id and its own
+         data-cert-view trigger so neither page's script handles the other's.
+
+         AN IMAGE IS SHOWN; A PDF IS OFFERED.
+         An image loads through <img>, which is not framing and is unaffected by
+         the site's X-Frame-Options. A PDF could only be shown inside an iframe or
+         object — and the document root sends X-Frame-Options: DENY alongside the
+         endpoint's own SAMEORIGIN, which a browser resolves to DENY. So rather
+         than a blank grey rectangle, a PDF gets a clear panel with Open and
+         Download. */ ?>
+<dialog class="rev-lightbox" id="certLightbox" aria-label="Certificate">
+    <button type="button" class="rev-lightbox__close" data-cert-close aria-label="Close">
+        <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+    </button>
+    <figure class="rev-lightbox__frame">
+        <img id="certLightboxImg" src="" alt="">
+
+        <div class="cert-pdf" id="certLightboxPdf" hidden>
+            <i class="fa-regular fa-file-pdf" aria-hidden="true"></i>
+            <p class="cert-pdf__title" id="certLightboxPdfTitle"></p>
+            <p class="cert-pdf__note">PDF documents open in their own tab.</p>
+            <div class="cert-pdf__actions">
+                <a class="btn btn-sm btn-brand" id="certLightboxOpen" target="_blank" rel="noopener" href="#">
+                    <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i> Open PDF
+                </a>
+                <a class="btn btn-sm btn-outline-secondary" id="certLightboxDownload" href="#">
+                    <i class="fa-solid fa-download" aria-hidden="true"></i> Download
+                </a>
+            </div>
+        </div>
+
+        <figcaption id="certLightboxCap"></figcaption>
+    </figure>
+</dialog>
+
+<script>
+(function () {
+    'use strict';
+
+    var box = document.getElementById('certLightbox');
+
+    if (!box || typeof box.showModal !== 'function') { return; }
+
+    var img      = document.getElementById('certLightboxImg');
+    var pdf      = document.getElementById('certLightboxPdf');
+    var pdfTitle = document.getElementById('certLightboxPdfTitle');
+    var openPdf  = document.getElementById('certLightboxOpen');
+    var download = document.getElementById('certLightboxDownload');
+    var cap      = document.getElementById('certLightboxCap');
+
+    document.addEventListener('click', function (event) {
+        var link = event.target.closest && event.target.closest('a[data-cert-view]');
+
+        if (!link) { return; }
+
+        /* A middle or modified click means "open it in a tab" — let it. */
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) { return; }
+
+        event.preventDefault();
+
+        var href    = link.getAttribute('href');
+        var caption = link.getAttribute('data-cert-caption') || '';
+        var isPdf   = link.getAttribute('data-cert-kind') === 'pdf';
+
+        if (isPdf) {
+            img.hidden = true;
+            img.removeAttribute('src');
+            pdfTitle.textContent = caption.split(' · ')[0] || 'Certificate';
+            openPdf.setAttribute('href', href);
+            download.setAttribute('href', href + (href.indexOf('?') === -1 ? '?' : '&') + 'download=1');
+            pdf.hidden = false;
+        } else {
+            pdf.hidden = true;
+            img.hidden = false;
+            img.src = href;
+            img.alt = caption || 'Certificate';
+        }
+
+        cap.textContent = caption;
+        cap.hidden = caption === '';
+
+        box.showModal();
+    });
+
+    var shut = function () { if (box.open) { box.close(); } };
+
+    box.addEventListener('click', function (event) {
+        /* The close button, or a click on the dim backdrop around the file. */
+        if (event.target.closest('[data-cert-close]') || event.target === box) { shut(); }
+    });
+
+    /* Emptied on close, so reopening another certificate never flashes the
+       previous one while the next image loads. */
+    box.addEventListener('close', function () {
+        img.removeAttribute('src');
+        pdf.hidden = true;
+    });
 })();
 </script>
 

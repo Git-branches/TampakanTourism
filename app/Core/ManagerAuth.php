@@ -118,6 +118,13 @@ final class ManagerAuth
                 'UPDATE destination_managers SET failed_attempts = ? WHERE id = ?',
                 [$attempts, $manager['id']]
             );
+
+            /* Written down for the same reason as the officer's: a run of these
+               is the only early sign of guessing. Never the password. */
+            ActivityLog::record(
+                'manager.failed', 'manager', (int) $manager['id'],
+                'Failed sign-in (' . $attempts . ' in a row)'
+            );
         }
     }
 

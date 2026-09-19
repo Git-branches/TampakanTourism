@@ -462,9 +462,170 @@
 
 
     /* =========================================================================
-       07. LEAFLET TOURIST MAP
-       Markers are supplied by index.php as JSON on a data attribute, so the
-       map stays in sync with the PHP data source.
+       07. THE TOURIST MAP — SHARED PARTS
+       -------------------------------------------------------------------------
+       TWO MAPS, ONE SET OF RULES. The homepage draws a small preview and
+       map.php draws the full map, and until now each carried its own tile
+       layer, its own colour table and its own marker builder. They had already
+       drifted: the preview matched categories by NAME against a list of six,
+       so Adventure, Historical, Mountain Peaks and Resorts & Leisure all fell
+       through to the same green pin, while the full map matched by SLUG against
+       a different list of eight and greyed out the two newest categories.
+       A visitor comparing the two saw different colours for the same place.
+
+       What is shared lives here; what differs — a preview that is deliberately
+       plain, and a full map with photographs, filters and geolocation — stays
+       with the page that owns it.
+       ====================================================================== */
+    const TourSyncMap = {
+        TILES: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        ATTRIBUTION: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+
+        /* Keyed by category slug, which is what both the API and the page data
+           carry. Anything unlisted takes the slate colour rather than pretending
+           to be Nature. */
+        COLOURS: {
+            'nature': '#2E7D32',
+            'waterfalls': '#0288D1',
+            'adventure': '#EF6C00',
+            'culture': '#6A1B9A',
+            'eco-tourism': '#00796B',
+            'agri-tourism': '#827717',
+            'historical': '#5D4037',
+            'mountain-peaks': '#455A64',
+            'resorts-leisure': '#00838F',
+            'other': '#455A64'
+        },
+
+        colour(slug) {
+            return this.COLOURS[slug] || this.COLOURS.other;
+        },
+
+        /* The table above is a fallback. The live one comes from PHP —
+           map_category_colours() in app/helpers.php — on the map element, so a
+           category added to the system is coloured without touching this file. */
+        useColours(json) {
+            if (!json) { return; }
+
+            try {
+                Object.assign(this.COLOURS, JSON.parse(json));
+            } catch (error) {
+                console.warn('Tourist map: could not read the colour table.', error);
+            }
+        },
+
+        tiles(map, maxZoom) {
+            L.tileLayer(this.TILES, {
+                maxZoom: maxZoom || 18,
+                attribution: this.ATTRIBUTION
+            }).addTo(map);
+
+            return map;
+        },
+
+        /** The plain coloured pin: the preview's only marker, and the full map's
+            fallback for a destination with no photograph yet. */
+        dotIcon(slug) {
+            return L.divIcon({
+                className: 'map-pin',
+                html: '<span style="background:' + this.colour(slug) + '"></span>',
+                iconSize: [26, 26],
+                iconAnchor: [13, 26],
+                popupAnchor: [0, -24]
+            });
+        },
+
+        /** A destination's own photograph, cropped to a circle inside a ring in
+            its category's colour. The <img> carries onerror so a file that has
+            gone missing falls back to the plain pin instead of a broken frame. */
+        photoIcon(photo, slug, name) {
+            const colour = this.colour(slug);
+            const label = String(name || '').replace(/"/g, '&quot;');
+
+            /* THE INNER WRAPPER EXISTS TO BE SCALED. Leaflet writes its own
+               transform on the icon element to position it, so a scale put there
+               would be overwritten on the next pan. The wrapper is scaled instead,
+               from 50% 100% — its bottom centre, which is the anchor — so the tip
+               stays on the coordinate at every size. */
+            return L.divIcon({
+                className: 'map-photo-pin',
+                html:
+                    '<span class="map-photo-pin__inner">' +
+                        '<span class="map-photo-pin__ring" style="border-color:' + colour + '">' +
+                            '<img src="' + photo + '" alt="' + label + '" loading="lazy" ' +
+                                 'onerror="this.closest(\'.map-photo-pin__ring\').classList.add(\'is-empty\')">' +
+                        '</span>' +
+                        '<span class="map-photo-pin__stem" style="background:' + colour + '"></span>' +
+                    '</span>',
+                iconSize: [44, 52],
+                iconAnchor: [22, 52],
+                popupAnchor: [0, -50]
+            });
+        },
+
+        /**
+         * Marks the map with the zoom band it is in, so CSS can size the markers
+         * and the popup to match.
+         *
+         * WHY A CLASS RATHER THAN NEW ICONS. Rebuilding every divIcon on each
+         * zoom would drop the open popup and re-request the photographs; a class
+         * on the container lets one CSS rule scale all of them, and transition
+         * smoothly while it happens.
+         *
+         * The bands are read off what the map is actually used at: 12 is the
+         * municipality, a fitBounds of the destinations lands at 13–14, and
+         * below 10 Tampakan is a dot on Mindanao — a full-size card there covers
+         * the province the visitor is trying to see.
+         */
+        watchZoom(map, container) {
+            const band = (zoom) => {
+                if (zoom >= 14) { return 'in'; }
+                if (zoom >= 12) { return 'mid'; }
+                if (zoom >= 10) { return 'out'; }
+                return 'far';
+            };
+
+            const apply = () => {
+                const zoom = map.getZoom();
+                const want = 'map-zoom--' + band(zoom);
+
+                /* Written every time, band change or not: it is what the map is
+                   actually at, and reading it beats inferring the level from a
+                   tile URL — Leaflet keeps tiles from the previous zoom on screen
+                   for a moment, so that answer can be a level out of date. */
+                container.dataset.zoom = String(zoom);
+
+                if (container.dataset.zoomBand === want) { return; }
+
+                container.classList.remove('map-zoom--in', 'map-zoom--mid', 'map-zoom--out', 'map-zoom--far');
+                container.classList.add(want);
+                container.dataset.zoomBand = want;
+            };
+
+            apply();
+            map.on('zoomend', apply);
+
+            return map;
+        },
+
+        /** Escapes text going into a popup built as a string. */
+        text(value) {
+            return String(value === null || value === undefined ? '' : value)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+    };
+
+    window.TourSyncMap = TourSyncMap;
+
+    /* =========================================================================
+       07b. HOMEPAGE MAP PREVIEW
+       -------------------------------------------------------------------------
+       A PREVIEW, NOT A SECOND FULL MAP. It shows where the destinations are and
+       hands over to map.php for everything else: no category filters, no
+       geolocation, no photographs in the markers, and a popup that names the
+       place rather than repeating the full map's card. Markers are supplied by
+       index.php as JSON on a data attribute, so no request is made for them.
        ====================================================================== */
     function initMap() {
         const container = $('#touristMap');
@@ -477,6 +638,8 @@
             console.warn('Tourist map: could not parse marker data.', error);
         }
 
+        TourSyncMap.useColours(container.dataset.colours);
+
         const centerLat = parseFloat(container.dataset.centerLat) || 6.4333;
         const centerLng = parseFloat(container.dataset.centerLng) || 124.9167;
 
@@ -487,39 +650,23 @@
             zoomControl: true
         });
 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 18,
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        }).addTo(map);
-
-        // Marker colour + icon per destination category
-        const styles = {
-            'Nature':      { color: 'green', icon: 'fa-mountain-sun' },
-            'Eco-Tourism': { color: 'green', icon: 'fa-seedling' },
-            'Agri-Tourism':{ color: 'green', icon: 'fa-mug-hot' },
-            'Waterfalls':  { color: 'blue',  icon: 'fa-water' },
-            'Culture':     { color: 'amber', icon: 'fa-drum' },
-            'Office':      { color: 'red',   icon: 'fa-building-columns' }
-        };
+        TourSyncMap.tiles(map, 18);
+        TourSyncMap.watchZoom(map, container);
 
         const bounds = [];
 
         markers.forEach((item) => {
-            const style = styles[item.type] || { color: 'green', icon: 'fa-location-dot' };
-
-            const icon = L.divIcon({
-                className: '',   // suppress Leaflet's default styling
-                html: `<span class="map-pin map-pin--${style.color}">
-                           <i class="fa-solid ${style.icon}"></i>
-                       </span>`,
-                iconSize: [34, 34],
-                iconAnchor: [17, 34],
-                popupAnchor: [0, -32]
-            });
-
-            L.marker([item.lat, item.lng], { icon, title: item.name })
+            L.marker([item.lat, item.lng], {
+                icon: TourSyncMap.dotIcon(item.category),
+                title: item.name
+            })
                 .addTo(map)
-                .bindPopup(`<strong>${item.name}</strong><em>${item.type}</em>`);
+                .bindPopup(
+                    '<div class="map-pop map-pop--mini">' +
+                        '<span class="map-pop__cat">' + TourSyncMap.text(item.type) + '</span>' +
+                        '<h3>' + TourSyncMap.text(item.name) + '</h3>' +
+                    '</div>'
+                );
 
             bounds.push([item.lat, item.lng]);
         });

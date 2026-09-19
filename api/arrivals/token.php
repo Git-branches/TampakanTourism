@@ -26,11 +26,25 @@ declare(strict_types=1);
 require_once __DIR__ . '/../../bootstrap.php';
 
 use App\Core\Csrf;
+use App\Core\RateLimiter;
 
 header('Content-Type: application/json; charset=utf-8');
 
 /* Never cached. A stale token from a proxy is a token from another session,
    and every request holding it would be rejected. */
 header('Cache-Control: no-store, max-age=0');
+
+/* A CEILING ON TOKEN MINTING.
+   This endpoint hands out a CSRF token to anyone, by design — a phone that was
+   offline when the form rendered has no other way to get a fresh one. That is
+   fine, and it is still worth a limit: a script pulling tokens in a loop costs
+   a session file per request. Sixty an hour is far more than a syncing device
+   asks for, and far less than a loop. */
+if (!RateLimiter::allow('token:' . ($_SERVER['REMOTE_ADDR'] ?? 'unknown'), 60, 3600)) {
+    http_response_code(429);
+    header('Retry-After: 60');
+    echo json_encode(['error' => 'Too many token requests. Try again shortly.']);
+    exit;
+}
 
 echo json_encode(['token' => Csrf::token()], JSON_UNESCAPED_SLASHES);

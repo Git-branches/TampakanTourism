@@ -63,12 +63,15 @@ if (!defined('TOURSYNC')) {
                 </p>
                 <ul class="footer__legal">
                     <li><a href="<?= e(base_url('/')) ?>">Home</a></li>
+                    <li><a href="#" data-cookie-open>Cookies</a></li>
                     <li><a href="<?= e(base_url('/admin/login.php')) ?>">Admin</a></li>
                 </ul>
             </div>
         </div>
     </div>
 </footer>
+
+<?php require __DIR__ . '/cookie-notice.php'; ?>
 
 <a href="#top" id="backToTop" class="back-to-top" aria-label="Back to top">
     <i class="fa-solid fa-chevron-up"></i>

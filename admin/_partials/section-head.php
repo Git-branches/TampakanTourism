@@ -61,10 +61,13 @@ if (!function_exists('section_head')) {
         <header class="panel__head set-head" data-section="<?= e($slug) ?>">
             <span class="set-head__icon"><i class="fa-solid <?= e($icon) ?>"></i></span>
 
+            <?php /* Escaped, though every caller today passes a literal. The
+                     partial cannot see where its text came from, and the next
+                     caller may well pass a destination's name. */ ?>
             <div class="set-head__text">
-                <h2><?= $title ?></h2>
+                <h2><?= e($title) ?></h2>
                 <?php if ($subtitle !== ''): ?>
-                    <p><?= $subtitle ?></p>
+                    <p><?= e($subtitle) ?></p>
                 <?php endif; ?>
             </div>
 

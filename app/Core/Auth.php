@@ -14,6 +14,12 @@ final class Auth
 {
     private const KEY = '_admin';
 
+    /* A sign-in that has passed the password and is waiting at the code prompt.
+       DELIBERATELY NOT self::KEY: check(), user(), id() and every Auth::require()
+       in the application read that one key, so a half-finished sign-in stored
+       there would be a full session. Kept apart, it can reach nothing. */
+    private const PENDING = '_admin_pending_2fa';
+
     private static int $maxAttempts = 5;
     private static int $lockoutMinutes = 15;
 
@@ -68,8 +74,122 @@ final class Auth
             );
         }
 
+        /* THE PASSWORD WAS RIGHT, WHICH IS NOT THE SAME AS BEING SIGNED IN.
+           With a second step switched on, the session that exists after this
+           point can do nothing but present a code: no admin key is written, so
+           Auth::check() is false and every guarded page still refuses. */
+        if (TwoFactor::isEnabled((int) $admin['id'])) {
+            Session::regenerate();      // the fixation defence belongs here too
+            Csrf::rotate();
+
+            $_SESSION[self::PENDING] = [
+                'id'       => (int) $admin['id'],
+                'since'    => time(),
+                'attempts' => 0,
+            ];
+
+            Database::run('UPDATE admins SET failed_attempts = 0, locked_until = NULL WHERE id = ?', [$admin['id']]);
+
+            return null;
+        }
+
         self::establish($admin);
         return null;
+    }
+
+    // -------------------------------------------------------------------------
+    //  The second step
+    // -------------------------------------------------------------------------
+
+    /** True when a password has been accepted and only the code is missing. */
+    public static function awaitingTwoFactor(): bool
+    {
+        return self::pending() !== null;
+    }
+
+    /**
+     * The half-finished sign-in, or null when there is none or it has gone stale.
+     *
+     * Expiring it matters: without a clock, a password typed on a shared machine
+     * leaves a prompt sitting there that anyone who finds the browser can finish
+     * as soon as they have the phone.
+     */
+    private static function pending(): ?array
+    {
+        $pending = $_SESSION[self::PENDING] ?? null;
+
+        if (!is_array($pending) || !isset($pending['id'], $pending['since'])) {
+            return null;
+        }
+
+        if ((time() - (int) $pending['since']) > TwoFactor::PENDING_MINUTES * 60) {
+            unset($_SESSION[self::PENDING]);
+            return null;
+        }
+
+        return $pending;
+    }
+
+    /** The name to greet at the prompt. Never the account's other details. */
+    public static function pendingName(): string
+    {
+        $pending = self::pending();
+
+        if ($pending === null) {
+            return '';
+        }
+
+        return (string) (Database::scalar('SELECT full_name FROM admins WHERE id = ?', [$pending['id']]) ?? '');
+    }
+
+    /**
+     * Finishes a sign-in with a one-time or recovery code.
+     *
+     * @return string|null Error message for the user, or null once signed in.
+     */
+    public static function completeTwoFactor(string $code): ?string
+    {
+        $pending = self::pending();
+
+        if ($pending === null) {
+            return 'That took too long. Please sign in again.';
+        }
+
+        $adminId = (int) $pending['id'];
+
+        if (TwoFactor::verify($adminId, $code)) {
+            unset($_SESSION[self::PENDING]);
+
+            $admin = Database::first('SELECT * FROM admins WHERE id = ? AND is_active = 1', [$adminId]);
+
+            if ($admin === null) {
+                return 'That account is no longer active.';
+            }
+
+            self::establish($admin);
+            return null;
+        }
+
+        /* A run of wrong codes ends the attempt rather than allowing an endless
+           guess at six digits — the password is already spent by this point. */
+        $attempts = (int) ($pending['attempts'] ?? 0) + 1;
+        $_SESSION[self::PENDING]['attempts'] = $attempts;
+
+        ActivityLog::record('auth.2fa.failed', 'admin', $adminId,
+            "Wrong two-step code ({$attempts} of " . TwoFactor::MAX_ATTEMPTS . ')', $adminId);
+
+        if ($attempts >= TwoFactor::MAX_ATTEMPTS) {
+            unset($_SESSION[self::PENDING]);
+
+            return 'Too many wrong codes. Please sign in again.';
+        }
+
+        return 'That code is not right. Check the app and try the current six digits.';
+    }
+
+    public static function abandonTwoFactor(): void
+    {
+        unset($_SESSION[self::PENDING]);
     }
 
     private static function recordFailure(array $admin): void
@@ -85,6 +205,13 @@ final class Auth
                 "Account locked after {$attempts} failed attempts", (int) $admin['id']);
         } else {
             Database::run('UPDATE admins SET failed_attempts = ? WHERE id = ?', [$attempts, $admin['id']]);
+
+            /* EVERY FAILURE, not only the one that trips the lock. Five spread
+               over a week is somebody mistyping; five in a minute is somebody
+               guessing, and the difference is only visible if each one is
+               written down. The password is never part of the record. */
+            ActivityLog::record('auth.failed', 'admin', (int) $admin['id'],
+                "Failed sign-in ({$attempts} in a row)", (int) $admin['id']);
         }
     }
 
@@ -115,6 +242,11 @@ final class Auth
         if (self::check()) {
             ActivityLog::record('auth.logout', 'admin', self::id(), 'Signed out');
         }
+
+        /* Including a sign-in that never finished: leaving the pending key
+           behind would let the next person at the machine walk back into the
+           code prompt with the password already accepted. */
+        unset($_SESSION[self::PENDING]);
         Session::destroy();
     }
 

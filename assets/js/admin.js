@@ -1184,6 +1184,73 @@
             });
         }
 
+        /* -----------------------------------------------------------------
+           THE CARD BEHIND THE PHOTOS DIALOG FOLLOWS THE GALLERY.
+           -----------------------------------------------------------------
+           An upload refilled the dialog with the new photo, but the list card
+           behind it kept "No photo", "0 Photos" and a menu count of 0 until
+           the page was loaded again — so closing the dialog looked as if the
+           upload had not happened.
+
+           The refilled photos page states the count and the cover in
+           data-photo-summary; this copies them onto the one card with the
+           same destination id. Runs on every fill, so an upload, a new cover
+           and a delete all land. No card (the full photos page, another list)
+           or no summary (every other dialog) and it does nothing.
+
+           Each upload is stored under a new random filename, so a changed
+           cover is always a new address and the browser cannot show a stale
+           copy — no cache-busting query is needed. */
+        function syncPhotoCard() {
+            var summary = body.querySelector('[data-photo-summary]');
+
+            if (!summary) { return; }
+
+            var card = document.querySelector('.dest-tile[data-destination-id="'
+                + summary.getAttribute('data-destination-id') + '"]');
+
+            if (!card) { return; }
+
+            var count = parseInt(summary.getAttribute('data-photo-count'), 10) || 0;
+            var cover = summary.getAttribute('data-cover-src') || '';
+            var shown = count.toLocaleString('en-US');
+
+            var media = card.querySelector('.dest-tile__media');
+            var img   = media && media.querySelector('img');
+            var empty = media && media.querySelector('.dest-tile__placeholder');
+
+            if (media && cover !== '') {
+                if (!img) {
+                    img = document.createElement('img');
+                    img.alt = (card.querySelector('h3') || {}).textContent || '';
+                    img.loading = 'lazy';
+                    media.insertBefore(img, media.firstChild);
+                }
+                if (img.getAttribute('src') !== cover) { img.setAttribute('src', cover); }
+                if (empty) { empty.parentNode.removeChild(empty); }
+            } else if (media) {
+                if (img) { img.parentNode.removeChild(img); }
+                if (!empty) {
+                    empty = document.createElement('div');
+                    empty.className = 'dest-tile__placeholder';
+                    empty.innerHTML = '<i class="fa-solid fa-image"></i><span>No photo</span>';
+                    media.insertBefore(empty, media.firstChild);
+                }
+            }
+
+            Array.prototype.forEach.call(card.querySelectorAll('.dest-tile__stats span'), function (stat) {
+                var label = stat.querySelector('small');
+
+                if (label && label.textContent.trim() === 'Photos') {
+                    stat.querySelector('strong').textContent = shown;
+                }
+            });
+
+            var menuCount = card.querySelector('a[href*="photos.php"] .card-menu__count');
+
+            if (menuCount) { menuCount.textContent = shown; }
+        }
+
         /* The page this dialog is showing, so a form inside it can be sent
            without navigating and the dialog refilled from the same address. */
         var showing = '';
@@ -1213,6 +1280,7 @@
                 body.innerHTML = html;
                 title.textContent = label || 'Destination';
                 pointFormsAt(href);
+                syncPhotoCard();
 
                 runScripts(Array.prototype.slice.call(body.querySelectorAll('script')), function () {
                     if (mine !== turn) { return; }

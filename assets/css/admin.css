@@ -689,9 +689,12 @@ a { text-decoration: none; }
 .result-count { font-size: .8rem; color: var(--ink-3); margin: 0 0 .7rem; }
 
 /* ---- Destination tiles --------------------------------------------------- */
+/* Never more than four across: a page holds eight, so four is two even rows. A
+   1920px screen used to fit five, which left a row of five over a row of three.
+   Narrower screens still drop to three, two, one at the same 268px minimum. */
 .dest-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(max(268px, calc((100% - 3rem) / 4)), 1fr));
     gap: 1rem;
 }
 
@@ -708,7 +711,7 @@ a { text-decoration: none; }
 .dest-tile:hover { transform: translateY(-3px); box-shadow: var(--shadow); }
 .dest-tile.is-archived { opacity: .68; }
 
-.dest-tile__media { position: relative; aspect-ratio: 16 / 10; background: var(--canvas); }
+.dest-tile__media { position: relative; background: var(--canvas); }   /* height: see DESTINATION TILES */
 .dest-tile__media img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
 .dest-tile__placeholder {
@@ -736,16 +739,30 @@ a { text-decoration: none; }
 .dest-tile__flag--featured { background: rgba(239, 108, 0, .95); }
 .dest-tile__flag--archived { background: rgba(90, 100, 105, .95); }
 
-.dest-tile__body { padding: .9rem 1rem; flex: 1; }
-.dest-tile__body h3 { font-size: 1rem; font-weight: 600; margin: .4rem 0 .3rem; line-height: 1.3; }
-.dest-tile__meta { font-size: .77rem; color: var(--ink-3); margin: 0 0 .45rem; }
-.dest-tile__meta i { color: var(--green); margin-right: .25rem; }
-.dest-tile__excerpt {
-    font-size: .81rem;
-    color: var(--ink-2);
-    margin: 0 0 .7rem;
+.dest-tile__body { padding: .7rem .85rem; flex: 1; }
+/* Two lines at most, like the excerpt, so one long name cannot make its whole
+   row taller. The full name is in the title attribute. */
+.dest-tile__body h3 {
+    font-size: .97rem;
+    font-weight: 600;
+    margin: .3rem 0 .15rem;
+    line-height: 1.25;
     display: -webkit-box;
     -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.dest-tile__meta { font-size: .75rem; color: var(--ink-3); margin: 0 0 .3rem; }
+.dest-tile__meta i { color: var(--green); margin-right: .25rem; }
+.dest-tile__excerpt {
+    font-size: .79rem;
+    line-height: 1.45;
+    color: var(--ink-2);
+    margin: 0 0 .55rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
 }
@@ -902,6 +919,40 @@ a { text-decoration: none; }
 .photo-tile:hover .photo-tile__actions,
 .photo-tile:focus-within .photo-tile__actions { opacity: 1; }
 .photo-tile__actions .btn { background: rgba(255, 255, 255, .95); }
+
+/* ---- Photo upload row ------------------------------------------------------
+   The picker takes the width and the button sits right beside it, both 42px
+   like every other .btn. Bootstrap leaves a file input at 38px, so its height
+   and its "Choose Files" part are set here to meet the button's edge exactly. */
+.photo-upload__row {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+}
+.photo-upload__row .form-control {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 42px;
+    padding-block: 0;
+    line-height: 40px;
+}
+.photo-upload__row .form-control::file-selector-button {
+    height: 40px;
+    margin-block: 0;
+    padding-block: 0;
+}
+.photo-upload__btn {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    padding-inline: 1.15rem;
+}
+
+/* A phone has no room beside the picker: the button goes under it, full width,
+   where a thumb finds it. */
+@media (max-width: 575.98px) {
+    .photo-upload__row { flex-direction: column; align-items: stretch; }
+    .photo-upload__row .form-control { flex: 0 0 auto; }
+}
 
 @media (max-width: 767.98px) {
     .toolbar { flex-direction: column; align-items: stretch; }
@@ -2758,9 +2809,12 @@ a { text-decoration: none; }
    they cannot fit.
    -------------------------------------------------------------------------- */
 
+/* A fixed 152px rather than 16/10 of the width: the ratio made the picture
+   184px at four columns and 224px on a phone, most of the card either way.
+   object-fit: cover below crops to fill, so nothing is ever stretched. */
 .dest-tile__media {
     flex: 0 0 auto;             /* never stretched by the row's tallest card */
-    aspect-ratio: 16 / 10;
+    height: 152px;
     overflow: hidden;
 }
 .dest-tile__media img {
@@ -2784,7 +2838,10 @@ a { text-decoration: none; }
 
 /* The body takes the slack, so every card in a row ends with its buttons on the
    same line rather than floating at the height its own text happened to reach. */
-.dest-tile__body { flex: 1 1 auto; }
+.dest-tile__body { flex: 1 1 auto; display: flex; flex-direction: column; }
+
+/* A column flex would stretch the category chip across the card. */
+.dest-tile__body > .tag { align-self: flex-start; }
 
 /* THE FOUR-EQUAL-BUTTONS FOOTER USED TO BE HERE, and it is worth saying what
    went wrong with it rather than only deleting it.
@@ -4817,12 +4874,14 @@ details[open] > .tgq-more .tgq-more__chev { transform: rotate(90deg); }
    the screen closely enough to redraw it guessed wrong twice, which is the
    whole argument for the labels.
    ------------------------------------------------------------------------ */
+/* margin-top: auto puts the figures at the foot of the body, so across a row
+   they sit on one line even when one card's name or excerpt runs a line shorter. */
 .dest-tile__stats {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: .5rem;
-    padding-top: .85rem;
-    margin-top: .85rem;
+    gap: .4rem;
+    padding-top: .55rem;
+    margin-top: auto;
     border-top: 1px solid var(--line-soft);
 }
 
@@ -4840,18 +4899,18 @@ details[open] > .tgq-more .tgq-more__chev { transform: rotate(90deg); }
 .dest-tile__stats i {
     grid-row: 1 / 3;
     color: var(--ink-3);
-    font-size: .9rem;
+    font-size: .85rem;
 }
 
 .dest-tile__stats strong {
-    font-size: .95rem;
+    font-size: .9rem;
     font-weight: 600;
     color: var(--ink-1);
     line-height: 1.1;
 }
 
 .dest-tile__stats small {
-    font-size: .7rem;
+    font-size: .68rem;
     color: var(--ink-3);
     line-height: 1.2;
     white-space: nowrap;
@@ -4870,11 +4929,14 @@ details[open] > .tgq-more .tgq-more__chev { transform: rotate(90deg); }
 .dest-tile__actions {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto auto;
-    gap: .4rem;
+    gap: .35rem;
     align-items: center;
-    padding: .8rem .95rem;
+    padding: .5rem .85rem;
     border-top: 1px solid var(--line-soft);
 }
+
+/* 32px, two under .btn-sm's 34: the footer is the card's least-read line. */
+.dest-tile__actions .btn { height: 32px; }
 
 .dest-tile__go {
     display: inline-flex;
@@ -4887,6 +4949,16 @@ details[open] > .tgq-more .tgq-more__chev { transform: rotate(90deg); }
 /* The arrow is the only part that may be dropped: it is decoration, and the
    words beside it already say where the button goes. */
 .dest-tile__go .fa-arrow-right { margin-left: .1rem; font-size: .78rem; }
+
+/* And it IS dropped when the footer is too narrow to hold it. At four columns on
+   a 1536px screen the footer is 269px, "View Destination →" needs 279, and the
+   arrow ran past the button's padding onto its edge. Measured on the footer
+   itself, so it follows the card's width rather than guessing from the screen. */
+.dest-tile__actions { container-type: inline-size; }
+
+@container (max-width: 280px) {
+    .dest-tile__go .fa-arrow-right { display: none; }
+}
 
 .dest-tile__actions .is-disabled {
     opacity: .6;
@@ -5957,6 +6029,26 @@ body.is-manager .mgr-card__count.is-met i { opacity: 1; }
     .rev-lightbox__frame img { max-width: 96vw; max-height: 74vh; }
     .rev-lightbox__close { top: .6rem; right: .6rem; }
 }
+
+/* The same viewer, when the certificate is a PDF. A PDF cannot be shown inside
+   the dialog — the site forbids framing — so it gets a card with the two things
+   the officer can actually do with it. */
+.rev-lightbox__frame img[hidden] { display: none; }
+
+.cert-pdf {
+    width: min(92vw, 380px);
+    padding: 1.6rem 1.4rem 1.3rem;
+    border-radius: 10px;
+    background: var(--surface);
+    box-shadow: 0 18px 60px rgba(0, 0, 0, .45);
+    text-align: center;
+    display: grid;
+    gap: .45rem;
+}
+.cert-pdf > i { font-size: 2.4rem; color: #C2410C; }
+.cert-pdf__title { margin: .2rem 0 0; font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
+.cert-pdf__note { margin: 0 0 .4rem; font-size: .82rem; color: var(--ink-3); }
+.cert-pdf__actions { display: flex; gap: .5rem; justify-content: center; flex-wrap: wrap; }
 
 /* =============================================================================
    THE OFFICE DASHBOARD
@@ -7497,4 +7589,91 @@ button.topbar__signout {
     padding: .85rem 1.15rem;
     background: #FAFCFA;
     border-top: 1px solid var(--line-soft);
+}
+
+/* ---- Two-step verification prompt -----------------------------------------
+   Three small additions to the sign-in card's own vocabulary: a hint under the
+   code field, a quiet way out, and a closing line. Everything else on
+   two-factor.php reuses the classes the password form already has. */
+.auth-hint {
+    margin: .5rem 0 0;
+    font-size: .82rem;
+    line-height: 1.5;
+    color: var(--ink-3, #6C7C73);
+}
+
+.auth-secondary {
+    display: block;
+    width: 100%;
+    margin-top: .7rem;
+    padding: .7rem 1rem;
+    border: 1px solid var(--line, #DDE7E0);
+    border-radius: 12px;
+    background: #fff;
+    color: var(--ink-2, #46554C);
+    font-family: inherit;
+    font-size: .88rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: border-color .2s ease, color .2s ease;
+}
+.auth-secondary:hover { border-color: #BCD3C1; color: var(--ink-1, #16211B); }
+
+.auth-foot {
+    margin: 1.1rem 0 0;
+    padding-top: .9rem;
+    border-top: 1px solid var(--line-soft, #EAF1EC);
+    font-size: .8rem;
+    line-height: 1.55;
+    color: var(--ink-3, #6C7C73);
+    text-align: center;
+}
+
+/* ---- Two-step verification, on the account page ---------------------------- */
+.totp-setup {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.1rem;
+    align-items: center;
+    padding: .9rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--canvas);
+}
+.totp-setup__qr { width: 184px; height: 184px; background: #fff; padding: 6px; border-radius: 8px; }
+.totp-setup__qr img, .totp-setup__qr canvas { display: block; width: 100%; height: 100%; }
+.totp-setup__key { flex: 1 1 220px; min-width: 0; }
+.totp-setup__secret {
+    margin: 0;
+    font-size: .95rem;
+    letter-spacing: .06em;
+    word-break: break-all;
+    color: var(--ink-1);
+}
+
+/* Shown once, and meant to be copied or printed — so they are set out as a list
+   a person can read down without losing their place. */
+.recovery-codes {
+    list-style: none;
+    margin: .4rem 0 .6rem;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+    gap: .3rem .8rem;
+}
+.recovery-codes li {
+    font-size: .92rem;
+    letter-spacing: .05em;
+    padding: .2rem .4rem;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    text-align: center;
+}
+
+.pill--muted { background: var(--line-soft); color: var(--ink-3); }
+
+@media print {
+    /* Printing the account page to keep the codes should not print the shell. */
+    .sidebar, .topbar, .panel:not(#two-step) { display: none !important; }
 }

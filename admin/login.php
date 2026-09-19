@@ -21,8 +21,10 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../bootstrap.php';
 
+use App\Core\ActivityLog;
 use App\Core\Auth;
 use App\Core\Csrf;
+use App\Core\RateLimiter;
 use App\Core\Session;
 use App\Core\Validator;
 
@@ -39,10 +41,33 @@ if (is_post()) {
     $v = new Validator($_POST);
     $v->require('username', 'password');
 
-    if ($v->passes()) {
+    /* PER-DEVICE THROTTLE, ON TOP OF THE PER-ACCOUNT LOCKOUT.
+       Auth::attempt() locks an account after its own run of failures, which
+       stops somebody guessing one officer's password. It does nothing about the
+       other shape of the same attack: one password tried against many usernames,
+       where no single account ever reaches its limit. This counts the attempts
+       coming from one address instead. A correct sign-in clears the bucket, so
+       an office signing in all morning never meets it. */
+    $throttle = 'login-admin:' . ($_SERVER['REMOTE_ADDR'] ?? 'unknown');
+
+    if (!RateLimiter::allow($throttle, 20, 900)) {
+        $wait = max(1, (int) ceil(RateLimiter::retryAfter($throttle, 900) / 60));
+        ActivityLog::record('auth.throttled', 'admin', null,
+            'Sign-in throttled for ' . ($_SERVER['REMOTE_ADDR'] ?? 'unknown'));
+
+        $errors['form'] = "Too many sign-in attempts from this device. Try again in {$wait} minute(s).";
+    } elseif ($v->passes()) {
         $failure = Auth::attempt((string) $v->value('username'), (string) $_POST['password']);
 
         if ($failure === null) {
+            RateLimiter::forget($throttle);
+
+            /* Right password, second step still owed. Nothing is signed in yet
+               — the prompt is the only thing this session can reach. */
+            if (Auth::awaitingTwoFactor()) {
+                redirect(base_url('/admin/two-factor.php'));
+            }
+
             // Return the officer to whatever they were trying to reach.
             $intended = Session::get('_intended', base_url('/admin/dashboard.php'));
             Session::forget('_intended');

@@ -2265,4 +2265,52 @@ $pdo->exec(
 
 echo "  ok    manager_notification_reads ready\n";
 
+// =============================================================================
+//  2026-09 — Two-step verification for Tourism Office accounts.
+// -----------------------------------------------------------------------------
+//  A password is one secret, and this system holds the municipality's official
+//  visitor figures, every manager's account, and the personal details of people
+//  who signed a logbook. A password that is reused, phished or shoulder-surfed
+//  is the whole of the office's security until there is a second step.
+//
+//  ON admins ONLY, for now. The officers and staff are the accounts that can
+//  approve figures, issue manager sign-ins and read everything; a destination
+//  manager sees one destination and cannot change what is published. Managers
+//  can follow later with the same three columns — the code in TwoFactor is not
+//  admin-specific — but adding it to both at once doubles the enrolment support
+//  the office would have to give during a week when they are still learning the
+//  system.
+//
+//  THE SECRET IS STORED SEALED, not in the clear: see TwoFactor::seal(). The
+//  column is text because that is base64 of the IV, tag and ciphertext.
+//
+//  totp_last_step is what stops a code being used twice inside its own
+//  thirty-second window.
+// =============================================================================
+$addColumn($pdo, 'admins', 'totp_secret',
+    'totp_secret VARCHAR(255) NULL AFTER password_changed_at');
+$addColumn($pdo, 'admins', 'totp_confirmed_at',
+    'totp_confirmed_at DATETIME NULL AFTER totp_secret');
+$addColumn($pdo, 'admins', 'totp_last_step',
+    'totp_last_step BIGINT UNSIGNED NULL AFTER totp_confirmed_at');
+
+/* Hashed like passwords, because that is what they are: ten single-use ones,
+   printed once at enrolment. ON DELETE CASCADE — a code belongs to nobody once
+   the account is gone. */
+$pdo->exec(
+    "CREATE TABLE IF NOT EXISTS admin_recovery_codes (
+        id         INT UNSIGNED NOT NULL AUTO_INCREMENT,
+        admin_id   INT UNSIGNED NOT NULL,
+        code_hash  VARCHAR(255) NOT NULL,
+        used_at    DATETIME     NULL,
+        created_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY idx_recovery_admin (admin_id, used_at),
+        CONSTRAINT fk_recovery_admin FOREIGN KEY (admin_id)
+            REFERENCES admins (id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+);
+
+echo "  ok    admin_recovery_codes ready\n";
+
 echo str_repeat('=', 60) . "\n  Migrations complete.\n\n";

@@ -4,6 +4,12 @@
 
 Options -Indexes
 
+# The "Apache/2.4.58 (Win64) OpenSSL/3.1.3 PHP/8.2.12" line that Apache adds to
+# its own error pages names three products and their versions — enough to look
+# up known vulnerabilities without touching the site. ServerTokens would trim
+# the header too, but it is server-level; this is what a .htaccess can do.
+ServerSignature Off
+
 # Custom error pages. Without these the visitor sees an Apache default that
 # names the server software and version — free reconnaissance for anyone
 # probing the site.
@@ -41,8 +47,26 @@ ErrorDocument 403 /404.php
 </IfModule>
 
 # Never serve the version-control or dependency metadata if it is ever present.
-<FilesMatch "^(\.git.*|composer\.(json|lock)|package(-lock)?\.json)$">
+#
+# THE FILE RULE WAS NOT ENOUGH. FilesMatch tests the file's own name, so
+# "^\.git.*" matched a file called .gitignore and matched nothing at all inside
+# the .git DIRECTORY — /.git/config, /.git/HEAD, /.git/index and /.git/logs/HEAD
+# were all served with 200. That is the whole repository: the history can be
+# reconstructed from those objects, and anything ever committed by mistake —
+# a password, an API key — comes back with it, long after the file was deleted.
+# Measured on this server before the rule below was added.
+<FilesMatch "^(\.git.*|\.env.*|composer\.(json|lock)|package(-lock)?\.json)$">
     <IfModule mod_authz_core.c>
         Require all denied
     </IfModule>
 </FilesMatch>
+
+# And the directories themselves, which the rule above cannot see.
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule (^|/)\.(git|svn|hg|idea|vscode)(/|$) - [F,L]
+</IfModule>
+
+<IfModule !mod_rewrite.c>
+    RedirectMatch 404 /\.(git|svn|hg|idea|vscode)(/|$)
+</IfModule>
