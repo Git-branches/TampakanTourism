@@ -41,6 +41,23 @@ if (is_post()) {
 
     $where = (string) ($alert['destination_name'] ?: 'an unverified number');
 
+    /* Only a dismissed alert, and only the officer — see
+       AlertRepository::deleteDismissed(), whose WHERE clause is the real rule. */
+    if ($action === 'delete') {
+        if (!Auth::isOfficer()) {
+            Session::flash('danger', 'Only the Tourism Officer can delete an alert.');
+        } elseif (Alerts::deleteDismissed($id)) {
+            ActivityLog::record('alert.deleted', 'destination_alert', null,
+                'Deleted dismissed alert #' . $id . ' from ' . $where);
+            Session::flash('success', 'The dismissed alert was deleted.');
+        } else {
+            Session::flash('danger', 'Only a dismissed alert can be deleted. Dismiss it first, with a reason '
+                . '— a real report stays on record.');
+        }
+
+        redirect(base_url('/admin/alerts/index.php'));
+    }
+
     if ($action === 'acknowledge') {
         Alerts::acknowledge($id, $adminId);
         ActivityLog::record('alert.acknowledged', 'destination_alert', $id, 'Acknowledged: ' . $where);
@@ -467,6 +484,25 @@ $badge = static function (array $a): array {
                             <button type="button" class="kebab__item kebab__item--danger" data-alert-open="dismiss" data-id="<?= $id ?>">
                                 <i class="fa-solid fa-ban" aria-hidden="true"></i> Dismiss
                             </button>
+                        <?php endif; ?>
+
+                        <?php /* Delete, for what the office already decided was not a
+                                 real incident. A resolved alert is the record that a
+                                 hazard was dealt with and stays. */ ?>
+                        <?php if ($a['status'] === 'dismissed' && Auth::isOfficer()): ?>
+                            <?php
+                            $askDelete = 'Delete this dismissed alert from ' . $place . ' permanently? '
+                                . 'Its report, replies and activity go with it. The inbound SMS log keeps '
+                                . 'its line. This cannot be undone.';
+                            ?>
+                            <form method="post" data-confirm="<?= e($askDelete) ?>" data-confirm-tone="danger">
+                                <?= csrf_field() ?>
+                                <input type="hidden" name="id" value="<?= $id ?>">
+                                <button type="submit" name="action" value="delete"
+                                        class="kebab__item kebab__item--danger">
+                                    <i class="fa-solid fa-trash-can" aria-hidden="true"></i> Delete
+                                </button>
+                            </form>
                         <?php endif; ?>
                     </div>
                 </details>

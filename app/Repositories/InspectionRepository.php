@@ -76,18 +76,27 @@ final class InspectionRepository
 
     public static function saveRequirement(array $data, ?int $id = null, ?int $adminId = null): int
     {
+        /* How many photographs the standard needs (min, enforced at submit)
+           and how many the card suggests (max, guidance only). Held to 1-10,
+           and max never below min — "2 to 1 photos" is not an instruction. */
+        $min = max(1, min(10, (int) ($data['min_photos'] ?? 1)));
+        $max = max($min, min(10, (int) ($data['max_photos'] ?? max(2, $min))));
+
         $fields = [
             trim((string) ($data['title'] ?? '')),
             trim((string) ($data['guidance'] ?? '')) !== '' ? trim((string) $data['guidance']) : null,
             !empty($data['is_required']) ? 1 : 0,
             !empty($data['is_active']) ? 1 : 0,
             (int) ($data['sort_order'] ?? 0),
+            $min,
+            $max,
         ];
 
         if ($id !== null && $id > 0) {
             Database::run(
                 'UPDATE inspection_requirements
-                    SET title = ?, guidance = ?, is_required = ?, is_active = ?, sort_order = ?
+                    SET title = ?, guidance = ?, is_required = ?, is_active = ?, sort_order = ?,
+                        min_photos = ?, max_photos = ?
                   WHERE id = ?',
                 array_merge($fields, [$id])
             );
@@ -96,10 +105,105 @@ final class InspectionRepository
         }
 
         return Database::insert(
-            'INSERT INTO inspection_requirements (title, guidance, is_required, is_active, sort_order, created_by)
-             VALUES (?,?,?,?,?,?)',
+            'INSERT INTO inspection_requirements
+                (title, guidance, is_required, is_active, sort_order, min_photos, max_photos, created_by)
+             VALUES (?,?,?,?,?,?,?,?)',
             array_merge($fields, [$adminId])
         );
+    }
+
+    /**
+     * Has this requirement become part of anybody's record?
+     *
+     * Yes if any report checked against it has left draft (the office has it),
+     * or any manager has photographed it, or the office has decided it. Every
+     * inspection_items row CASCADES from its requirement, so deleting a
+     * requirement that is in use would silently delete that evidence and those
+     * decisions from approved reports.
+     */
+    public static function requirementInUse(int $id): bool
+    {
+        return Database::scalar(
+            "SELECT 1
+               FROM inspection_items i
+               JOIN inspection_reports r ON r.id = i.report_id
+              WHERE i.requirement_id = ?
+                AND (r.status <> 'draft'
+                     OR i.status <> 'pending'
+                     OR EXISTS (SELECT 1 FROM inspection_photos p WHERE p.item_id = i.id))
+              LIMIT 1",
+            [$id]
+        ) !== null;
+    }
+
+    /**
+     * Deletes a requirement — permanently when nothing depends on it.
+     *
+     * Returns 'deleted' when it was never used: the row goes, and with it the
+     * empty checklist rows it had on open drafts. Returns 'removed' when it is
+     * part of past reports: it is taken off the list and off every open
+     * checklist (is_active = 0), while the reports that were checked against it
+     * keep it. Returns '' when there is no such requirement.
+     *
+     * The check runs inside the transaction with the row locked, so a photo
+     * uploaded between the page being drawn and Delete being pressed turns a
+     * delete into a removal rather than being cascaded away.
+     */
+    public static function deleteRequirement(int $id): string
+    {
+        return Database::transaction(static function () use ($id): string {
+            if (Database::first('SELECT id FROM inspection_requirements WHERE id = ? FOR UPDATE', [$id]) === null) {
+                return '';
+            }
+
+            if (self::requirementInUse($id)) {
+                Database::run('UPDATE inspection_requirements SET is_active = 0 WHERE id = ?', [$id]);
+                return 'removed';
+            }
+
+            Database::run('DELETE FROM inspection_requirements WHERE id = ?', [$id]);
+
+            /* The bell entries that announced it would open onto a checklist
+               that no longer has it. */
+            NotificationRepository::forgetEntity('inspection_requirement', $id);
+
+            return 'deleted';
+        });
+    }
+
+    /**
+     * Tells every active destination that a requirement now applies to them.
+     *
+     * The checklist already picks up a new requirement by itself — syncItems()
+     * adds it to an open report the next time the manager opens it — but
+     * nothing told the manager to open it. A standard added on Monday would sit
+     * unseen until the manager happened to visit Compliance, and then look like
+     * their own mistake when the report was sent back.
+     *
+     * One bell entry per destination (both of its managers see it). Returns how
+     * many destinations were told.
+     */
+    public static function announceRequirement(int $requirementId, string $title, bool $reinstated = false): int
+    {
+        $told = 0;
+
+        foreach (Database::all("SELECT id FROM destinations WHERE status = 'active'") as $d) {
+            $sent = ManagerNotificationRepository::record((int) $d['id'], 'office',
+                ($reinstated ? 'Compliance requirement back in use: ' : 'New compliance requirement: ') . $title,
+                [
+                    'body'        => 'It has been added to your compliance checklist. Open Compliance to add the photographs it asks for.',
+                    'link'        => base_url('/manager/inspection.php'),
+                    'entity_type' => 'inspection_requirement',
+                    'entity_id'   => $requirementId,
+                ]
+            );
+
+            if ($sent !== null) {
+                $told++;
+            }
+        }
+
+        return $told;
     }
 
     // -------------------------------------------------------------------------
@@ -280,6 +384,15 @@ final class InspectionRepository
                JOIN inspection_requirements q ON q.id = i.requirement_id
                LEFT JOIN admins a ON a.id = i.reviewed_by
               WHERE i.report_id = ?
+                /* A requirement the office retired leaves the checklist of a
+                   report nobody has worked on for it yet — an empty card for a
+                   standard that no longer applies is a task that cannot be
+                   finished. Once it carries a photograph or a decision it is
+                   part of the record and stays, so a past report reads as it
+                   was reviewed. */
+                AND (q.is_active = 1
+                     OR i.status NOT IN (\'pending\')
+                     OR EXISTS (SELECT 1 FROM inspection_photos p2 WHERE p2.item_id = i.id))
               ORDER BY q.sort_order ASC, q.id ASC',
             [$reportId]
         );

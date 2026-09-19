@@ -478,8 +478,9 @@ if ($tableExists($pdo, 'arrival_report_documents')) {
 // because a manager picking two arbitrary dates is the general case; daily,
 // monthly and quarterly are the shapes the office asks for by name.
 // -----------------------------------------------------------------------------
-$addColumn($pdo, 'arrival_reports', 'period_type',
-    "period_type ENUM('daily','weekly','monthly','quarterly','annual','custom') NOT NULL DEFAULT 'custom' AFTER period_end");
+/* RETIRED 2026-09-19: never read by anything — every row held 'custom' — and
+   dropped in "the final structure" at the end of this file. Not re-added. */
+// $addColumn($pdo, 'arrival_reports', 'period_type', ...);
 
 // -----------------------------------------------------------------------------
 // 2026-08 — Audit actor for destination managers.                    Feature 2
@@ -2087,8 +2088,11 @@ printf("  ok    about section seeded (%d of %d rows new)\n", $seeded, count($abo
 //  Nothing is seeded. This is content only the office can write, about their own
 //  municipality, and inventing it would be putting words in their mouth.
 // =============================================================================
-if ($tableExists($pdo, 'destination_heritage')) {
-    echo "  skip  destination_heritage — already present\n";
+/* RETIRED 2026-09-19 — see "the final structure" at the end of this file.
+   Never created again; the block below is kept only as the record of what
+   the table was. */
+if (true) {
+    echo "  skip  destination_heritage — retired, not created\n";
 } else {
     $pdo->exec("
         CREATE TABLE destination_heritage (
@@ -2312,5 +2316,406 @@ $pdo->exec(
 );
 
 echo "  ok    admin_recovery_codes ready\n";
+
+// =============================================================================
+//  2026-09 — The categorised Contact Us enquiry.      Presentation, 15 Sep 2026
+// -----------------------------------------------------------------------------
+//  The homepage form asked for one topic out of six and wrote one shape of row.
+//  The office asked for three kinds of enquiry that are genuinely different
+//  things: a rating of a named guide, a formal request for data with a dozen
+//  identifying fields, and a general message.
+//
+//  Only the third is a contact_messages row. This column records which door the
+//  visitor came through, so the inbox can say so and the officer can filter the
+//  general messages apart from anything else that lands there later.
+//
+//  NULLable, with no backfill. Every message written before this change came
+//  through the single old form, and stamping them all 'other' would assert a
+//  category the visitor was never offered.
+// =============================================================================
+$addColumn($pdo, 'contact_messages', 'category',
+    "category VARCHAR(30) NULL AFTER subject");
+
+$addIndex($pdo, 'contact_messages', 'idx_contact_category',
+    'INDEX idx_contact_category (category, created_at)');
+
+// =============================================================================
+//  2026-09 — Ratings for an accredited tour guide.
+// -----------------------------------------------------------------------------
+//  The office accredits guides, issues them an ID, and has never had a way to
+//  hear how a visitor found one. This is that way.
+//
+//  SEPARATE FROM feedback, which is about a place. A destination review is tied
+//  to an arrival or a QR scan — proof the reviewer stood there — and its columns
+//  say so. A guide review is about a named person, is not tied to a location,
+//  and carries a different moderation risk. Sharing one table would mean every
+//  query on either growing a "which kind is this" clause.
+//
+//  MODERATED, never published on submission. These are reviews of real, named
+//  people who hold a municipal accreditation; an unmoderated comment box
+//  attached to them is a liability the office would carry personally. Same
+//  policy as feedback, stated in FeedbackRepository and enforced here:
+//  hide abuse and spam, never hide a review for being unflattering.
+//
+//  ON DELETE CASCADE — a review of a guide who has been removed from the roster
+//  is about nobody, and keeping it orphaned is keeping a comment about a named
+//  person with nothing to attach it to.
+// =============================================================================
+$pdo->exec(
+    "CREATE TABLE IF NOT EXISTS guide_reviews (
+        id           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        guide_id     INT UNSIGNED    NOT NULL,
+        visitor_name VARCHAR(120)    NULL,
+        visitor_email VARCHAR(190)   NULL,
+        rating       TINYINT UNSIGNED NOT NULL,
+        comment      VARCHAR(1000)   NULL,
+        status       ENUM('pending','published','hidden') NOT NULL DEFAULT 'pending',
+        moderated_by INT UNSIGNED    NULL,
+        moderated_at DATETIME        NULL,
+        device_hash  CHAR(64)        NULL,
+        created_at   TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY idx_guide_reviews_guide (guide_id, status),
+        KEY idx_guide_reviews_status (status, created_at),
+        KEY idx_guide_reviews_device (device_hash, created_at),
+        CONSTRAINT fk_guide_review_guide FOREIGN KEY (guide_id)
+            REFERENCES tour_guides (id) ON DELETE CASCADE,
+        CONSTRAINT fk_guide_review_admin FOREIGN KEY (moderated_by)
+            REFERENCES admins (id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+);
+
+echo "  ok    guide_reviews ready\n";
+
+// =============================================================================
+//  2026-09 — The official Data Request form.
+// -----------------------------------------------------------------------------
+//  The office hands out a paper form to anyone requesting tourism data. This is
+//  that form, with the same fields, so a request arriving through the website
+//  can be filed beside one handed over a counter.
+//
+//  ITS OWN TABLE, NOT contact_messages. Fourteen of these fields do not exist on
+//  a contact message, and the ones that do mean something different — a "name"
+//  here is split three ways because the paper form splits it. Bolting them on
+//  would leave fourteen columns NULL on every general enquiry and one screen
+//  rendering two unrelated shapes.
+//
+//  THIS TABLE HOLDS REAL PERSONAL DATA — home address, birthdate, contact
+//  number — which the messages table does not. Under RA 10173 that is the
+//  office's to protect, so it is kept apart, reached only from an authenticated
+//  admin screen, and carries anonymised_at so the retention job can clear the
+//  identifying columns the same way it does for arrivals.
+//
+//  birthdate is stored; age is NOT. An age is a fact with a shelf life of one
+//  year, and a stored one is wrong the day after the requester's birthday. The
+//  form calculates it for the visitor to check, and every screen derives it.
+// =============================================================================
+$pdo->exec(
+    "CREATE TABLE IF NOT EXISTS data_requests (
+        id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        reference     VARCHAR(20)     NOT NULL,
+        organisation  VARCHAR(190)    NULL,
+        first_name    VARCHAR(80)     NOT NULL,
+        middle_name   VARCHAR(80)     NULL,
+        last_name     VARCHAR(80)     NOT NULL,
+        home_address  VARCHAR(255)    NULL,
+        birthdate     DATE            NULL,
+        civil_status  VARCHAR(30)     NULL,
+        designation   VARCHAR(160)    NULL,
+        email         VARCHAR(190)    NOT NULL,
+        contact_number VARCHAR(40)    NULL,
+        purpose       VARCHAR(1000)   NOT NULL,
+        requested_data VARCHAR(2000)  NOT NULL,
+        needed_by     DATE            NULL,
+        status        ENUM('new','in_progress','fulfilled','declined') NOT NULL DEFAULT 'new',
+        handled_by    INT UNSIGNED    NULL,
+        handled_at    DATETIME        NULL,
+        office_note   VARCHAR(1000)   NULL,
+        device_hash   CHAR(64)        NULL,
+        anonymised_at DATETIME        NULL,
+        created_at    TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at    TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP
+                                      ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY uq_data_request_ref (reference),
+        KEY idx_data_requests_status (status, created_at),
+        KEY idx_data_requests_device (device_hash, created_at),
+        CONSTRAINT fk_data_request_admin FOREIGN KEY (handled_by)
+            REFERENCES admins (id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+);
+
+echo "  ok    data_requests ready\n";
+
+// =============================================================================
+//  2026-09 — The Tourism Office personnel shown on the About section.
+// -----------------------------------------------------------------------------
+//  The About section is to introduce the people who run the office. Those names,
+//  positions and photographs are the office's own, they change when somebody is
+//  reassigned, and they must never be typed into a PHP file where only a
+//  developer can correct them — the same argument that moved the mission and
+//  vision into settings.
+//
+//  A TABLE, NOT SETTINGS ROWS, because this is a list of unknown length. The
+//  Mayor is a single fixed profile and stays in settings beside the other About
+//  fields; the office roster grows and shrinks.
+//
+//  role is what draws the hierarchy: one 'head' sits above, everybody else is
+//  'staff' beneath. Not a parent_id — the office has two levels, and a
+//  self-referencing tree would be machinery for a depth nobody has.
+//
+//  sort_order, because a roster in insertion order puts whoever was added last
+//  at the end regardless of seniority, and the office will want to say who comes
+//  first. Ties break on name so the order is at least stable.
+// =============================================================================
+/* SUPERSEDED TWO DAYS LATER — the table is no longer created.
+ *
+ * The office looked at the organisational chart this table fed and asked for the
+ * opposite: the Tourism Coordinator named beside the Office description, and
+ * nobody else. One person is not a roster, so the Coordinator moved to settings
+ * rows beside the Mayor (about_coordinator_name / _position / _photo) and this
+ * table, its repository and its admin panel all came out.
+ *
+ * DROPPED ONLY WHEN EMPTY. Anyone who ran the migration during those two days
+ * has an empty table taking up space, and clearing it up is right. But a table
+ * with rows in it means somebody entered real staff names, and quietly deleting
+ * those because a spec changed is not a migration's decision to make — that one
+ * is left standing and reported.
+ */
+$personnel = $pdo->query(
+    "SELECT COUNT(*) FROM information_schema.TABLES
+      WHERE TABLE_SCHEMA = " . $pdo->quote($db['name']) . "
+        AND TABLE_NAME = 'tourism_personnel'"
+)->fetchColumn();
+
+if ((int) $personnel === 0) {
+    echo "  skip  tourism_personnel — superseded, never created\n";
+} else {
+    $rows = (int) $pdo->query('SELECT COUNT(*) FROM tourism_personnel')->fetchColumn();
+
+    if ($rows === 0) {
+        $pdo->exec('DROP TABLE tourism_personnel');
+        echo "  ok    tourism_personnel dropped — superseded and empty\n";
+    } else {
+        echo "  WARN  tourism_personnel still holds {$rows} row(s); left in place.\n";
+        echo "        It is no longer read by anything. Drop it by hand once the\n";
+        echo "        names in it are safely somewhere else.\n";
+    }
+}
+
+// =============================================================================
+//  2026-09 — Photographs for a block of the About section.
+// -----------------------------------------------------------------------------
+//  Cultural Heritage moved out of the destinations and onto the About page, and
+//  the office asked to be able to upload SEVERAL photographs for it rather than
+//  the one the settings row held. A list of unknown length is a table; a single
+//  fixed value is a settings row. This is the former.
+//
+//  `section` RATHER THAN A HERITAGE-ONLY TABLE. The About page already draws
+//  four blocks through one partial, each of which can take a gallery; keying on
+//  the block means the next one to want photographs needs no second table and no
+//  second admin screen. 'heritage' is the only section using it today.
+//
+//  NOT NAMED heritage_photos, and not related to destination_heritage. That is
+//  per-destination material with its own table, repository and admin page, all
+//  now unlinked from the public site but left in place — see the note in
+//  admin/destinations/index.php.
+// =============================================================================
+$pdo->exec(
+    "CREATE TABLE IF NOT EXISTS about_photos (
+        id         INT UNSIGNED NOT NULL AUTO_INCREMENT,
+        section    VARCHAR(40)  NOT NULL,
+        file_path  VARCHAR(255) NOT NULL,
+        caption    VARCHAR(190) NULL,
+        sort_order SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+        created_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY idx_about_photos_section (section, sort_order, id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+);
+
+echo "  ok    about_photos ready\n";
+
+/* EVERY SINGLE-SLOT ABOUT PHOTOGRAPH BECOMES THE FIRST OF ITS GALLERY.
+ *
+ * All four About blocks take several photographs now, not just Cultural
+ * Heritage. Leaving the old settings rows behind would mean an office that had
+ * already uploaded opening the new panel to find it empty, and the files
+ * orphaned on disk.
+ *
+ * MOVED, NOT COPIED: each settings row is cleared once its file is a gallery
+ * row, so the same picture cannot be drawn twice.
+ *
+ * Guarded per section on the gallery being empty, so running this twice does
+ * not re-import a photograph the office has since deleted.
+ *
+ * The two LEGACY keys — about_image_main and about_image_small — are left
+ * alone. They predate the blocks entirely and index.php still reads them as the
+ * last fallback before the stock picture, which is the only thing standing
+ * between a fresh install and four empty columns. */
+$moves = [
+    'history'  => ['about_town_photo'],
+    'tampakan' => ['about_hall_photo'],
+    'office'   => ['about_office_photo', 'about_office_photo2'],
+    'heritage' => ['about_heritage_photo'],
+];
+
+$readSetting = $pdo->prepare('SELECT setting_value FROM settings WHERE setting_key = ?');
+$clearSetting = $pdo->prepare("UPDATE settings SET setting_value = '' WHERE setting_key = ?");
+$addPhoto = $pdo->prepare(
+    'INSERT INTO about_photos (section, file_path, sort_order) VALUES (?, ?, ?)'
+);
+
+foreach ($moves as $section => $keys) {
+    $has = (int) $pdo->query(
+        "SELECT COUNT(*) FROM about_photos WHERE section = " . $pdo->quote($section)
+    )->fetchColumn();
+
+    if ($has > 0) {
+        echo "  skip  {$section} gallery — already has {$has} photograph(s)\n";
+        continue;
+    }
+
+    $moved = 0;
+
+    foreach ($keys as $key) {
+        $readSetting->execute([$key]);
+        $path = trim((string) ($readSetting->fetchColumn() ?: ''));
+
+        if ($path === '') {
+            continue;
+        }
+
+        $addPhoto->execute([$section, $path, $moved]);
+        $clearSetting->execute([$key]);
+        $moved++;
+    }
+
+    echo $moved > 0
+        ? "  ok    moved {$moved} photograph(s) into the {$section} gallery\n"
+        : "  skip  {$section} gallery — nothing to move\n";
+}
+
+/* =============================================================================
+ *  2026-09 — A temporary password has to be replaced before it is used.
+ * -----------------------------------------------------------------------------
+ *  A manager's first password is generated by the office and read out or
+ *  written down, so at least two people know it. The same is true of an officer
+ *  account created or reset from Settings → Accounts. Until the owner replaces
+ *  it, the account is as private as the notebook it was copied into.
+ *
+ *  ONE FLAG, BOTH TABLES, the same name, so there is one rule and not two
+ *  versions of it. Existing accounts start at 0: every one of them was set up
+ *  before this existed, and forcing six people to change a password they
+ *  already chose would be a surprise, not a safeguard.
+ * ========================================================================== */
+foreach (['admins', 'destination_managers'] as $accountTable) {
+    $hasFlag = $pdo->query("SHOW COLUMNS FROM {$accountTable} LIKE 'must_change_password'")
+                   ->fetch(PDO::FETCH_ASSOC);
+
+    if ($hasFlag === false) {
+        $pdo->exec(
+            "ALTER TABLE {$accountTable}
+                ADD COLUMN must_change_password TINYINT(1) NOT NULL DEFAULT 0 AFTER password_hash"
+        );
+
+        echo "  ok    {$accountTable}.must_change_password added\n";
+    } else {
+        echo "  skip  {$accountTable}.must_change_password already exists\n";
+    }
+}
+
+/* =============================================================================
+ *  2026-09 — An event can carry more than one photograph.
+ * -----------------------------------------------------------------------------
+ *  announcements.banner_path stays what it was: the FEATURED picture — the one
+ *  on the homepage card and the large one on the event page. This table holds
+ *  the rest, in the order they were added. Keeping the featured picture where
+ *  it already lives means every event that has one keeps working untouched,
+ *  and nothing that reads banner_path had to learn about a second table.
+ *
+ *  ON DELETE CASCADE: a photograph of an event has no meaning once the event
+ *  is gone. The FILES are removed by AnnouncementRepository::delete(), which
+ *  reads the paths before the rows go.
+ * ========================================================================== */
+$pdo->exec(
+    "CREATE TABLE IF NOT EXISTS announcement_photos (
+        id              INT UNSIGNED NOT NULL AUTO_INCREMENT,
+        announcement_id INT UNSIGNED NOT NULL,
+        file_path       VARCHAR(255) NOT NULL,
+        sort_order      SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+        created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY idx_ann_photos (announcement_id, sort_order, id),
+        CONSTRAINT fk_ann_photos FOREIGN KEY (announcement_id)
+            REFERENCES announcements (id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+);
+
+echo "  ok    announcement_photos ready\n";
+
+/* =============================================================================
+ *  2026-09-19 — THE FINAL STRUCTURE.
+ * -----------------------------------------------------------------------------
+ *  The database the ERD and the data dictionary describe. Three changes, each
+ *  safe to run again:
+ *
+ *  1. destination_heritage is RETIRED. Cultural Heritage moved to the About
+ *     section (about_photos + settings), and nothing had read or written this
+ *     table since. The office chose to retire it. Its 32 rows and photographs
+ *     were exported first, to C:\xampp\TampakanTourism-removed-20260919.
+ *
+ *  2. arrival_reports.period_type is DROPPED. Added in August "for later", it
+ *     was never read by any page or report, and every row held its default,
+ *     'custom'. A column nothing uses is a column the data dictionary has to
+ *     explain away.
+ *
+ *  3. destination_alerts.replied_by gets its FOREIGN KEY. It holds the id of
+ *     the officer who answered an alert, exactly like acknowledged_by beside it,
+ *     but was the one actor column in the schema with no constraint — so a
+ *     deleted officer left a number pointing at nobody, and the ERD could not
+ *     draw the line. ON DELETE SET NULL, like every other actor column: the
+ *     reply stays, only the name goes.
+ * ========================================================================== */
+
+if ($tableExists($pdo, 'destination_heritage')) {
+    $pdo->exec('DROP TABLE destination_heritage');
+    echo "  ok    destination_heritage retired (dropped)\n";
+} else {
+    echo "  skip  destination_heritage — already retired\n";
+}
+
+$hasPeriodType = $pdo->query("SHOW COLUMNS FROM arrival_reports LIKE 'period_type'")->fetch(PDO::FETCH_ASSOC);
+
+if ($hasPeriodType !== false) {
+    $pdo->exec('ALTER TABLE arrival_reports DROP COLUMN period_type');
+    echo "  ok    arrival_reports.period_type dropped\n";
+} else {
+    echo "  skip  arrival_reports.period_type — already gone\n";
+}
+
+$hasReplyFk = $pdo->query(
+    "SELECT 1 FROM information_schema.KEY_COLUMN_USAGE
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'destination_alerts'
+        AND COLUMN_NAME = 'replied_by' AND REFERENCED_TABLE_NAME IS NOT NULL"
+)->fetchColumn();
+
+if ($hasReplyFk === false) {
+    /* A reply by an officer who no longer exists would refuse the constraint;
+       cleared first, the same thing SET NULL would have done at the time. */
+    $pdo->exec(
+        'UPDATE destination_alerts a LEFT JOIN admins d ON d.id = a.replied_by
+            SET a.replied_by = NULL
+          WHERE a.replied_by IS NOT NULL AND d.id IS NULL'
+    );
+    $pdo->exec(
+        'ALTER TABLE destination_alerts
+            ADD CONSTRAINT fk_alert_replied_by FOREIGN KEY (replied_by)
+                REFERENCES admins (id) ON DELETE SET NULL'
+    );
+    echo "  ok    destination_alerts.replied_by now references admins\n";
+} else {
+    echo "  skip  destination_alerts.replied_by — already constrained\n";
+}
 
 echo str_repeat('=', 60) . "\n  Migrations complete.\n\n";

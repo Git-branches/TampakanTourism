@@ -94,30 +94,72 @@ if (is_post()) {
         ];
     }
 
-    Entries::replaceForDate($reportId, $date, $rows);
+    /* NOTHING IS WRITTEN UNTIL EVERY NAMED LINE IS COMPLETE.
+     *
+     * A page saves as one unit — replaceForDate() deletes the day and rewrites
+     * it — so a partial save is not an option here even in principle: accepting
+     * the good lines would delete the bad ones the manager is still typing.
+     *
+     * On failure the page is RE-RENDERED rather than redirected, because a
+     * redirect would lose everything typed. $rows carries the posted values back
+     * into the form below and $rowErrors marks the lines. */
+    $rowErrors = Entries::validate($rows);
 
-    $saved = count(Entries::forDate($reportId, $date));
+    if ($rowErrors === []) {
+        Entries::replaceForDate($reportId, $date, $rows);
 
-    /* "Next page" walks to the following day rather than back to the list. A
-       manager transcribing a month has a stack of pages and no reason to
-       return to a menu twenty-nine times. */
-    if (($_POST['action'] ?? '') === 'next' && $date < $report['period_end']) {
-        Session::flash('success', $saved . ' line(s) saved for ' . format_date($date, 'M j') . '.');
-        redirect(base_url('/manager/logbook.php?id=' . $reportId . '&date=' . date('Y-m-d', (int) strtotime($date . ' +1 day'))));
+        $saved = count(Entries::forDate($reportId, $date));
+
+        /* "Next page" walks to the following day rather than back to the list. A
+           manager transcribing a month has a stack of pages and no reason to
+           return to a menu twenty-nine times. */
+        if (($_POST['action'] ?? '') === 'next' && $date < $report['period_end']) {
+            Session::flash('success', $saved . ' line(s) saved for ' . format_date($date, 'M j') . '.');
+            redirect(base_url('/manager/logbook.php?id=' . $reportId . '&date=' . date('Y-m-d', (int) strtotime($date . ' +1 day'))));
+        }
+
+        Session::flash('success', $saved === 0
+            ? 'Page cleared for ' . format_date($date, 'M j') . '.'
+            : $saved . ' line(s) saved for ' . format_date($date, 'M j') . '.');
+
+        redirect(base_url('/manager/logbook.php?id=' . $reportId . '&date=' . $date));
     }
-
-    Session::flash('success', $saved === 0
-        ? 'Page cleared for ' . format_date($date, 'M j') . '.'
-        : $saved . ' line(s) saved for ' . format_date($date, 'M j') . '.');
-
-    redirect(base_url('/manager/logbook.php?id=' . $reportId . '&date=' . $date));
 }
 
 // -----------------------------------------------------------------------------
 // The page
 // -----------------------------------------------------------------------------
 
-$entries = Entries::forDate($reportId, $date);
+/* Errors from a rejected save, keyed by the line number shown on screen. Empty
+   on an ordinary page load. */
+$rowErrors = $rowErrors ?? [];
+
+if ($rowErrors !== []) {
+    /* THE MANAGER'S OWN TYPING, NOT THE STORED PAGE.
+       The save was refused, so the database still holds the previous version.
+       Re-reading it here would answer a rejected save by wiping the screen —
+       the one outcome guaranteed to lose work. The posted lines are shaped like
+       stored rows so the template below needs no second code path. */
+    $entries = [];
+
+    foreach ($rows as $row) {
+        if (trim((string) ($row['full_name'] ?? '')) === '') {
+            continue;
+        }
+
+        $entries[] = [
+            'full_name'      => (string) $row['full_name'],
+            'address_text'   => (string) ($row['address_text'] ?? ''),
+            'contact_number' => (string) ($row['contact_number'] ?? ''),
+            'sex'            => in_array((string) ($row['sex'] ?? ''), ['male', 'female'], true)
+                ? (string) $row['sex'] : null,
+            'tourist_type'   => (string) ($row['tourist_type'] ?? 'local'),
+            'confidence'     => 'high',
+        ];
+    }
+} else {
+    $entries = Entries::forDate($reportId, $date);
+}
 
 /* Blank lines below the last one, the way the paper has ruled lines below the
    last visitor. Enough to keep typing without stopping to press a button. */
@@ -182,7 +224,22 @@ require __DIR__ . '/_partials/head.php';
     </div>
 <?php endif; ?>
 
-<form method="post" id="logbookForm">
+<?php if ($rowErrors !== []): ?>
+    <?php /* NOTHING WAS SAVED, and the banner says so before it says why.
+             A manager who reads "please complete the highlighted lines" and
+             assumes the rest of the page went in would come back to a day that
+             is still empty. The page saves as one unit. */ ?>
+    <div class="alert alert-danger" id="logbookErrors" role="alert" tabindex="-1">
+        <i class="fa-solid fa-circle-exclamation"></i>
+        <strong>This page was not saved.</strong>
+        <?= n(count($rowErrors)) ?> line(s) are missing a gender or an address.
+        Both are columns on the Tourism Attraction Visitor Record, so a line without
+        them cannot be reported. Your typing is still here &mdash; complete the
+        highlighted lines and save again.
+    </div>
+<?php endif; ?>
+
+<form method="post" id="logbookForm" novalidate>
     <?= csrf_field() ?>
     <input type="hidden" name="visit_date" value="<?= e($date) ?>">
 
@@ -245,9 +302,12 @@ require __DIR__ . '/_partials/head.php';
                                 </td>
                                 <td data-label="Address">
                                     <input type="text" name="row[<?= $lineNo ?>][address_text]" maxlength="160"
-                                           class="form-control form-control-sm"
+                                           class="form-control form-control-sm lb-address <?= isset($rowErrors[$lineNo]['address_text']) ? 'is-invalid' : '' ?>"
                                            value="<?= e((string) ($entry['address_text'] ?? '')) ?>"
                                            aria-label="Line <?= $lineNo ?> address" <?= $editable ? '' : 'disabled' ?>>
+                                    <?php if (isset($rowErrors[$lineNo]['address_text'])): ?>
+                                        <p class="lb-error"><?= e($rowErrors[$lineNo]['address_text']) ?></p>
+                                    <?php endif; ?>
                                 </td>
                                 <td data-label="Contact no.">
                                     <input type="text" name="row[<?= $lineNo ?>][contact_number]" maxlength="40"
@@ -256,15 +316,20 @@ require __DIR__ . '/_partials/head.php';
                                            aria-label="Line <?= $lineNo ?> contact number" <?= $editable ? '' : 'disabled' ?>>
                                 </td>
                                 <td data-label="Sex">
-                                    <!-- Not on the paper page. Blank is the default and a valid
-                                         answer: the office's monthly form marks the sex columns
-                                         optional and only the total as required. -->
-                                    <select name="row[<?= $lineNo ?>][sex]" class="form-select form-select-sm"
+                                    <!-- REQUIRED since 2026-09-18. The Tourism Attraction Visitor
+                                         Record has a Gender column under each residence group, so
+                                         the sheet this transcribes does ask for it — the note that
+                                         used to sit here said otherwise and was wrong. -->
+                                    <select name="row[<?= $lineNo ?>][sex]"
+                                            class="form-select form-select-sm lb-sex <?= isset($rowErrors[$lineNo]['sex']) ? 'is-invalid' : '' ?>"
                                             aria-label="Line <?= $lineNo ?> sex" <?= $editable ? '' : 'disabled' ?>>
                                         <option value="">&mdash;</option>
                                         <option value="male"   <?= $entry['sex'] === 'male'   ? 'selected' : '' ?>>M</option>
                                         <option value="female" <?= $entry['sex'] === 'female' ? 'selected' : '' ?>>F</option>
                                     </select>
+                                    <?php if (isset($rowErrors[$lineNo]['sex'])): ?>
+                                        <p class="lb-error"><?= e($rowErrors[$lineNo]['sex']) ?></p>
+                                    <?php endif; ?>
                                 </td>
                                 <td data-label="Type">
                                     <?php
@@ -362,7 +427,7 @@ require __DIR__ . '/_partials/head.php';
                                 </td>
                                 <td data-label="Address">
                                     <input type="text" name="row[<?= $lineNo ?>][address_text]" maxlength="160"
-                                           class="form-control form-control-sm" aria-label="Line <?= $lineNo ?> address">
+                                           class="form-control form-control-sm lb-address" aria-label="Line <?= $lineNo ?> address">
                                 </td>
                                 <td data-label="Contact no.">
                                     <input type="text" name="row[<?= $lineNo ?>][contact_number]" maxlength="40"
@@ -370,7 +435,7 @@ require __DIR__ . '/_partials/head.php';
                                            aria-label="Line <?= $lineNo ?> contact number">
                                 </td>
                                 <td data-label="Sex">
-                                    <select name="row[<?= $lineNo ?>][sex]" class="form-select form-select-sm"
+                                    <select name="row[<?= $lineNo ?>][sex]" class="form-select form-select-sm lb-sex"
                                             aria-label="Line <?= $lineNo ?> sex">
                                         <option value="">&mdash;</option>
                                         <option value="male">M</option>
@@ -440,6 +505,19 @@ require __DIR__ . '/_partials/head.php';
    logbook does not leave classes behind in the officer's dashboard. */
 .row-unsure td { background: rgba(214, 158, 46, .10); }
 #logbookTable input, #logbookTable select { min-width: 7rem; }
+
+/* A refused line, and the reason under it. Scoped to this table for the same
+   reason the rule above is: .is-invalid is Bootstrap's and the officer's
+   dashboard shares this stylesheet. */
+#logbookTable .is-invalid { border-color: #C62828; background: #FEF6F6; }
+#logbookTable .lb-error {
+    margin: .25rem 0 0;
+    font-size: .72rem;
+    line-height: 1.25;
+    color: #C62828;
+    max-width: 11rem;
+}
+#logbookTable tr.lb-row-invalid td { background: rgba(198, 40, 40, .06); }
 </style>
 
 <script>
@@ -461,6 +539,108 @@ require __DIR__ . '/_partials/head.php';
 
     form.addEventListener('input', function (e) {
         if (e.target.classList.contains('lb-name')) { recount(); }
+    });
+
+    /* ---- Gender and address, before the page is sent ----------------------
+     *
+     * The server refuses these too, and that refusal is the one that matters —
+     * this exists so the manager is told at the line they are looking at
+     * instead of after a round trip that scrolls them back to the top.
+     *
+     * ONLY LINES WITH A NAME. The page shows blank ruled lines below the last
+     * visitor exactly as the paper does; requiring a gender on those would make
+     * an ordinary half-full page impossible to save.
+     *
+     * The form carries `novalidate` and this does the checking, because the
+     * browser's own bubble appears on one field at a time, cannot say why a
+     * placeholder address was refused, and is skipped entirely by anything that
+     * posts the form directly. */
+    var PLACEHOLDERS = ['n/a', 'na', 'n.a.', 'none', 'nil', 'null', 'unknown',
+        'unspecified', 'x', 'xx', 'xxx', 'test', 'tbd', 'wala', 'walang', 'ne', 'no'];
+
+    function badAddress(value) {
+        var v = value.trim();
+        if (v === '') { return "Please enter the visitor's address or place of residence."; }
+        if (v.length < 3 || PLACEHOLDERS.indexOf(v.toLowerCase()) !== -1
+            || /^[^\p{L}]+$/u.test(v)) {
+            return 'Enter a real place of residence, not a placeholder.';
+        }
+        return null;
+    }
+
+    function markRow(row, field, message) {
+        var cell = field.closest('td');
+        field.classList.add('is-invalid');
+        row.classList.add('lb-row-invalid');
+
+        if (cell && !cell.querySelector('.lb-error')) {
+            var p = document.createElement('p');
+            p.className = 'lb-error';
+            p.textContent = message;
+            cell.appendChild(p);
+        }
+    }
+
+    function clearMarks() {
+        body.querySelectorAll('.is-invalid').forEach(function (el) { el.classList.remove('is-invalid'); });
+        body.querySelectorAll('.lb-row-invalid').forEach(function (el) { el.classList.remove('lb-row-invalid'); });
+        body.querySelectorAll('.lb-error').forEach(function (el) { el.remove(); });
+    }
+
+    form.addEventListener('submit', function (e) {
+        clearMarks();
+
+        var firstBad = null;
+        var count = 0;
+
+        body.querySelectorAll('tr').forEach(function (row) {
+            var name = row.querySelector('.lb-name');
+            if (!name || name.value.trim() === '') { return; }   // a ruled blank line
+
+            var sex = row.querySelector('.lb-sex');
+            var address = row.querySelector('.lb-address');
+            var bad = false;
+
+            if (sex && ['male', 'female'].indexOf(sex.value) === -1) {
+                markRow(row, sex, "Please select the visitor's gender.");
+                firstBad = firstBad || sex;
+                bad = true;
+            }
+
+            if (address) {
+                var msg = badAddress(address.value);
+                if (msg) {
+                    markRow(row, address, msg);
+                    firstBad = firstBad || address;
+                    bad = true;
+                }
+            }
+
+            if (bad) { count++; }
+        });
+
+        if (firstBad === null) { return; }
+
+        e.preventDefault();
+
+        var banner = document.getElementById('logbookErrors');
+
+        if (!banner) {
+            banner = document.createElement('div');
+            banner.className = 'alert alert-danger';
+            banner.id = 'logbookErrors';
+            banner.setAttribute('role', 'alert');
+            banner.tabIndex = -1;
+            form.parentNode.insertBefore(banner, form);
+        }
+
+        banner.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i> ' +
+            '<strong>This page was not saved.</strong> ' + count +
+            ' line(s) are missing a gender or an address. Both are columns on the ' +
+            'Tourism Attraction Visitor Record, so a line without them cannot be reported.';
+
+        firstBad.focus({ preventScroll: true });
+        firstBad.scrollIntoView({ block: 'center' });
     });
 
     /* Delete a record. Clears the line rather than removing the row, so the
@@ -529,9 +709,9 @@ require __DIR__ . '/_partials/head.php';
                        be an unlabelled card on a phone. */
                     '<td class="text-muted num" data-label="#">' + n + '</td>' +
                     '<td data-label="Name"><input type="text" name="row[' + n + '][full_name]" maxlength="160" class="form-control form-control-sm lb-name" aria-label="Line ' + n + ' name"></td>' +
-                    '<td data-label="Address"><input type="text" name="row[' + n + '][address_text]" maxlength="160" class="form-control form-control-sm" aria-label="Line ' + n + ' address"></td>' +
+                    '<td data-label="Address"><input type="text" name="row[' + n + '][address_text]" maxlength="160" class="form-control form-control-sm lb-address" aria-label="Line ' + n + ' address"></td>' +
                     '<td data-label="Contact no."><input type="text" name="row[' + n + '][contact_number]" maxlength="40" inputmode="tel" class="form-control form-control-sm" aria-label="Line ' + n + ' contact"></td>' +
-                    '<td data-label="Sex"><select name="row[' + n + '][sex]" class="form-select form-select-sm" aria-label="Line ' + n + ' sex">' +
+                    '<td data-label="Sex"><select name="row[' + n + '][sex]" class="form-select form-select-sm lb-sex" aria-label="Line ' + n + ' sex">' +
                         '<option value="">—</option><option value="male">M</option><option value="female">F</option>' +
                     '</select></td>' +
                     '<td data-label="Type"><input type="hidden" name="row[' + n + '][suggested_type]" value="domestic">' +

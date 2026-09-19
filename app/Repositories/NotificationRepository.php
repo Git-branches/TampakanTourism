@@ -243,4 +243,25 @@ final class NotificationRepository
 
         return format_date($timestamp, 'M j, Y');
     }
+
+    /**
+     * Removes the bell entries — the office's and the managers' — that point at
+     * a record which has just been deleted.
+     *
+     * Left behind, they are a notification that opens onto "could not be
+     * found", which reads as the system losing something rather than somebody
+     * removing it on purpose. Read marks cascade with them.
+     */
+    public static function forgetEntity(string $entityType, int $entityId): void
+    {
+        Database::run(
+            'DELETE FROM admin_notifications WHERE entity_type = ? AND entity_id = ?',
+            [$entityType, $entityId]
+        );
+
+        Database::run(
+            'DELETE FROM manager_notifications WHERE entity_type = ? AND entity_id = ?',
+            [$entityType, $entityId]
+        );
+    }
 }

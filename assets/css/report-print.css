@@ -1,0 +1,224 @@
+/* =============================================================================
+   TourSync — ONE PRINT ARCHITECTURE FOR EVERY REPORT
+   -----------------------------------------------------------------------------
+   Loaded by every printable report. Screen layout is untouched: everything here
+   is inside @media print.
+
+   WHY THIS FILE EXISTS
+
+   Two reports were being truncated on paper, and neither was a page-break
+   problem. Both were CLASS-NAME COLLISIONS with the admin shell's stylesheet,
+   which every print view also loads:
+
+     1. `.sheet` in admin.css is the modal DIALOG component, and it carries
+        `max-height: calc(100vh - 3rem)` and `overflow: hidden`. The arrival
+        report's page container was also called `.sheet`. Measured: the report's
+        content ran to 4,183px, the container stopped at 952px — exactly 100vh
+        minus 3rem — and everything past it was thrown away before the printer
+        saw it. Four pages of a four-page report simply did not exist.
+
+     2. `@media print { .panel:not(#two-step) { display: none } }` in admin.css
+        was written to print one account page without its shell, but was never
+        scoped, so it removed EVERY panel from EVERY print view. Each section of
+        the report body measured zero height.
+
+   Both are fixed at source. This file is the guard that stops the next one:
+   a report container declared here cannot be capped or clipped by anything an
+   ancestor or a future stylesheet does to it, whatever the class is called.
+
+   THE CONTRACT
+
+     .report-print-container   the page. Natural flow, no height, no clipping.
+     .report-print-section     one block of the report. Flows across pages.
+     .report-print-table       a table. Header repeats, rows stay whole.
+     .report-print-summary     the headline figures. Each tile stays whole.
+     .report-print-footer      signatures and the like. Travels as one block.
+     .report-print-hide        screen-only chrome.
+
+   THE RULE BEHIND ALL OF IT: the amount of DATA decides the number of pages.
+   Nothing about a screen, a card or a viewport may decide it. Adding rows,
+   destinations or whole sections must lengthen the document, never truncate it.
+   ============================================================================= */
+
+@media print {
+
+    /* -------------------------------------------------------------------------
+       1. THE ANCESTORS
+       A cap anywhere between the paper and the report clips the report, and the
+       offending rule is usually in a stylesheet written for the screen. These
+       are the properties that can do it; none of them has any business applying
+       to a printed document.
+       ---------------------------------------------------------------------- */
+    html,
+    body {
+        height: auto !important;
+        min-height: 0 !important;
+        max-height: none !important;
+        overflow: visible !important;
+        background: #fff !important;
+    }
+
+    /* PADDING AND MARGIN ARE DELIBERATELY NOT RESET HERE.
+       They were, and it cost the visitor record its printed border: that sheet
+       sets `@page { margin: 0 }` on purpose, because a margin box is where the
+       browser draws the date, the page title and the localhost URL — and a
+       return to the Department of Tourism should not carry a developer's
+       address across its foot. With no page margin, the sheet's border IS the
+       body's 10mm padding, and `padding: 0 !important` here removed it on all
+       three paper sizes at once.
+
+       This file exists to stop content being CLIPPED. Spacing is the page's own
+       business, and a blanket reset of it is how a shared stylesheet starts
+       breaking the pages it was written to protect. */
+
+    /* -------------------------------------------------------------------------
+       2. THE CONTAINER, AND EVERYTHING INSIDE IT
+       `max-height` and `overflow` are swept from every descendant, not just the
+       container: the panels inside this report carry `overflow: hidden` from
+       admin.css for their rounded corners, which clips any table crossing a page
+       boundary. Rounded corners are not worth a missing row.
+
+       `height` is deliberately NOT swept from descendants — progress bars and
+       logos set a height on purpose, and clearing it would collapse them. Only
+       the container's own height is released, because only the container is in a
+       position to cap the whole document.
+       ---------------------------------------------------------------------- */
+    .report-print-container {
+        width: auto !important;
+        height: auto !important;
+        min-height: 0 !important;
+        max-height: none !important;
+        overflow: visible !important;
+        /* A fixed or sticky container prints once, at one position, and takes
+           the rest of the document with it. */
+        position: static !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        box-shadow: none !important;
+        background: #fff !important;
+    }
+
+    .report-print-container * {
+        max-height: none !important;
+        overflow: visible !important;
+    }
+
+    /* -------------------------------------------------------------------------
+       3. TWO KINDS OF SECTION, AND THE DIFFERENCE IS WHETHER IT CAN GROW
+       -------------------------------------------------------------------------
+       A single global rule is wrong in both directions.
+
+       `break-inside: avoid` everywhere breaks the long tables: a section taller
+       than a sheet cannot avoid breaking, the browser breaks it regardless, and
+       for as long as anything in the chain also clipped, that is where rows
+       disappeared.
+
+       `break-inside: auto` everywhere splits the short ones: the Sex breakdown
+       is four rows and a note, and landing two of them at the foot of one page
+       and the rest overleaf makes a reader compare figures across a fold for no
+       reason at all.
+
+       So a section declares which it is, and the deciding question is whether
+       its number of rows is BOUNDED:
+
+         --keep   fixed or capped content — the classification tables, the
+                  demographic breakdowns, the top-ten origin lists, the peak-day
+                  lists, the integrity tiles. These can never outgrow a page, so
+                  keeping them whole costs nothing and always helps.
+
+         --flow   content that grows with the data — one row per destination
+                  today, and whatever a future section lists tomorrow. These
+                  MUST be allowed to continue; their headers repeat and their
+                  rows stay whole, which is what makes a split readable.
+
+       The default is --flow. A section nobody has classified might grow, and the
+       failure modes are not symmetrical: an unnecessary page break is untidy,
+       a truncated report is wrong.
+       ---------------------------------------------------------------------- */
+    .report-print-section {
+        break-inside: auto;
+        page-break-inside: auto;
+        box-shadow: none !important;
+    }
+
+    /* SMALL AND BOUNDED — travels as one block. If one ever does outgrow a page,
+       the browser breaks it anyway rather than clipping it, so this can only
+       cost a page break, never a row. */
+    .report-print-section--keep,
+    .report-print-keep {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+
+    /* UNBOUNDED — continues across as many pages as the data needs. Stated
+       explicitly, so that adding `--keep` to it later is a deliberate act and
+       not a tidy-up. */
+    .report-print-section--flow {
+        break-inside: auto;
+        page-break-inside: auto;
+    }
+
+    /* A heading alone at the foot of a page belongs to the block on the next. */
+    .report-print-section > header,
+    .report-print-container h1,
+    .report-print-container h2,
+    .report-print-container h3,
+    .report-print-container h4 {
+        break-after: avoid;
+        page-break-after: avoid;
+    }
+
+    /* -------------------------------------------------------------------------
+       4. TABLES SPAN AS MANY PAGES AS THEY NEED
+       table-header-group and table-footer-group are what make a browser reprint
+       the column headings and carry the totals row to the end of the table, on
+       every page it touches. Without them a table continuing onto page three is
+       a grid of unlabelled numbers and its total is wherever the rows ran out.
+       ---------------------------------------------------------------------- */
+    .report-print-table {
+        width: 100% !important;
+        max-width: 100% !important;
+        table-layout: auto;
+        break-inside: auto;
+        page-break-inside: auto;
+    }
+
+    .report-print-table thead { display: table-header-group; }
+    .report-print-table tfoot { display: table-footer-group; }
+
+    .report-print-table tr,
+    .report-print-table th,
+    .report-print-table td {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+
+    /* Long place names and long destination names wrap instead of pushing the
+       table past the right edge of the paper, which is the horizontal form of
+       the same failure. */
+    .report-print-table th,
+    .report-print-table td {
+        overflow-wrap: anywhere;
+        word-break: break-word;
+    }
+
+    /* -------------------------------------------------------------------------
+       5. SUMMARY TILES AND THE FOOT
+       ---------------------------------------------------------------------- */
+    .report-print-summary { break-inside: auto; page-break-inside: auto; }
+    .report-print-summary > * { break-inside: avoid; page-break-inside: avoid; }
+
+    .report-print-footer {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+
+    /* -------------------------------------------------------------------------
+       6. SCREEN CHROME
+       ---------------------------------------------------------------------- */
+    .report-print-hide,
+    .no-print { display: none !important; }
+
+    /* A link in a printed report is text; the underline and the blue are noise. */
+    .report-print-container a { text-decoration: none; color: inherit; }
+}

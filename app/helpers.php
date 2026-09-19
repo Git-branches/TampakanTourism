@@ -626,3 +626,50 @@ if (!function_exists('map_category_colour')) {
         return $colours[(string) $slug] ?? $colours['other'];
     }
 }
+
+if (!function_exists('initials')) {
+    /**
+     * One or two initials for a person whose photograph is missing.
+     *
+     * A STAND-IN THAT ADMITS IT IS ONE. The alternative is a stock silhouette,
+     * and on a page of municipal officials a silhouette in the frame where an
+     * official portrait belongs reads as a photograph of somebody. Initials
+     * cannot be mistaken for a likeness.
+     *
+     * Two at most, from the first and last name parts — "Ma. Cristina S. Dela
+     * Cruz" gives MD, not MCSD, which is a monogram nobody asked for. Honorifics
+     * are skipped so "Hon. Juan Dela Cruz" gives JD rather than HJ.
+     *
+     * mb_* throughout: these are Filipino names and a ñ cut with substr() is a
+     * broken byte sequence, which the browser draws as a replacement character.
+     */
+    function initials(?string $name, int $max = 2): string
+    {
+        $skip = ['hon', 'hon.', 'mr', 'mr.', 'mrs', 'mrs.', 'ms', 'ms.', 'dr', 'dr.', 'atty', 'atty.', 'engr', 'engr.'];
+
+        $parts = preg_split('/\s+/u', trim((string) $name), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+
+        $parts = array_values(array_filter(
+            $parts,
+            static fn(string $p): bool => !in_array(mb_strtolower($p), $skip, true)
+        ));
+
+        if ($parts === []) {
+            return '';
+        }
+
+        /* First and LAST, not first and second: the surname is the half that
+           identifies somebody, and the middle name or initial in between is
+           exactly what a two-letter monogram should drop. */
+        $take = count($parts) > 1 && $max > 1
+            ? [$parts[0], $parts[count($parts) - 1]]
+            : [$parts[0]];
+
+        $out = '';
+        foreach (array_slice($take, 0, max(1, $max)) as $part) {
+            $out .= mb_strtoupper(mb_substr($part, 0, 1));
+        }
+
+        return $out;
+    }
+}

@@ -80,7 +80,7 @@ $verdict = match ($effective) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title><?= $guide === null ? 'Guide not found' : 'Verify ' . e((string) $guide['guide_code']) ?> — Tampakan Tourism</title>
-<link rel="icon" href="<?= e(asset('img/tampakan_logo.png')) ?>" sizes="any">
+<link rel="icon" href="<?= e(asset('img/tourism-logo-mark.png')) ?>" type="image/png">
 <?php /* Self-contained. Scanned at a trailhead on one bar of signal, where a
          stylesheet fetched from a CDN is one more thing that does not arrive. */ ?>
 <style>
@@ -161,6 +161,7 @@ $verdict = match ($effective) {
     <div class="sheet">
         <header>
             <img src="<?= e(asset('img/tampakan_logo.png')) ?>" alt="">
+            <img src="<?= e(asset('img/tourism-logo-mark.png')) ?>" alt="">
             <p><?= e($officeName) ?><br>Tour Guide Verification</p>
         </header>
 

@@ -40,7 +40,12 @@ $reports      = $pager['rows'];
 $counts       = Inspections::counts();
 $destinations = Database::all('SELECT id, name FROM destinations ORDER BY name ASC');
 
+/* The strip's badge: reports the office has not finished deciding. */
+$tabCounts = ['reports' => (int) $counts['submitted'] + (int) $counts['reviewing']];
+$activeTab = 'reports';
+
 require __DIR__ . '/../_partials/head.php';
+require __DIR__ . '/_tabs.php';
 ?>
 
 <div class="stat-grid">
@@ -68,10 +73,8 @@ require __DIR__ . '/../_partials/head.php';
         <h2><i class="fa-solid fa-list-check"></i> Submitted reports</h2>
 
         <div class="d-flex gap-2 flex-wrap align-items-center">
-            <a href="requirements.php" class="btn btn-sm btn-outline-secondary">
-                <i class="fa-solid fa-list-ul"></i> Standards
-            </a>
-
+            <?php /* Requirements used to be a button here ("Standards", then
+                     "Manage Requirements"). They are the first tab above now. */ ?>
             <form method="get" class="d-flex gap-2 flex-wrap align-items-center">
                 <select name="destination_id" class="form-select form-select-sm" style="width:auto"
                         onchange="this.form.submit()">

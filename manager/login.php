@@ -77,7 +77,7 @@ $flashes = Session::takeFlash();
 <meta name="robots" content="noindex, nofollow">
 <meta name="theme-color" content="#123A1B">
 <title>Destination Manager Sign In — Tampakan Tourism Office</title>
-<link rel="icon" href="<?= e(asset('img/tampakan_logo.png')) ?>" sizes="any">
+<link rel="icon" href="<?= e(asset('img/tourism-logo-mark.png')) ?>" type="image/png">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Dancing+Script:wght@600&display=swap" rel="stylesheet">
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
@@ -116,8 +116,12 @@ $flashes = Session::takeFlash();
         <div class="auth-card">
 
             <div class="auth-card__brand">
-                <img class="auth-card__seal" src="<?= e(asset('img/tampakan_logo.png')) ?>"
-                     alt="Official Seal of the Municipality of Tampakan" width="92" height="92">
+                <div class="auth-card__seals">
+                    <img class="auth-card__seal" src="<?= e(asset('img/tampakan_logo.png')) ?>"
+                         alt="Official Seal of the Municipality of Tampakan" width="92" height="92">
+                    <img class="auth-card__seal" src="<?= e(asset('img/tourism-logo-mark.png')) ?>"
+                         alt="Logo of the Tampakan Municipal Tourism Office" width="92" height="92">
+                </div>
 
                 <p class="auth-card__office">Destination Manager Portal</p>
                 <h2 class="auth-card__welcome">Welcome Back!</h2>

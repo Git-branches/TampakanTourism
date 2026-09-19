@@ -124,6 +124,26 @@ if (is_post()) {
         redirect(base_url('/manager/report-form.php?id=' . $id . '#documents'));
     }
 
+    /* DISCARD A DRAFT — one that was never handed to the Office. Ownership was
+       settled above (a report from another destination never reaches this
+       line), and deleteDraft() repeats both conditions in its WHERE clause. */
+    if ($action === 'discard' && $id > 0) {
+        if ($report['status'] !== 'draft') {
+            Session::flash('danger', 'Only a draft that has never been submitted can be discarded.');
+            redirect(base_url('/manager/report-form.php?id=' . $id));
+        }
+
+        if (Reports::deleteDraft($id, $destinationId)) {
+            ActivityLog::record('report.discarded', 'arrival_report', null,
+                'Discarded draft report #' . $id . ' for ' . ManagerAuth::destinationName()
+                . ' (' . $report['period_start'] . ' to ' . $report['period_end'] . ')');
+
+            Session::flash('success', 'Draft discarded.');
+        }
+
+        redirect(base_url('/manager/reports.php'));
+    }
+
     if ($action === 'delete-document' && $id > 0) {
         $documentId = (int) ($_POST['document_id'] ?? 0);
 
@@ -1050,6 +1070,21 @@ $periodEditor = static function () use (
 
                     <a href="reports.php" class="btn btn-sm btn-outline-secondary">Back to reports</a>
 
+                    <?php /* Draft only — a report the Office has never seen. It posts
+                             the separate form below the page (form="rfDiscard"),
+                             because this footer is inside the report's own form. */ ?>
+                    <?php if ($report !== null && $report['status'] === 'draft'): ?>
+                        <?php
+                        $discardAsk = 'Discard this draft? Everything typed into it and any document '
+                            . 'attached to it is deleted. It was never sent to the Municipal Tourism '
+                            . 'Office, so nothing on their side changes. This cannot be undone.';
+                        ?>
+                        <button type="submit" form="rfDiscard" class="btn btn-sm btn-outline-danger"
+                                data-confirm="<?= e($discardAsk) ?>" data-confirm-tone="danger">
+                            <i class="fa-solid fa-trash-can" aria-hidden="true"></i> Discard Draft
+                        </button>
+                    <?php endif; ?>
+
                     <button type="submit" name="action" value="submit" class="btn btn-brand btn-sm"
                             <?= $hasSomething ? '' : 'disabled' ?>
                             data-confirm="<?= e($submitAsk) ?>">
@@ -1058,6 +1093,16 @@ $periodEditor = static function () use (
                 </div>
             <?php endif; ?>
         </form>
+
+        <?php if ($report !== null && $report['status'] === 'draft'): ?>
+            <?php /* The Discard Draft button above submits this. Outside the
+                     report's form, because forms cannot nest. */ ?>
+            <form method="post" id="rfDiscard" hidden>
+                <?= csrf_field() ?>
+                <input type="hidden" name="id" value="<?= (int) $report['id'] ?>">
+                <input type="hidden" name="action" value="discard">
+            </form>
+        <?php endif; ?>
 
         <?php /* =============== REPORT DETAILS ===============
                  What the main screen no longer carries: the dates and how to

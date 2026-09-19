@@ -107,10 +107,25 @@ $activeMatch = match ($current) {
     <div class="container">
 
         <a class="navbar-brand brand" href="<?= e($navTransparent ? '#home' : base_url('/')) ?>">
+            <?php /* THE TOURISM OFFICE'S OWN LOGO, not the municipal seal.
+                     The office asked for this on 2026-09-18: the bar belongs to
+                     the Tourism Office, and the seal is the Municipality's.
+                     The seal still stands beside it in the footer and on the
+                     sign-in card, where there is room to read both.
+
+                     tourism-logo-mark.png is the office's upload with its blank
+                     margin cropped off — the file they sent draws the artwork
+                     across only 83% of its width and 64% of its height, which
+                     rendered the mark a third smaller than anything beside it.
+                     Nothing in the artwork was altered. The original upload is
+                     still at assets/img/tourism-logo.png.
+
+                     It carries real transparency, so it needs no white plate
+                     behind it — see .brand__logos img in style.css. */ ?>
             <span class="brand__logos">
-                <img src="<?= e(base_url('assets/img/tampakan_logo.png')) ?>"
-                     alt="Official Seal of the Municipality of Tampakan, Province of South Cotabato"
-                     width="58" height="58">
+                <img src="<?= e(base_url('assets/img/tourism-logo-mark.png')) ?>"
+                     alt="Logo of the Tampakan Municipal Tourism Office"
+                     width="46" height="46">
             </span>
             <span class="brand__text">
                 <strong>Tampakan</strong>

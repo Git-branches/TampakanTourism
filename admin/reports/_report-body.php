@@ -4,6 +4,36 @@
  *
  * One template so the printed page and the screen cannot disagree about what
  * the month's total was. Expects $report from ReportBuilder::build().
+ *
+ * -----------------------------------------------------------------------------
+ * PRINT PAGINATION — EVERY SECTION IS CLASSIFIED, AND THE TEST IS "CAN IT GROW?"
+ * -----------------------------------------------------------------------------
+ * Each section carries report-print-section--keep or --flow. The rules live in
+ * assets/css/report-print.css; the decision lives here, with the markup, because
+ * it depends on what the section CONTAINS:
+ *
+ *   --keep   a bounded list. It can never outgrow a page, so it travels whole
+ *            rather than leaving two of its four rows at the foot of one sheet.
+ *   --flow   a list that grows with the data. It continues across pages, with
+ *            its column headings repeated and its rows kept whole.
+ *
+ * The audit, and it is short because only one section can grow:
+ *
+ *   KEEP  destination header        three lines, fixed
+ *   KEEP  empty-state notice        fixed
+ *   KEEP  Visitors by Type          four classifications, fixed
+ *   KEEP  Day Visitors vs Overnight three rows and a note, fixed
+ *   FLOW  Arrivals by Destination   ONE ROW PER DESTINATION — unbounded
+ *   KEEP  Age Groups                seven brackets plus not-stated, fixed
+ *   KEEP  Sex                       four rows and a note, fixed
+ *   KEEP  Top Cities/Provinces/...  capped at ten by ReportBuilder::origins()
+ *   KEEP  Busiest Days              capped at five by the query
+ *   KEEP  By Day of Week            seven rows, fixed
+ *   KEEP  Record Integrity          five tiles and a note, fixed
+ *
+ * ADDING A SECTION: classify it. If its row count comes from the database and
+ * has no LIMIT, it is --flow. If in doubt it is --flow — an unnecessary page
+ * break is untidy, a section the browser has to break anyway is not.
  */
 
 use App\Core\ReportBuilder;
@@ -16,10 +46,48 @@ if (!defined('TOURSYNC')) {
 $t = $report['totals'];
 $c = $report['comparison'];
 $i = $report['integrity'];
+
+/* Set by the on-screen view only. The print view and the CSV have no use for a
+   link, and printing one would put a dead "Generate Report" button on paper. */
+$reportLinks = $reportLinks ?? false;
+
+/* Scoped or not. Every section below reads the same figures either way — the
+   narrowing happened in SQL — so the only thing that changes here is that the
+   report says which destination it is about. */
+$dest = $report['destination'] ?? null;
 ?>
 
+<?php if ($dest !== null): ?>
+    <?php /* WHAT THIS REPORT COVERS, stated before any figure.
+             The office generates these to compare against a site's own
+             submission, and the comparison is worthless if the sheet in their
+             hand does not say plainly which site, which dates, and when it was
+             produced. On the printed copy this is the paragraph that makes the
+             page self-describing once it has left the screen. */ ?>
+    <section class="panel panel--notice report-print-section report-print-section--keep">
+        <div class="panel__body">
+            <h2 class="h6 mb-2">
+                <i class="fa-solid fa-location-dot"></i>
+                Destination report &mdash; <?= e((string) $dest['name']) ?>
+                <?php if (($dest['status'] ?? '') !== 'active'): ?>
+                    <span class="tag tag--muted">archived</span>
+                <?php endif; ?>
+            </h2>
+            <p class="mb-0 small">
+                <?php if (!empty($dest['barangay'])): ?>
+                    Barangay <?= e((string) $dest['barangay']) ?>.
+                <?php endif; ?>
+                Covering <strong><?= e(format_date($report['period']['start'])) ?></strong>
+                to <strong><?= e(format_date($report['period']['end'])) ?></strong>
+                (<?= e($report['period']['label']) ?>).
+                Every figure below counts only arrivals recorded against this destination.
+            </p>
+        </div>
+    </section>
+<?php endif; ?>
+
 <!-- ===================== HEADLINE FIGURES ===================== -->
-<div class="report-figures">
+<div class="report-figures report-print-summary">
     <div class="figure figure--lead">
         <p class="figure__value"><?= n($t['visitors']) ?></p>
         <p class="figure__label">Total visitor arrivals</p>
@@ -41,7 +109,7 @@ $i = $report['integrity'];
 </div>
 
 <?php if ($t['visitors'] === 0): ?>
-    <div class="panel"><div class="panel__body">
+    <div class="panel report-print-section report-print-section--keep"><div class="panel__body">
         <div class="empty">
             <i class="fa-solid fa-file-circle-question"></i>
             <p><strong>No arrivals were recorded in this period.</strong></p>
@@ -53,10 +121,10 @@ $i = $report['integrity'];
 
 <!-- ===================== VISITOR CLASSIFICATION ===================== -->
 <div class="report-grid">
-    <section class="panel">
+    <section class="panel report-print-section report-print-section--keep">
         <header class="panel__head"><h2><i class="fa-solid fa-user-group"></i> Visitors by Type</h2></header>
         <div class="panel__body">
-            <table class="table table-sm mb-0">
+            <table class="table table-sm mb-0 report-print-table">
                 <thead><tr><th>Classification</th><th class="text-end">Visitors</th><th class="text-end">Share</th></tr></thead>
                 <tbody>
                 <?php foreach ($report['types'] as $key => $count):
@@ -73,10 +141,10 @@ $i = $report['integrity'];
         </div>
     </section>
 
-    <section class="panel">
+    <section class="panel report-print-section report-print-section--keep">
         <header class="panel__head"><h2><i class="fa-solid fa-moon"></i> Day Visitors vs Overnight</h2></header>
         <div class="panel__body">
-            <table class="table table-sm mb-0">
+            <table class="table table-sm mb-0 report-print-table">
                 <thead><tr><th>Stay</th><th class="text-end">Visitors</th><th class="text-end">Share</th></tr></thead>
                 <tbody>
                 <?php foreach (['day_trip' => 'Day visitors (excursionists)', 'overnight' => 'Overnight tourists', 'not_stated' => 'Not stated'] as $key => $label):
@@ -98,11 +166,15 @@ $i = $report['integrity'];
 </div>
 
 <!-- ===================== BY DESTINATION ===================== -->
-<section class="panel">
+<section class="panel report-print-section report-print-section--flow">
     <header class="panel__head"><h2><i class="fa-solid fa-mountain-sun"></i> Arrivals by Destination</h2></header>
     <div class="panel__body">
-        <table class="table table-sm mb-0">
-            <thead><tr><th>Destination</th><th>Barangay</th><th class="text-end">Entries</th><th class="text-end">Visitors</th><th class="text-end">Share</th></tr></thead>
+        <table class="table table-sm mb-0 report-print-table">
+            <thead><tr>
+                <th>Destination</th><th>Barangay</th>
+                <th class="text-end">Entries</th><th class="text-end">Visitors</th><th class="text-end">Share</th>
+                <?php if ($reportLinks && $dest === null): ?><th></th><?php endif; ?>
+            </tr></thead>
             <tbody>
             <?php foreach ($report['destinations'] as $d):
                 $pct = $t['visitors'] > 0 ? round($d['visitors'] / $t['visitors'] * 100, 1) : 0; ?>
@@ -112,6 +184,24 @@ $i = $report['integrity'];
                     <td class="text-end num"><?= n($d['records']) ?></td>
                     <td class="text-end num"><strong><?= n($d['visitors']) ?></strong></td>
                     <td class="text-end num"><?= $pct ?>%</td>
+                    <?php if ($reportLinks && $dest === null): ?>
+                        <?php /* THE PER-DESTINATION ACTION LIVES HERE, on the row it
+                                 belongs to, rather than as a second form above. The
+                                 officer is already looking at the line whose figure
+                                 they want to check against the site's own sheet.
+                                 It carries the period currently on screen, so the
+                                 destination report opens on the same dates rather
+                                 than resetting to this month. */ ?>
+                        <td class="text-end">
+                            <a class="btn btn-sm btn-outline-secondary"
+                               href="?<?= e(http_build_query(array_merge(
+                                   array_diff_key($_GET, ['save' => 1]),
+                                   ['destination' => (int) $d['id']]
+                               ))) ?>">
+                                <i class="fa-solid fa-file-lines"></i> Generate Report
+                            </a>
+                        </td>
+                    <?php endif; ?>
                 </tr>
             <?php endforeach; ?>
             </tbody>
@@ -121,6 +211,7 @@ $i = $report['integrity'];
                     <th class="text-end num"><?= n(array_sum(array_column($report['destinations'], 'records'))) ?></th>
                     <th class="text-end num"><?= n(array_sum(array_column($report['destinations'], 'visitors'))) ?></th>
                     <th></th>
+                    <?php if ($reportLinks && $dest === null): ?><th></th><?php endif; ?>
                 </tr>
             </tfoot>
         </table>
@@ -129,10 +220,10 @@ $i = $report['integrity'];
 
 <!-- ===================== DEMOGRAPHICS ===================== -->
 <div class="report-grid">
-    <section class="panel">
+    <section class="panel report-print-section report-print-section--keep">
         <header class="panel__head"><h2><i class="fa-solid fa-cake-candles"></i> Age Groups</h2></header>
         <div class="panel__body">
-            <table class="table table-sm mb-0">
+            <table class="table table-sm mb-0 report-print-table">
                 <tbody>
                 <?php
                 $ageLabels = ArrivalRepository::AGE_BRACKETS + ['not_stated' => 'Not stated'];
@@ -149,10 +240,10 @@ $i = $report['integrity'];
         </div>
     </section>
 
-    <section class="panel">
+    <section class="panel report-print-section report-print-section--keep">
         <header class="panel__head"><h2><i class="fa-solid fa-venus-mars"></i> Sex</h2></header>
         <div class="panel__body">
-            <table class="table table-sm mb-0">
+            <table class="table table-sm mb-0 report-print-table">
                 <tbody>
                 <?php foreach (['male' => 'Male', 'female' => 'Female', 'prefer_not_to_say' => 'Prefer not to say', 'not_stated' => 'Not stated'] as $key => $label):
                     $count = $report['demographics']['sex'][$key];
@@ -182,10 +273,10 @@ $i = $report['integrity'];
         'countries' => ['Top Countries', 'fa-globe'],
     ] as $key => $meta):
         if ($report['origins'][$key] === []) continue; ?>
-        <section class="panel">
+        <section class="panel report-print-section report-print-section--keep">
             <header class="panel__head"><h2><i class="fa-solid <?= e($meta[1]) ?>"></i> <?= e($meta[0]) ?></h2></header>
             <div class="panel__body">
-                <table class="table table-sm mb-0">
+                <table class="table table-sm mb-0 report-print-table">
                     <tbody>
                     <?php foreach ($report['origins'][$key] as $o): ?>
                         <tr>
@@ -204,10 +295,10 @@ $i = $report['integrity'];
 <!-- ===================== PEAK DAYS ===================== -->
 <?php if ($report['peak']['busiest_dates'] !== []): ?>
 <div class="report-grid">
-    <section class="panel">
+    <section class="panel report-print-section report-print-section--keep">
         <header class="panel__head"><h2><i class="fa-solid fa-arrow-trend-up"></i> Busiest Days</h2></header>
         <div class="panel__body">
-            <table class="table table-sm mb-0">
+            <table class="table table-sm mb-0 report-print-table">
                 <tbody>
                 <?php foreach ($report['peak']['busiest_dates'] as $d): ?>
                     <tr>
@@ -220,10 +311,10 @@ $i = $report['integrity'];
         </div>
     </section>
 
-    <section class="panel">
+    <section class="panel report-print-section report-print-section--keep">
         <header class="panel__head"><h2><i class="fa-solid fa-calendar-week"></i> By Day of Week</h2></header>
         <div class="panel__body">
-            <table class="table table-sm mb-0">
+            <table class="table table-sm mb-0 report-print-table">
                 <tbody>
                 <?php
                 $maxDay = max(array_map(static fn($w) => (int) $w['visitors'], $report['peak']['weekdays'] ?: [['visitors' => 1]]));
@@ -245,7 +336,7 @@ $i = $report['integrity'];
 <?php endif; /* end has-visitors */ ?>
 
 <!-- ===================== RECORD INTEGRITY ===================== -->
-<section class="panel panel--integrity">
+<section class="panel panel--integrity report-print-section report-print-section--keep">
     <header class="panel__head"><h2><i class="fa-solid fa-shield-halved"></i> Record Integrity</h2></header>
     <div class="panel__body">
         <p class="report-note mb-3">

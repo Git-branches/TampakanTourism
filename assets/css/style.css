@@ -872,30 +872,38 @@ img { max-width: 100%; height: auto; }
 /* ---- Brand ---- */
 .brand {
     display: flex;
-    align-items: center;
-    gap: .85rem;
+    align-items: center;   /* the mark sits on the text's optical centre */
+    gap: .7rem;            /* ~11px, between the mark and "Tampakan" */
     padding: 0;
 }
 .brand__logos { display: flex; align-items: center; }
 .brand__logos img {
-    width: 58px;
-    height: 58px;
-    /* The seal ships as a JPEG — an opaque white square — so it is clipped to
-       a disc and given a matching white backing. That turns the unavoidable
-       white corners into a deliberate emblem badge instead of a white box
-       floating over the hero photograph. The artwork's circular rope border is
-       inscribed in the square, so a 50% radius trims only empty margin.
-       `contain` preserves the seal's aspect ratio; any resulting sliver is
-       white on white and therefore invisible. */
+    /* NO CONTAINER. The mark sits on the bar itself.
+       It used to wear a white disc with a drop shadow, which at this size read
+       as an app icon rather than as a municipal identity. The disc was there
+       for a mechanical reason — the office's file is JPEG data despite its
+       .png name, so its background was opaque white and would have shown as a
+       box over the hero photograph.
+
+       tourism-logo-mark.png now carries real transparency: the outer white is
+       flooded from the edges only, four-connected, so the white OUTLINE the
+       designer drew around the dome survives (1,798px of it, measured — the
+       generator refuses to write the file if that collapses). Nothing else in
+       the artwork is touched: no recolouring, no reproportioning, one crop and
+       one proportional resample.
+
+       A drop shadow is what keeps it legible against a photograph — a shadow,
+       not a plate, so there is no container and nothing to look like a badge. */
+    width: 46px;
+    height: 46px;
     object-fit: contain;
-    border-radius: 50%;
-    background: var(--white);
-    padding: 2px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, .3);
-    transition: transform .4s var(--ease), box-shadow .4s var(--ease);
+    filter: drop-shadow(0 1px 3px rgba(0, 0, 0, .45));
+    transition: transform .4s var(--ease), filter .4s var(--ease);
 }
+/* Over a white bar the shadow has no work to do and only muddies the edges. */
+.main-nav.is-solid .brand__logos img,
 .main-nav.is-scrolled .brand__logos img {
-    box-shadow: 0 2px 8px rgba(28, 37, 41, .14);
+    filter: drop-shadow(0 1px 2px rgba(28, 37, 41, .18));
 }
 /* A seal is an official emblem — it scales on hover but is never rotated. */
 .brand:hover .brand__logos img { transform: scale(1.06); }
@@ -2339,12 +2347,19 @@ img { max-width: 100%; height: auto; }
     box-shadow: var(--shadow-md);
     border: 1px solid var(--gray-200);
 }
-.contact-map iframe {
+/* iframe AND the Leaflet container: the embed it replaced was an <iframe>, and
+   leaving that selector behind would be a rule for markup nobody renders. */
+.contact-map iframe,
+.contact-map #officeMap {
     display: block;
     width: 100%;
     height: 260px;
     border: 0;
 }
+
+/* Leaflet paints its own grey while tiles load. Without a ground colour the box
+   is white and reads as a map that failed rather than one arriving. */
+.contact-map #officeMap { background: var(--gray-100, #F1F4F2); }
 
 /* ---- Form card ---- */
 .contact-form-card {
@@ -2471,6 +2486,11 @@ img { max-width: 100%; height: auto; }
 .footer__brand {
     display: flex;
     align-items: center;
+    /* Two marks now stand here — the municipal seal and the Tourism Office
+       logo — so they need room between them. They wrap rather than shrink on a
+       narrow phone: a seal squeezed to 40px is no longer an emblem. */
+    flex-wrap: wrap;
+    gap: .85rem;
     margin-bottom: 1.2rem;
 }
 .footer__brand img {
@@ -2483,6 +2503,9 @@ img { max-width: 100%; height: auto; }
     border-radius: 50%;
     padding: 3px;
 }
+
+/* Both marks take the same disc — see .brand__logos img for why the Tourism
+   Office artwork is shipped on a square canvas sized to fit one. */
 
 .footer__title {
     font-size: 1.02rem;
@@ -2582,13 +2605,70 @@ img { max-width: 100%; height: auto; }
 }
 .footer__bottom p { margin-bottom: 0; }
 
+/* THE LAST ROW KEEPS ITS ARRANGEMENT AND STOPS SHORT OF THE LAUNCHER.
+   -----------------------------------------------------------------------------
+   Copyright left, links right, exactly as before — the only change is that the
+   row ends where the "Ask Tampakan Tourism" button begins instead of running
+   underneath it. Measured with elementFromPoint at the bottom of the page:
+   "Cookies" and "Sitemap" could not be clicked at 1366px, and at 834px — where
+   the launcher is still the full 247px pill but the row is narrower — none of
+   the four could.
+
+   The reservation on the right is what moves the links left, rather than
+   re-ordering them: an office that knows where its own links are should not
+   have to find them somewhere else. */
+.footer__bottom-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    /* 1.25rem, not 1.6. Measured on a 1366px screen: the copyright, the four
+       links and the space the launcher needs came to 973px against 962px of
+       row — eleven pixels short of one line. The gap here and the one between
+       the links give that back, and a report of "adjust them a little to the
+       left" should not end with them on a line of their own. */
+    gap: .45rem 1.25rem;
+}
+
+/* ONLY THE PART OF THE LAUNCHER THAT REACHES INSIDE THE ROW.
+   -----------------------------------------------------------------------------
+   The first attempt reserved the launcher's whole width, and that was wrong by
+   about 140px: the container is already inset from the viewport edge, so most
+   of the launcher sits in that gutter and is in nobody's way. Over-reserving
+   pushed the links onto a second line, which is a change of arrangement rather
+   than the nudge that was asked for.
+
+   The intrusion is exactly:  dock-edge + dock-width + half the row - half the
+   viewport.  A percentage padding resolves against the row's own width, so 50%
+   IS half the row — which makes the whole thing computable in CSS and correct
+   at every width, rather than a constant tuned to one screen. max() clamps it
+   to nothing on a wide monitor, where the launcher clears the container
+   entirely.
+
+   Only when the launcher is actually there: chat.js puts .has-chat-dock on the
+   body, and the same hook already reserves vertical room on a phone below. */
+body.has-chat-dock .footer__bottom-row {
+    padding-right: max(0px, calc(
+        var(--dock-edge) + var(--dock-width) + .75rem + 50% - 50vw
+    ));
+}
+
+/* Keeps the links at the right of whatever line they end up on. Where the row
+   is too narrow to hold the copyright and four links beside a 247px button —
+   which is every width below about 1330px, measured — they take their own line,
+   and this is what stops them jumping to the left when they do. */
+.footer__legal { margin-left: auto; }
+
 .footer__legal {
     display: flex;
-    gap: 1.5rem;
+    /* Wraps rather than pushing the row wider than the space left beside the
+       launcher — four links and a copyright line do not fit one row on a
+       tablet. 1.25rem for the same eleven pixels as the row above. */
+    flex-wrap: wrap;
+    gap: .35rem 1.25rem;
     list-style: none;
     padding: 0;
     margin: 0;
-    justify-content: center;
 }
 .footer__legal a {
     color: rgba(255, 255, 255, .68);
@@ -2603,7 +2683,7 @@ img { max-width: 100%; height: auto; }
 .back-to-top {
     position: fixed;
     right: 1.75rem;
-    bottom: 1.75rem;
+    bottom: calc(1.75rem + var(--cookie-bar-h));
     z-index: 1030;
     display: grid;
     place-items: center;
@@ -2831,7 +2911,10 @@ img { max-width: 100%; height: auto; }
     .about__gallery { padding-right: 2rem; margin-bottom: 1rem; }
     .about__badge { left: 0; }
 
-    .footer__legal { justify-content: center; margin-top: .75rem; }
+    /* Centred once the row has stacked, which is where the launcher is a small
+       circle and takes its clearance from the bottom instead of the side. */
+    .footer__bottom-row { justify-content: center; text-align: center; }
+    .footer__legal { justify-content: center; }
 }
 
 /* ---- Mobile ---- */
@@ -2840,7 +2923,8 @@ img { max-width: 100%; height: auto; }
 
     body { font-size: .95rem; }
 
-    .brand__logos img { width: 48px; height: 48px; }
+    /* A shade smaller on a phone, but still the same 42-48px band. */
+    .brand__logos img { width: 42px; height: 42px; }
     .brand__text strong { font-size: 1.1rem; }
     .brand__text small  { font-size: .6rem; }
 
@@ -3567,7 +3651,9 @@ body [data-aos="tt-pop"][data-aos] {
 
 .main-nav.is-solid .brand__text strong { color: var(--ink);        text-shadow: none; }
 .main-nav.is-solid .brand__text small  { color: var(--gray-500);   text-shadow: none; }
-.main-nav.is-solid .brand__logos img   { box-shadow: 0 2px 8px rgba(28, 37, 41, .14); }
+/* No box-shadow on the mark: it is a transparent PNG now, and a box-shadow
+   would trace the rectangle of the FILE rather than the shape of the artwork.
+   The softer drop-shadow for this state lives beside .brand__logos img. */
 
 .main-nav.is-solid .nav-link           { color: var(--gray-700);   text-shadow: none; }
 .main-nav.is-solid .nav-link:hover,
@@ -4731,18 +4817,39 @@ body [data-aos="tt-pop"][data-aos] {
     --dock-edge:   1.25rem;   /* distance from the viewport corner */
     --dock-gap:    .7rem;     /* breathing room between the two buttons */
     --dock-height: 52px;      /* the launcher's height, fixed below */
+
+    /* The launcher's width with its label. Measured, because it comes from the
+       label's text and CSS cannot read that; scratchpad/footer-dock.cjs asserts
+       at five widths that nothing ends up underneath it, so a longer label is
+       caught rather than discovered by the office. */
+    --dock-width: 247px;
+
+    /* HOW MUCH THE COOKIE BAR IS TAKING AT THE FOOT OF THE SCREEN.
+     *
+     * Zero unless the notice is showing; the script in the partial measures the
+     * bar and writes the real height here. Everything else that lives in the
+     * bottom-right corner adds it, so the launcher, the chat panel and the
+     * back-to-top ride above the bar instead of sitting on its buttons —
+     * which is exactly what happened when the notice became full width: the
+     * "Ask Tampakan Tourism" launcher covered "Got it".
+     *
+     * Measured rather than a constant: the bar is one line at desktop width and
+     * three on a phone, and a guessed number would be wrong on one of them. */
+    --cookie-bar-h: 0px;
 }
 
 body.has-chat-dock .back-to-top {
     right: var(--dock-edge);
-    bottom: calc(var(--dock-edge) + var(--dock-height) + var(--dock-gap));
+    bottom: calc(var(--dock-edge) + var(--dock-height) + var(--dock-gap) + var(--cookie-bar-h));
 }
 
 /* ---- Launcher ------------------------------------------------------------ */
 .chat-launcher {
     position: fixed;
     right: var(--dock-edge);
-    bottom: var(--dock-edge);
+    /* Rides above the cookie bar while it is up — see --cookie-bar-h. Full
+       width put the bar's own buttons directly under this launcher. */
+    bottom: calc(var(--dock-edge) + var(--cookie-bar-h));
     z-index: 1050;          /* above the back-to-top, below the navbar */
     height: var(--dock-height);
     display: inline-flex;
@@ -4769,7 +4876,7 @@ body.has-chat-dock .back-to-top {
 .chat-panel {
     position: fixed;
     right: 1.25rem;
-    bottom: 1.25rem;
+    bottom: calc(1.25rem + var(--cookie-bar-h));
     z-index: 1051;
     width: min(24rem, calc(100vw - 2.5rem));
 
@@ -5002,6 +5109,12 @@ body.has-chat-dock .back-to-top {
     :root {
         --dock-edge:   1rem;
         --dock-height: 48px;
+
+        /* The label is hidden below, so the launcher is a circle. The row takes
+           its clearance from the bottom on a phone — see .has-chat-dock further
+           down — but the width still has to be right, or the formula reserves
+           200px that is not there. */
+        --dock-width: 48px;
     }
 
     .chat-launcher__label { display: none; }
@@ -7071,6 +7184,108 @@ button.dest-block__more {
     box-shadow: 0 10px 30px rgba(0, 0, 0, .10);
 }
 
+/* ---- an event with several photographs ----------------------------------
+   One large, up to three stacked beside it — the Cultural Heritage idea turned
+   on its side, because an event's lead photograph deserves the room. The side
+   column divides its height among however many tiles it has, so two, three or
+   four photographs all fill the same box and none leaves an empty cell. */
+.event-gallery {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    gap: .6rem;
+    height: clamp(280px, 46vw, 460px);
+    margin: 0 0 1.25rem;
+}
+
+.event-gallery__side {
+    display: grid;
+    grid-auto-rows: minmax(0, 1fr);
+    gap: .6rem;
+    min-height: 0;
+}
+
+.event-gallery__lead,
+.event-gallery__tile {
+    position: relative;
+    display: block;
+    min-height: 0;
+    overflow: hidden;
+    border-radius: 10px;
+    background: var(--gray-100, #F1F3F2);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, .08);
+}
+
+.event-gallery__lead img,
+.event-gallery__tile img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform .4s ease;
+}
+
+.event-gallery__lead:hover img,
+.event-gallery__tile:hover img { transform: scale(1.04); }
+
+.event-gallery__lead:focus-visible,
+.event-gallery__tile:focus-visible { outline: 3px solid var(--green, #2E7D32); outline-offset: 2px; }
+
+/* Over the last tile when there are more: the photograph stays visible under
+   the wash, the same door the About gallery uses. */
+.event-gallery__veil {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: .1rem;
+    background: rgba(11, 46, 26, .62);
+    color: #fff;
+    text-align: center;
+    transition: background .2s ease;
+}
+
+.event-gallery__tile.is-more:hover .event-gallery__veil { background: rgba(11, 46, 26, .76); }
+.event-gallery__veil strong { font-size: 1.6rem; font-weight: 800; line-height: 1; }
+.event-gallery__veil small  { font-size: .76rem; font-weight: 600; }
+
+.event-gallery__hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    pointer-events: none;
+}
+
+/* A phone: the lead full width, the others in a row beneath it. */
+@media (max-width: 575.98px) {
+    .event-gallery {
+        grid-template-columns: 1fr;
+        height: auto;
+    }
+
+    .event-gallery__lead { aspect-ratio: 4 / 3; }
+
+    .event-gallery__side {
+        grid-auto-flow: column;
+        grid-auto-columns: minmax(0, 1fr);
+        grid-auto-rows: auto;
+    }
+
+    .event-gallery__tile { aspect-ratio: 1 / 1; }
+    .event-gallery__veil strong { font-size: 1.2rem; }
+    .event-gallery__veil small  { font-size: .66rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .event-gallery__lead img,
+    .event-gallery__tile img,
+    .event-gallery__lead:hover img,
+    .event-gallery__tile:hover img { transition: none; transform: none; }
+}
+
 /* ---- a notice with no photograph attached ------------------------------
    Nine notices, one Unsplash sunset between them — and the same picture on a
    closure as on a reminder. The worst of it was that a scenic mountain above
@@ -7131,35 +7346,87 @@ button.dest-block__more {
    notice rather than a gate: the page behind it stays readable and usable, and
    it never covers the whole screen.
    ========================================================================== */
+/* A BAR ACROSS THE FOOT OF THE PAGE, not a card in the corner.
+ *
+ * It was 30rem wide and fixed at the bottom-left, and because it is fixed it sat
+ * over whatever scrolled under it. Measured with document.elementFromPoint: on
+ * the About section's photo grid it covered two of the four tiles outright, so
+ * a first-time visitor could not open the gallery from them — and a first-time
+ * visitor is the only person who ever sees this.
+ *
+ * The shape was wrong for what it is. This is not a consent gate: one strictly
+ * necessary session cookie, nothing to accept or reject. Something with no
+ * decision in it should not command a quarter of the screen or block a control.
+ *
+ * Full width, one line of text where there is room for one, and the script in
+ * the partial adds matching padding to the page so nothing is left permanently
+ * underneath.
+ */
 .cookie-note {
     position: fixed;
-    left: 1rem;
-    bottom: 1rem;
-    z-index: 1080;
-    width: min(30rem, calc(100vw - 2rem));
+    left: 0;
+    right: 0;
+    bottom: 0;
+
+    /* BELOW A MODAL, NOT ABOVE IT.
+     *
+     * This was 1080 — over Bootstrap's modal (1055) and its backdrop (1050) —
+     * so on a first visit the notice sat on top of every dialog on the site.
+     * It covered the left-hand column of the Privacy and Terms modals, and,
+     * once Contact Us moved into one, the first two fields of every enquiry
+     * form. The visitor could not read what they were agreeing to or fill in
+     * the form under it, and dismissing the notice to get at the form is
+     * consent given to make an obstruction go away.
+     *
+     * 1040 puts it under the backdrop: open a dialog and the notice recedes
+     * with the rest of the page, which is what a backdrop is for. It is still
+     * above the navbar and the page's own furniture.
+     */
+    z-index: 1040;
+
     background: #fff;
-    border: 1px solid #dfe7e0;
-    border-radius: 14px;
-    box-shadow: 0 18px 44px -18px rgba(16, 34, 20, .45);
-    padding: 1rem 1.15rem;
-    display: grid;
-    gap: .75rem;
-    font-size: .88rem;
+    border-top: 1px solid #dfe7e0;
+    /* Upward, because the bar is at the bottom now. The old shadow pointed down
+       and off the screen. */
+    box-shadow: 0 -8px 28px -14px rgba(16, 34, 20, .38);
+    font-size: .84rem;
     color: #46554c;
 }
 .cookie-note[hidden] { display: none; }
 
-.cookie-note__title {
-    font-size: 1rem;
-    font-weight: 700;
-    color: #16211b;
-    margin: 0 0 .35rem;
+/* Holds the content to the page's own measure while the bar spans the window. */
+.cookie-note__inner {
+    max-width: 1200px;
+    margin-inline: auto;
+    padding: .8rem 1.25rem;
     display: flex;
     align-items: center;
-    gap: .5rem;
+    gap: 1.25rem;
 }
-.cookie-note__title i { color: #2e7d32; }
-.cookie-note__text { margin: 0; line-height: 1.55; }
+
+/* The words take the room; the buttons take what they need and no more. */
+.cookie-note__body { flex: 1; min-width: 0; }
+
+/* The disclosure can run long, so the bar scrolls internally rather than
+   growing past the top of the screen on a phone. */
+.cookie-note__body { max-height: 46vh; overflow-y: auto; }
+
+/* The heading sits ON the line with the text rather than above it — a bar has
+   one line to spend and a stacked title spends it on a label. */
+.cookie-note__title {
+    display: inline;
+    font-size: .84rem;
+    font-weight: 700;
+    color: #16211b;
+    margin: 0 .4rem 0 0;
+}
+.cookie-note__title i { color: #2e7d32; margin-right: .3rem; }
+
+/* Runs on from the heading, so the two read as one sentence. */
+.cookie-note__text { display: inline; margin: 0; line-height: 1.6; }
+
+/* The office's full paragraph, moved off the bar and into the disclosure. */
+.cookie-note__full { margin: .7rem 0 0; line-height: 1.6; }
 
 .cookie-note__details { margin-top: .6rem; }
 .cookie-note__details summary {
@@ -7176,19 +7443,37 @@ button.dest-block__more {
 .cookie-note__table code { font-size: .78rem; color: #16211b; }
 .cookie-note__small { margin: .55rem 0 0; font-size: .78rem; color: #6c7c73; line-height: 1.5; }
 
-.cookie-note__actions { display: flex; gap: .5rem; justify-content: flex-end; flex-wrap: wrap; }
+/* Never squeezed: the two buttons keep their width and the sentence wraps
+   instead. A "Got it" that has wrapped to two characters per line is the one
+   thing on the bar that must stay pressable. */
+.cookie-note__actions {
+    display: flex;
+    gap: .5rem;
+    flex-shrink: 0;
+}
+
 .cookie-note__more,
-.cookie-note__ok { border-radius: 8px; font-weight: 600; }
+.cookie-note__ok { border-radius: 8px; font-weight: 600; white-space: nowrap; }
 .cookie-note__more { background: #fff; border: 1px solid #dfe7e0; color: #46554c; }
 .cookie-note__more:hover { border-color: #bcd3c1; color: #16211b; }
 .cookie-note__ok { background: #2e7d32; border: 1px solid #2e7d32; color: #fff; }
 .cookie-note__ok:hover { background: #1b5e20; border-color: #1b5e20; color: #fff; }
 
-/* On a phone the card spans the width, and sits above the chat button. */
-@media (max-width: 575.98px) {
-    .cookie-note { left: .75rem; right: .75rem; bottom: 5.25rem; width: auto; }
-    .cookie-note__actions { justify-content: stretch; }
-    .cookie-note__more, .cookie-note__ok { flex: 1 1 auto; }
+/* Tablet and below: the buttons drop under the words rather than pinching the
+   sentence into a column two words wide. */
+@media (max-width: 767.98px) {
+    .cookie-note__inner {
+        flex-direction: column;
+        align-items: stretch;
+        gap: .7rem;
+        padding: .8rem 1rem;
+    }
+
+    .cookie-note__actions > * { flex: 1 1 auto; }
+
+    /* The chat button sits at the bottom-right; the bar must clear it rather
+       than sit under it. */
+    .cookie-note { padding-bottom: env(safe-area-inset-bottom, 0); }
 }
 
 /* =============================================================================
@@ -7374,4 +7659,822 @@ button.dest-block__more {
     .map-pin span,
     .map-pop-shell .leaflet-popup-content,
     .map-pop__photo { transition: none; }
+}
+
+
+/* =============================================================================
+   34. ABOUT — THE TWO CONTENT BLOCKS AND THEIR OFFICIALS
+   -----------------------------------------------------------------------------
+   Built to the office's own mockup, 17 September 2026. Each block is three
+   columns: photographs left, words centre, the responsible official's portrait
+   right. About Tampakan and About the Tourism Office share every rule here —
+   they are one partial called twice.
+
+   Everything reuses the tokens at the top of this file, so the new work inherits
+   the same greens, radii and shadows as the rest of the page.
+   ========================================================================== */
+
+.about-block {
+    /* A hairline rule rather than another tinted band. The whole section is
+       already section--tint; a second background inside it would read as a
+       different section that had forgotten its heading. */
+    margin-top: 3.5rem;
+    padding-top: 3.5rem;
+    border-top: 1px solid var(--gray-200);
+}
+
+/* The first block opens the section, so it carries no rule and no top space —
+   the section's own padding is already there. This used to be a separate
+   "Who We Are" block's job; with that removed, About Tampakan is the opener. */
+.about-block:first-child {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: 0;
+}
+
+/* A CAP ON THE MEASURE WHEREVER THERE IS NO THIRD COLUMN.
+   Brief History and Cultural Heritage have no official beside them, so their
+   text column is col-lg-7 — comfortable at 1366px and a 110-character line at
+   1920px, which nobody finishes. 72ch is the ceiling; below it the column is
+   narrower than the cap and this does nothing at all. */
+.about-block .col-lg-7 .about-block__text,
+.about-block .col-lg-12 .about-block__text,
+.about-block .col-12 .about-block__text {
+    max-width: 72ch;
+}
+
+/* The block headers are tighter than a full section opener: these introduce a
+   part of About, not a new section of the page. */
+.about-block .section-head {
+    margin-bottom: clamp(1.75rem, 3vw, 2.5rem);
+}
+
+/* The small label over each part of the prose column. Uppercase and set in the
+   brand green so it reads as a divider rather than as a third heading level
+   competing with the h2 above it. */
+.about-block__label {
+    margin: 1.75rem 0 .6rem;
+    font-size: .76rem;
+    font-weight: 800;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--green-dark);
+}
+
+/* The first label sits directly under the row's top edge, so it needs no space
+   above it — only the ones following a paragraph do. */
+.about-block__label:first-child { margin-top: 0; }
+
+/* ONE ASPECT RATIO ACROSS EVERY BLOCK, fixed rather than left to the source:
+ * the office uploads photographs at whatever size their camera produced, and
+ * only a fixed frame with object-fit can guarantee they are cropped rather than
+ * stretched. See .about-block__img below.
+ *
+ * Two earlier arrangements are gone — an overlapping pair, then two stacked —
+ * because the office asked for one photograph per block with the rest behind
+ * "View all photos", the way the destination pages do it. */
+
+/* A smaller heading than the section opener above it. These are subsections of
+   About, not sections competing at the same weight. */
+.section-title--sm {
+    font-size: clamp(1.5rem, 2.6vw, 2rem);
+    margin-bottom: 1.1rem;
+}
+
+/* The frame, so the badge and the "view all" door have something to be
+   positioned inside. Without it the badge anchored to the column and drifted
+   over whatever sat below. */
+.about-block__frame {
+    position: relative;
+    margin: 0;
+}
+
+.about-block__link {
+    display: block;
+    position: relative;
+    border-radius: var(--radius);
+    overflow: hidden;              /* clips the door to the image's corners */
+    box-shadow: var(--shadow-md);
+}
+
+/* SQUARE — taller than the 4:3 it was, and as tall as it can go before it
+ * starts destroying the photographs.
+ *
+ * The office asked for a deeper image, and 4:5 was tried. Every photograph they
+ * have uploaded is LANDSCAPE, between 1.33 and 1.66, and object-fit: cover
+ * crops the sides to fill a portrait frame: at 4:5 only 60% of a 1.33 source
+ * survives, and the Brief History photograph at 1.66 lost more than half. On the
+ * page that read as signage sliced mid-word — "…mpse of Tampaka…", "ALBERTA'S
+ * PLA…".
+ *
+ * 1:1 keeps 75% and still stands a good deal taller than 4:3. If the office
+ * wants it deeper again, the answer is portrait source photographs rather than a
+ * deeper frame — otherwise the crop takes whatever is at the edges.
+ *
+ * One ratio for every block, so two columns line up whatever their sources were.
+ */
+.about-block__img {
+    display: block;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+    background: var(--gray-100);
+    transition: transform .4s ease;
+}
+
+.about-block__link:hover .about-block__img { transform: scale(1.03); }
+
+@media (prefers-reduced-motion: reduce) {
+    .about-block__img,
+    .about-block__link:hover .about-block__img { transition: none; transform: none; }
+}
+
+/* THE DOOR TO THE REST, on the photograph rather than under it — the pattern the
+   destination pages already use, so a visitor has met it before. Only drawn when
+   there IS more than one, so a single-photograph block stays a plain image. */
+.about-block__more {
+    position: absolute;
+    right: .85rem;
+    bottom: .85rem;
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .55rem 1rem;
+    border-radius: var(--radius-pill);
+    /* Solid, not a translucent wash: over a photograph of unknown brightness a
+       translucent chip is legible on some images and invisible on others. */
+    background: rgba(27, 94, 32, .94);
+    color: var(--white);
+    font-size: .78rem;
+    font-weight: 700;
+    letter-spacing: .01em;
+    box-shadow: var(--shadow-sm);
+    transition: background .2s ease;
+}
+
+.about-block__link:hover .about-block__more { background: var(--green-dark); }
+
+/* -- The gallery grid, for a block with four or more photographs ----------- */
+/* Two by two, the shape the office drew. Below four it stays a single image with
+   the door, because a 2×2 with an empty cell is worse than either. */
+.about-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: .6rem;
+}
+
+.about-grid__cell {
+    position: relative;
+    display: block;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+}
+
+/* SQUARE TILES, for the same reason the single frame is square: every
+   photograph the office uploads is landscape, and object-fit crops into a fixed
+   box rather than stretching whatever it is given. Four identical tiles are the
+   whole point of a grid — one odd one out reads as a mistake. */
+.about-grid__img {
+    display: block;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+    background: var(--gray-100);
+    transition: transform .4s ease;
+}
+
+.about-grid__cell:hover .about-grid__img { transform: scale(1.04); }
+
+/* The last tile when there are more behind it: the photograph stays visible
+   under a wash, so the grid keeps four pictures rather than three and a panel. */
+.about-grid__veil {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: .1rem;
+    background: rgba(11, 46, 26, .62);
+    color: var(--white);
+    text-align: center;
+    transition: background .2s ease;
+}
+
+.about-grid__cell.is-more:hover .about-grid__veil { background: rgba(11, 46, 26, .74); }
+
+.about-grid__veil strong {
+    font-size: 1.6rem;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.about-grid__veil small {
+    font-size: .74rem;
+    font-weight: 600;
+    letter-spacing: .01em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .about-grid__img,
+    .about-grid__cell:hover .about-grid__img { transition: none; transform: none; }
+}
+
+/* The extra photographs: in the document for the viewer to page through, out of
+   the layout entirely. Not display:none — a link the browser has taken out of
+   the flow is still queryable, which is all the viewer needs. */
+.about-block__hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    pointer-events: none;
+}
+
+/* The badge sits INSIDE the photograph now, not hanging off its corner. It used
+   to be pulled out to the left by 1.2rem, which on a narrow column put it over
+   the page edge — and with the overlapping pair gone there is no longer a
+   reserved gutter for it to hang into. */
+.about-block__frame .about__badge {
+    top: auto;
+    left: 1rem;
+    bottom: 1rem;
+}
+
+.about-block__text {
+    font-size: .95rem;
+    line-height: 1.85;
+    color: var(--ink-soft);
+}
+
+.about-block__text + .about-block__text { margin-top: 1rem; }
+
+/* nl2br gives <br>, so a blank line between paragraphs arrives as two breaks.
+   This gives them room without asking the officer to type anything but ordinary
+   paragraphs into the textarea. */
+.about-block__text br + br { line-height: 2.2; }
+
+/* -- The official's portrait card ------------------------------------------ */
+/* A PORTRAIT IN A CARD, NOT AN AVATAR. An earlier cut drew a small circular
+   photograph inline under the text; the office's mockup puts the full portrait
+   in its own bordered card, at the size an official photograph is normally
+   printed. Same card for the Mayor and the Coordinator. */
+.official {
+    margin: 0;
+    padding: .55rem .55rem 1.1rem;
+    background: var(--white);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-sm);
+    text-align: center;
+}
+
+.official__photo {
+    display: block;
+    width: 100%;
+    aspect-ratio: 4 / 5;
+    object-fit: cover;
+    /* Faces sit high in a portrait; centring the crop cuts the forehead off. */
+    object-position: center 20%;
+    border-radius: calc(var(--radius) - 4px);
+    background: var(--gray-100);
+}
+
+/* Initials, when no photograph has been uploaded. Deliberately not a stock
+   silhouette — see initials() in app/helpers.php. It fills the same frame the
+   portrait will, so uploading one later moves nothing on the page. */
+.official__photo--blank {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--green-pale);
+    color: var(--green-dark);
+    font-size: 2.6rem;
+    font-weight: 800;
+    letter-spacing: .04em;
+}
+
+.official__body {
+    display: flex;
+    flex-direction: column;
+    gap: .2rem;
+    padding: .9rem .6rem 0;
+}
+
+.official__name {
+    font-size: .85rem;
+    font-weight: 800;
+    line-height: 1.35;
+    letter-spacing: .01em;
+    color: var(--green-dark);
+}
+
+.official__role {
+    font-size: .82rem;
+    color: var(--ink-soft);
+}
+
+/* -- Mission and vision, side by side at the foot -------------------------- */
+.mv-row { margin-top: 3.5rem; }
+
+/* h-100 without the class: both cards match height whatever the length of the
+   two statements, so the row does not end on a ragged edge. */
+.mv-row > [class^="col"] { display: flex; }
+.mv-row .mv-card { width: 100%; margin-top: 0; }
+
+@media (max-width: 991.98px) {
+    .about-block { margin-top: 2.75rem; padding-top: 2.75rem; }
+    .mv-row      { margin-top: 2.75rem; }
+
+    /* The portrait stops being a third column and becomes a modest card under
+       the text, rather than stretching to half the width of a tablet. */
+    .official { max-width: 260px; margin-inline: auto; }
+}
+
+@media (max-width: 575.98px) {
+    /* Everything stacks in one column in source order, which is already the
+       order the office asked for on a phone: photographs, then the words, then
+       the official. Nothing needs reordering — only the portrait card, which
+       stops being capped at tablet width and fills the column like the rest. */
+    .official { max-width: none; }
+
+    /* On a phone the photograph is the full width of the screen, so 4:5 would
+       make it the better part of a screenful before a word is read. Back to a
+       landscape frame here — the fixed ratio still guarantees no stretching, it
+       is simply a different fixed ratio at this width. */
+    .about-block__img { aspect-ratio: 4 / 3; }
+
+    .about-block__more {
+        right: .6rem;
+        bottom: .6rem;
+        padding: .45rem .8rem;
+        font-size: .74rem;
+    }
+}
+
+/* =============================================================================
+   35. CONTACT — THE CATEGORY CHOOSER AND THE ENQUIRY MODAL
+   ========================================================================== */
+
+/* -- The compact card that replaced the inline form ------------------------ */
+.contact-start {
+    display: flex;
+    flex-direction: column;
+}
+
+.contact-start__pick { margin-top: .5rem; }
+
+.contact-start__help {
+    margin: .6rem 0 1.4rem;
+    font-size: .86rem;
+    line-height: 1.6;
+    color: var(--ink-soft);
+}
+
+.contact-start__notes {
+    list-style: none;
+    margin: 1.6rem 0 0;
+    padding: 1.3rem 0 0;
+    border-top: 1px solid var(--gray-200);
+}
+
+.contact-start__notes li {
+    display: flex;
+    align-items: flex-start;
+    gap: .7rem;
+    font-size: .84rem;
+    line-height: 1.6;
+    color: var(--ink-soft);
+}
+
+.contact-start__notes li + li { margin-top: .7rem; }
+
+.contact-start__notes i {
+    margin-top: .18rem;
+    color: var(--green);
+    flex-shrink: 0;
+}
+
+/* -- Two solid buttons, for this flow only --------------------------------- */
+/* NOT .btn-primary-grad, and not a change to it either.
+   That button is the site's headline call to action — it carries the brand
+   gradient, a sliding sheen on hover, and a magnetic pull that follows the
+   pointer. All three are right on a hero and wrong on the Submit of a
+   government data-request form, where the job is to look like a control that
+   does one plain thing. Redefining .btn-primary-grad would have taken the hero
+   and the map call to action with it, so these are their own classes used
+   nowhere else. Being outside the magnetic selector in script.js is deliberate
+   rather than incidental: these buttons stay where they are put. */
+.btn-green {
+    background: var(--green);
+    color: var(--white);
+    border: 1px solid var(--green);
+    box-shadow: none;
+}
+
+.btn-green:hover,
+.btn-green:focus-visible {
+    background: var(--green-dark);
+    border-color: var(--green-dark);
+    color: var(--white);
+}
+
+/* Cancel. .btn-soft would have done, except its hover swaps in the brand
+   gradient — the one thing this flow is meant not to have. */
+.btn-quiet {
+    background: var(--white);
+    color: var(--gray-700);
+    border: 1px solid var(--gray-300);
+    box-shadow: none;
+}
+
+.btn-quiet:hover,
+.btn-quiet:focus-visible {
+    background: var(--gray-100);
+    border-color: var(--gray-500);
+    color: var(--ink);
+}
+
+/* -- The modal ------------------------------------------------------------- */
+.inquiry-modal {
+    border: 1px solid var(--gray-200);
+    /* --radius, not --radius-lg. A 24px corner on a dialog this size reads as a
+       card floating in front of the page; 16px reads as a panel of it. */
+    border-radius: var(--radius);
+    overflow: hidden;         /* keeps the header's square corners off the radius */
+    box-shadow: var(--shadow-lg);
+}
+
+/* SOLID OFFICIAL GREEN. This was the brand green-to-blue gradient, which put
+   two of the site's three accent colours across the top of every enquiry form
+   and made the dialog the loudest thing on the page. One flat colour, the
+   darker of the two greens so white type sits comfortably on it. */
+/* The side padding MATCHES THE BODY'S, so the title's icon starts on the same
+   vertical line as the fields underneath it. At 1.4rem against the body's
+   1.5rem the header sat a hair to the left of everything it introduced — not
+   enough to name, enough to look untidy. */
+.inquiry-modal .modal-header {
+    background: var(--green-dark);
+    color: var(--white);
+    border-bottom: none;
+    padding: 1.05rem 1.5rem;
+}
+
+/* WHITE, SET ON THE HEADING ITSELF AND NOT LEFT TO INHERIT.
+ *
+ * `color: var(--white)` on .modal-header does nothing for this element: the
+ * site gives every h1–h6 an explicit `color: var(--ink)`, and an explicit rule
+ * on the element beats a colour inherited from its parent. So the title sat at
+ * #1C2529 on #1B5E20 — a contrast ratio of 1.98:1, against the 4.5:1 WCAG AA
+ * asks for normal text. It read as near-black on dark green: legible only
+ * because the eye knows what the words say.
+ *
+ * White on this green measures 9.4:1. The children are named too, because the
+ * <span> and <i> would each inherit from whichever rule won for them.
+ */
+.inquiry-modal .modal-title,
+.inquiry-modal .modal-title span,
+.inquiry-modal .modal-title i {
+    color: var(--white);
+}
+
+.inquiry-modal .modal-title {
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: .01em;
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+}
+
+/* The icon is the one decorative thing in the header, so it is held back:
+   smaller than the words beside it and a little dimmed, an accent rather than a
+   badge. .88 rather than lower — at white on this green it still measures well
+   past 4.5:1, and dimming an icon until it fails is a worse trade than having
+   it sit slightly brighter than intended. */
+.inquiry-modal .modal-title i {
+    font-size: .92rem;
+    opacity: .88;
+}
+
+/* Bootstrap's close button is a dark SVG; on the dark green it is invisible. */
+.inquiry-modal .btn-close {
+    filter: brightness(0) invert(1);
+    opacity: .75;
+}
+.inquiry-modal .btn-close:hover { opacity: 1; }
+
+.inquiry-modal .modal-body {
+    padding: 1.5rem;
+    background: var(--white);
+}
+
+.inquiry__lead {
+    margin-bottom: 1.4rem;
+    font-size: .92rem;
+    line-height: 1.7;
+    color: var(--ink-soft);
+}
+
+/* NO display PROPERTY ON THE PANEL, deliberately.
+   The panels are shown and hidden with the `hidden` attribute, and Bootstrap's
+   reboot carries [hidden] { display: none !important }. A display:block here at
+   equal specificity would be fought by that and lose — but a display:flex on a
+   MORE specific selector would win, and every panel would render at once.
+   Leaving display alone is what keeps the attribute in charge. */
+.inquiry__panel { animation: inquiryFade .25s ease; }
+
+@keyframes inquiryFade {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .inquiry__panel { animation: none; }
+}
+
+/* Labels and controls, matched to the card the form used to live in so the
+   modal does not look like a different website's form. */
+.inquiry-modal .form-label {
+    font-size: .82rem;
+    font-weight: 700;
+    color: var(--gray-700);
+    margin-bottom: .4rem;
+}
+
+/* The required marker. #E53935 — the red used elsewhere on the site — measures
+   4.2:1 on these panels, under the 4.5:1 AA asks for text this size. A darker
+   red reads as the same colour at a glance and passes at 5.9:1. Scoped to the
+   modal rather than changed globally: the same red on the site's other forms is
+   a separate judgement on a different background. */
+.inquiry-modal .form-label span { color: #C62828; }
+
+/* White fields on the tinted section panels, rather than tint on tint. A 1px
+   grey edge is enough to say "this is where you type" without a heavy border
+   drawing more attention than the label above it. */
+.inquiry-modal .form-control,
+.inquiry-modal .form-select {
+    border: 1px solid var(--gray-300);
+    border-radius: var(--radius-sm);
+    padding: .65rem .85rem;
+    font-size: .92rem;
+    background: var(--white);
+}
+
+/* The green appears on focus and almost nowhere else in the body. One accent,
+   where it actually tells the visitor something. */
+.inquiry-modal .form-control:focus,
+.inquiry-modal .form-select:focus {
+    background: var(--white);
+    border-color: var(--green);
+    box-shadow: 0 0 0 3px rgba(46, 125, 50, .12);
+}
+
+.inquiry-modal .form-control::placeholder { color: var(--gray-500); }
+
+/* Field hints. --gray-500 measured 2.95:1 against the tinted section panels —
+   the lightest text in the dialog, on the smallest type, saying the things a
+   visitor most needs when they are unsure ("From birthdate", "The Office will
+   tell you if this is not possible"). --ink-soft is still visibly quieter than
+   the label above it and measures 6.1:1. */
+.inquiry-modal .form-text {
+    font-size: .78rem;
+    color: var(--ink-soft);
+}
+
+/* The calculated age box. Flat and plainly not editable — a readonly input
+   styled like the ones around it invites people to type into it. */
+.inquiry-modal #drAge {
+    background: var(--gray-100);
+    color: var(--ink-soft);
+    font-weight: 700;
+    cursor: default;
+}
+
+/* -- The three sections of the Data Request form --------------------------- */
+.form-section {
+    padding: 1.3rem;
+    background: var(--gray-50);
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius);
+}
+
+.form-section + .form-section { margin-top: .25rem; }
+
+/* A legend is a float in some engines and full-width in others; this makes it
+   behave like the block heading it is drawn as. */
+.form-section__title {
+    float: none;
+    width: auto;
+    display: flex;
+    align-items: center;
+    gap: .65rem;
+    margin-bottom: 1.1rem;
+    padding: 0;
+    font-size: .95rem;
+    font-weight: 800;
+    color: var(--ink);
+}
+
+/* The step number. Solid green, and smaller than it was — it is a marker for
+   where you are in a three-part form, not a feature of the page. */
+.form-section__step {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.45rem;
+    height: 1.45rem;
+    border-radius: 50%;
+    background: var(--green);
+    color: var(--white);
+    font-size: .74rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+/* Consent: a quiet panel with one green edge, not a green block. It has to be
+   noticed and read, which a full pale-green fill works against — on a form
+   already carrying three tinted sections it becomes one more band of colour to
+   skim past. */
+/* THE LEFT PADDING HAS TO CARRY BOOTSTRAP'S CHECKBOX INDENT AS WELL AS ITS OWN.
+ *
+ * This element is the .form-check itself, and Bootstrap lays that out as
+ * `padding-left: 1.5em` on the wrapper with `margin-left: -1.5em` on the input
+ * — the negative margin pulls the box back out into that padding. Setting a
+ * plain `padding: .9rem 1.05rem` here replaced the 1.5em and left the negative
+ * margin behind, so the checkbox hung 4px OUTSIDE the panel, sitting across its
+ * green edge and half-clipped by the corner radius.
+ *
+ * calc() keeps both: 1.05rem of panel padding, plus the 1.5em the input is
+ * pulled back by. em, not rem — the input's margin is in em, so it tracks this
+ * element's font size rather than the root's.
+ */
+.inquiry__consent {
+    padding: .9rem 1.05rem;
+    padding-inline-start: calc(1.05rem + 1.5em);
+    background: var(--gray-50);
+    border: 1px solid var(--gray-200);
+    border-inline-start: 3px solid var(--green);
+    border-radius: var(--radius-sm);
+}
+
+/* Centred on the first line of the label rather than pinned to its top, so a
+   consent sentence that wraps to two lines does not leave the box floating
+   above the text it belongs to. */
+.inquiry__consent .form-check-input {
+    margin-top: .18em;
+}
+
+.inquiry__consent .form-check-label {
+    font-size: .84rem;
+    line-height: 1.6;
+    color: var(--gray-700);
+}
+
+.inquiry__consent .form-check-input:checked {
+    background-color: var(--green);
+    border-color: var(--green);
+}
+
+/* -- The action bar -------------------------------------------------------- */
+/* STICKY, so Submit is reachable without scrolling to the foot of a fourteen-
+   field form. It sits inside the scrollable body rather than in a modal-footer
+   because each panel is its own form and the button must be inside the form it
+   submits — a footer button would need a form= attribute rewritten by script
+   every time the category changed. */
+.inquiry__actions {
+    position: sticky;
+    bottom: -1.5rem;          /* cancels the body's own bottom padding */
+    z-index: 2;
+    display: flex;
+    justify-content: flex-end;
+    gap: .75rem;
+    margin: .5rem -1.5rem -1.5rem;
+    padding: 1rem 1.5rem;
+    background: var(--white);
+    border-top: 1px solid var(--gray-200);
+}
+
+.inquiry__actions .btn { padding: .75rem 1.6rem; }
+
+/* -- Nothing to show ------------------------------------------------------- */
+.inquiry__empty {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1.5rem;
+    background: var(--gray-50);
+    border: 1px dashed var(--gray-300);
+    border-radius: var(--radius);
+}
+
+.inquiry__empty i {
+    font-size: 1.4rem;
+    color: var(--gray-500);
+    flex-shrink: 0;
+}
+
+.inquiry__empty p {
+    margin: 0;
+    font-size: .9rem;
+    line-height: 1.65;
+    color: var(--ink-soft);
+}
+
+/* -- The star rating ------------------------------------------------------- */
+/* A REAL RADIO GROUP WITH STARS DRAWN OVER IT.
+   row-reverse is what makes the CSS work: the inputs are rendered 5..1 in the
+   markup, so "this star and every one before it" is a plain sibling selector,
+   and the reversal puts 1 on the left where a reader expects it. Arrow keys,
+   tab order and screen-reader announcement all come free, because the
+   underlying control is an ordinary radio group. */
+.star-rate {
+    display: inline-flex;
+    flex-direction: row-reverse;
+    justify-content: flex-end;
+    gap: .3rem;
+}
+
+.star-rate__input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    /* NOT display:none and NOT visibility:hidden — either takes the radio out of
+       the focus order, which is exactly the accessibility this markup was
+       chosen to keep. */
+}
+
+/* The UNSELECTED star. --gray-300 measured 1.38:1 on white — barely visible,
+   so the control read as a faint smudge rather than as five things to click,
+   and somebody who could not make them out had no way to know a rating was
+   being asked for at all. WCAG 1.4.11 wants 3:1 for a UI component that carries
+   state, and an empty star is precisely that. This measures 3.6:1 and still sits
+   well back from the amber of a chosen one. */
+.star-rate__star {
+    cursor: pointer;
+    font-size: 1.75rem;
+    line-height: 1;
+    color: #7C8791;
+    transition: color .15s ease, transform .15s ease;
+}
+
+.star-rate__star:hover,
+.star-rate__star:hover ~ .star-rate__star,
+.star-rate__input:checked ~ .star-rate__star,
+.star-rate__input:checked + .star-rate__star {
+    color: var(--amber);
+}
+
+.star-rate__star:hover { transform: scale(1.12); }
+
+/* The star group's own error message.
+   Deliberately NOT .invalid-feedback: Bootstrap reveals that through
+   `:invalid ~ .invalid-feedback`, and this sits beside the star group rather
+   than beside an input, so the rule would never match. It is shown and hidden
+   by the `hidden` attribute alone — no display property here to fight it. */
+.rating-error {
+    margin-top: .45rem;
+    font-size: .82rem;
+    font-weight: 600;
+    color: #E53935;
+}
+
+/* The focus ring has to be drawn on the label: the input it belongs to is a 1px
+   box nobody can see. Without this the group is keyboard-operable but gives no
+   sign of where the focus is. */
+.star-rate__input:focus-visible + .star-rate__star {
+    outline: 3px solid var(--blue-light);
+    outline-offset: 3px;
+    border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .star-rate__star { transition: none; }
+    .star-rate__star:hover { transform: none; }
+}
+
+/* -- Phone ----------------------------------------------------------------- */
+@media (max-width: 575.98px) {
+    .inquiry-modal .modal-body { padding: 1.1rem; }
+
+    .form-section { padding: 1rem; }
+
+    .inquiry__actions {
+        bottom: -1.1rem;
+        margin: .5rem -1.1rem -1.1rem;
+        padding: .85rem 1.1rem;
+    }
+
+    /* Full width and side by side rather than stacked: two stacked full-width
+       buttons put Cancel directly under Submit, which is how a thumb aiming for
+       one hits the other. */
+    .inquiry__actions .btn {
+        flex: 1;
+        padding: .8rem 1rem;
+    }
+
+    .star-rate__star { font-size: 2rem; }   /* a 44px touch target */
 }

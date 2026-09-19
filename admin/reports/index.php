@@ -37,6 +37,29 @@ $history = ReportBuilder::history(10);
 $type = (string) ($_GET['type'] ?? 'monthly');
 $report = null;
 
+/* WHICH DESTINATION, OR THE WHOLE MUNICIPALITY.
+ *
+ * The office asked for a per-destination report so they can check what the
+ * system holds against what a site submitted to them. It is the same report and
+ * the same queries, narrowed — not a second reporting screen, which would be a
+ * second set of totals to keep in agreement with the first.
+ *
+ * 0 means every destination, which is what the screen has always shown and what
+ * every existing bookmark still produces. The value is cast to int here and
+ * filtered in SQL by ReportBuilder; nothing downstream trusts it as a string. */
+$destinationId = (int) ($_GET['destination'] ?? 0);
+
+/* Listed for the picker. Archived sites are included when one is already
+   selected: the office still needs last year's figures for a site they have
+   since retired, and dropping it from the list would silently reset the
+   report to the whole municipality. */
+$destinationList = App\Core\Database::all(
+    "SELECT id, name, barangay, status FROM destinations
+      WHERE status = 'active' OR id = ?
+      ORDER BY name",
+    [$destinationId]
+);
+
 /* WHICH MONTH IT OPENS ON, and why "this one" was not good enough.
  *
  * Defaulting to the current month is right for most of the month and wrong on
@@ -82,14 +105,24 @@ if ($type !== '' && isset(ReportBuilder::PERIODS[$type])) {
         'end'     => (string) ($_GET['end'] ?? date('Y-m-d')),
     ];
 
-    $report = ReportBuilder::build($type, $params);
+    $report = ReportBuilder::build($type, $params, $destinationId);
 
     // Recorded once per generation, so a figure quoted in a meeting can be
     // traced back to who produced it and when.
     if (!empty($_GET['save'])) {
-        $id = ReportBuilder::save($type, $report['period'], Auth::id(), $params);
+        /* The destination goes into the saved parameters and into the log line.
+           A history row reading "Monthly report for September 2026" that was
+           actually one site's figures is the kind of thing that gets quoted in a
+           meeting and cannot be told apart afterwards. */
+        $scoped = $report['destination'] !== null
+            ? ' — ' . (string) $report['destination']['name']
+            : '';
+
+        $id = ReportBuilder::save($type, $report['period'], Auth::id(),
+            $params + ['destination' => $destinationId], $scoped);
+
         ActivityLog::record('report.generate', 'report', $id,
-            ReportBuilder::PERIODS[$type] . ' report for ' . $report['period']['label']);
+            ReportBuilder::PERIODS[$type] . ' report for ' . $report['period']['label'] . $scoped);
     }
 }
 
@@ -137,7 +170,23 @@ require __DIR__ . '/../_partials/head.php';
                     <?php endforeach; ?>
                 </div>
 
+                <?php /* THE DESTINATION SITS OUTSIDE THE PERIOD BOXES because it
+                         applies to all five of them. It is shown for every report
+                         type rather than hidden behind one, so the officer can
+                         narrow a daily, monthly, quarterly, annual or custom
+                         report to a site without learning a second screen. */ ?>
                 <div class="report-form__params">
+                    <label class="param" data-for="daily monthly quarterly annual custom">Destination
+                        <select name="destination">
+                            <option value="0">All destinations</option>
+                            <?php foreach ($destinationList as $d): ?>
+                                <option value="<?= (int) $d['id'] ?>" <?= $destinationId === (int) $d['id'] ? 'selected' : '' ?>>
+                                    <?= e((string) $d['name']) ?><?= $d['status'] !== 'active' ? ' (archived)' : '' ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </label>
+
                     <label class="param" data-for="daily">Date
                         <input type="date" name="date" value="<?= e((string) ($_GET['date'] ?? date('Y-m-d'))) ?>">
                     </label>
@@ -189,8 +238,18 @@ require __DIR__ . '/../_partials/head.php';
 
     <div class="report-actions">
         <div>
-            <h2 class="report-actions__title"><?= e(ReportBuilder::PERIODS[$type]) ?> Report</h2>
-            <p class="report-actions__period"><?= e($report['period']['label']) ?></p>
+            <h2 class="report-actions__title">
+                <?= e(ReportBuilder::PERIODS[$type]) ?> Report
+                <?php if ($report['destination'] !== null): ?>
+                    &mdash; <?= e((string) $report['destination']['name']) ?>
+                <?php endif; ?>
+            </h2>
+            <p class="report-actions__period">
+                <?= e($report['period']['label']) ?>
+                <?php if ($report['destination'] !== null): ?>
+                    &middot; this destination only
+                <?php endif; ?>
+            </p>
         </div>
         <div class="report-actions__buttons">
             <a href="print.php?<?= e(http_build_query($_GET)) ?>" target="_blank" rel="noopener"
@@ -202,7 +261,10 @@ require __DIR__ . '/../_partials/head.php';
         </div>
     </div>
 
-    <?php require __DIR__ . '/_report-body.php'; ?>
+    <?php /* The on-screen copy carries the per-destination Generate Report
+             links; the print view and the CSV do not, because a dead button on
+             paper is worse than no button. */ ?>
+    <?php $reportLinks = true; require __DIR__ . '/_report-body.php'; ?>
 
 <?php endif; ?>
 

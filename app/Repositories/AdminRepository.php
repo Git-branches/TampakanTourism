@@ -58,11 +58,16 @@ final class AdminRepository
         return Database::scalar($sql, $params) !== null;
     }
 
+    /**
+     * A new account's password was typed by the officer who created it, so it
+     * is temporary by definition: must_change_password is set and the owner
+     * replaces it before reaching anything else.
+     */
     public static function create(array $data): int
     {
         return Database::insert(
-            'INSERT INTO admins (full_name, username, email, password_hash, role, is_active)
-             VALUES (?, ?, ?, ?, ?, 1)',
+            'INSERT INTO admins (full_name, username, email, password_hash, role, is_active, must_change_password)
+             VALUES (?, ?, ?, ?, ?, 1, 1)',
             [
                 $data['full_name'],
                 $data['username'],
@@ -104,6 +109,21 @@ final class AdminRepository
     {
         Database::run(
             'UPDATE admins SET password_hash = ?, password_changed_at = NOW(),
+                    must_change_password = 0, failed_attempts = 0, locked_until = NULL
+              WHERE id = ?',
+            [Auth::hash($password), $id]
+        );
+    }
+
+    /**
+     * Another officer set this password, so somebody other than the owner knows
+     * it. Stored the same way as any password — hashed — and flagged so the
+     * owner has to replace it at their next sign-in.
+     */
+    public static function resetPassword(int $id, string $password): void
+    {
+        Database::run(
+            'UPDATE admins SET password_hash = ?, password_changed_at = NOW(), must_change_password = 1,
                     failed_attempts = 0, locked_until = NULL
               WHERE id = ?',
             [Auth::hash($password), $id]
@@ -198,32 +218,11 @@ final class AdminRepository
     /**
      * Password strength rules.
      *
-     * Length first, because it does more than character classes do, and the
-     * requirement is stated to the user rather than hidden behind a rejection.
+     * Moved to \App\Core\Password::problems() so the managers are held to the
+     * same rule; kept under this name because the officer screens call it.
      */
     public static function passwordProblems(string $password): array
     {
-        $problems = [];
-
-        if (mb_strlen($password) < 10) {
-            $problems[] = 'must be at least 10 characters';
-        }
-        if (!preg_match('/[A-Za-z]/', $password)) {
-            $problems[] = 'must contain at least one letter';
-        }
-        if (!preg_match('/\d/', $password)) {
-            $problems[] = 'must contain at least one number';
-        }
-
-        // A handful of passwords are guessed first in every attack.
-        $obvious = ['password', '12345678', 'qwerty', 'admin', 'tampakan', 'toursync', 'letmein'];
-        foreach ($obvious as $bad) {
-            if (stripos($password, $bad) !== false && mb_strlen($password) < 16) {
-                $problems[] = 'must not be built around an obvious word such as "' . $bad . '"';
-                break;
-            }
-        }
-
-        return $problems;
+        return \App\Core\Password::problems($password);
     }
 }

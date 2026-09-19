@@ -58,7 +58,7 @@ $isPast = $a !== null && $a['event_date'] !== null && $a['event_date'] < date('Y
 <?php else: ?>
     <meta name="robots" content="noindex">
 <?php endif; ?>
-<link rel="icon" href="assets/img/tampakan_logo.png" sizes="any">
+<link rel="icon" href="<?= e(asset('img/tourism-logo-mark.png')) ?>" type="image/png">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
@@ -147,12 +147,71 @@ require __DIR__ . '/app/views/partials/public-nav.php';
                              No placeholder when there is none: the badge, the
                              heading and the details below already say what this
                              is, and an empty grey rectangle says nothing. */ ?>
-                    <?php if (!empty($a['banner_path'])): ?>
+                    <?php
+                    /* ONE PHOTOGRAPH OR A GALLERY.
+                     *
+                     * One — every event made before galleries existed, and any
+                     * that only ever gets a poster — is drawn exactly as it
+                     * always was: the poster, whole, at its own proportions.
+                     *
+                     * Two or more are laid out the way the office drew it after
+                     * Cultural Heritage: the featured photograph large, up to
+                     * three beside it, and the last of those covered by "+N View
+                     * all photos" when there are more. Every picture is in the
+                     * viewer's set, drawn or not, so the viewer pages through the
+                     * whole event. */
+                    $eventGallery = AnnouncementRepository::gallery($a);
+                    $galleryCount = count($eventGallery);
+                    $caption      = (string) $a['title'];
+                    ?>
+                    <?php if ($galleryCount === 1): ?>
                         <figure class="event-poster">
-                            <img src="<?= e(base_url($a['banner_path'])) ?>"
+                            <img src="<?= e(base_url($eventGallery[0])) ?>"
                                  alt="Poster for <?= e($a['title']) ?>"
                                  loading="lazy">
                         </figure>
+                    <?php elseif ($galleryCount > 1): ?>
+                        <?php
+                        $side   = array_slice($eventGallery, 1, 3);
+                        $behind = $galleryCount - 1 - count($side);
+                        ?>
+                        <div class="event-gallery event-gallery--<?= 1 + count($side) ?>">
+                            <a href="<?= e(base_url($eventGallery[0])) ?>" data-lightbox="event"
+                               data-caption="<?= e($caption) ?>" class="event-gallery__lead"
+                               aria-label="View photo 1 of <?= n($galleryCount) ?>">
+                                <img src="<?= e(base_url($eventGallery[0])) ?>"
+                                     alt="<?= e($a['title']) ?>" loading="lazy">
+                            </a>
+
+                            <div class="event-gallery__side">
+                                <?php foreach ($side as $i => $src): ?>
+                                    <?php $door = $i === count($side) - 1 && $behind > 0; ?>
+                                    <a href="<?= e(base_url($src)) ?>" data-lightbox="event"
+                                       data-caption="<?= e($caption) ?>"
+                                       class="event-gallery__tile<?= $door ? ' is-more' : '' ?>"
+                                       aria-label="<?= $door
+                                           ? 'View all ' . n($galleryCount) . ' photos'
+                                           : 'View photo ' . ($i + 2) . ' of ' . n($galleryCount) ?>">
+                                        <img src="<?= e(base_url($src)) ?>" alt="" loading="lazy">
+
+                                        <?php if ($door): ?>
+                                            <span class="event-gallery__veil">
+                                                <strong>+<?= n($behind) ?></strong>
+                                                <small>View all photos</small>
+                                            </span>
+                                        <?php endif; ?>
+                                    </a>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+
+                        <?php /* Past the four drawn: in the viewer's set, not in
+                                 the layout. */ ?>
+                        <?php foreach (array_slice($eventGallery, 4) as $src): ?>
+                            <a href="<?= e(base_url($src)) ?>" data-lightbox="event"
+                               data-caption="<?= e($caption) ?>"
+                               class="event-gallery__hidden" tabindex="-1" aria-hidden="true"></a>
+                        <?php endforeach; ?>
                     <?php endif; ?>
 
                     <?php if ($a['summary']): ?>
@@ -198,7 +257,12 @@ require __DIR__ . '/app/views/partials/public-nav.php';
 <?php endif; ?>
 </main>
 
-<?php require __DIR__ . '/app/views/partials/public-footer.php'; ?>
+<?php
+/* The viewer the gallery opens. Without it script.js has nothing to open and
+   each photograph would navigate away to a bare image file. */
+require __DIR__ . '/app/views/partials/lightbox.php';
+require __DIR__ . '/app/views/partials/public-footer.php';
+?>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script src="<?= e(asset('js/vendor/sweetalert2.all.min.js')) ?>"></script>
 <script src="<?= e(asset('js/notify.js')) ?>"></script>

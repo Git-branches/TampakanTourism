@@ -2200,6 +2200,48 @@ a { text-decoration: none; }
     margin-bottom: .9rem;
 }
 
+/* TWO MARKS ON THE SIGN-IN CARD: the Municipality's seal and the Tourism
+   Office's logo, as the office asked for on 2026-09-18.
+
+   The row owns the spacing below the pair. Each seal carries its own
+   margin-bottom for the single-mark case, and the short-viewport rule further
+   down re-asserts it — clearing it here from a two-class selector settles that
+   by specificity rather than by hoping this rule comes last. */
+.auth-card__seals {
+    /* ONE HEIGHT, SET IN ONE PLACE.
+       The two marks must always match, and the responsive rules further down
+       resize the seal twice. Both of those now set this property instead of
+       width/height directly, so the pair can never drift apart — and both
+       selectors below are two classes deep, which keeps them ahead of the
+       single-class rules that come later in the file. */
+    --seal-h: 92px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(.7rem, 3vw, 1.15rem);
+    margin-bottom: clamp(.5rem, 1.4vh, .9rem);
+}
+.auth-card__seals .auth-card__seal {
+    width:  var(--seal-h);
+    height: var(--seal-h);
+    margin-bottom: 0;
+}
+
+/* BOTH MARKS IN A DISC, the same shape they are given in the navbar and the
+   footer. The Tourism Office file is JPEG data despite its .png name, so its
+   background is opaque white; against this panel's #F7F9F7 that reads as a
+   pale square, and rounding it off turns the one thing the artwork cannot
+   avoid into the badge every other logo on the site already wears.
+
+   The seal is a transparent PNG and needs none of this — it takes the same
+   disc so that the pair matches rather than one of them looking framed. */
+.auth-card__seals .auth-card__seal {
+    border-radius: 50%;
+    background: #FFF;
+    padding: 2px;
+}
+
 .auth-card__office {
     margin: 0;
     font-size: .78rem;
@@ -2416,6 +2458,8 @@ a { text-decoration: none; }
     .auth-hero__rule { margin: .9rem 0 0; }
 
     .auth-panel { padding: 1.75rem 1.25rem 2.5rem; }
+    /* The pair's height, not the seal's box — the wide mark follows it. */
+    .auth-card__seals { --seal-h: 74px; }
     .auth-card__seal { width: 74px; height: 74px; }
 }
 
@@ -2468,6 +2512,9 @@ a { text-decoration: none; }
         overflow-y: auto;
         padding: clamp(1rem, 3vh, 3.5rem) clamp(1.25rem, 3vw, 3rem);
     }
+
+    /* Again the pair's height, so the wide mark shrinks with the seal. */
+    .auth-card__seals { --seal-h: clamp(58px, 9vh, 92px); }
 
     .auth-card__seal {
         width:  clamp(58px, 9vh, 92px);
@@ -7674,6 +7721,579 @@ button.topbar__signout {
 .pill--muted { background: var(--line-soft); color: var(--ink-3); }
 
 @media print {
-    /* Printing the account page to keep the codes should not print the shell. */
-    .sidebar, .topbar, .panel:not(#two-step) { display: none !important; }
+    /* Printing the account page to keep the recovery codes should not print the
+       shell around it.
+       =========================================================================
+       SCOPED TO .admin-shell, AND THAT IS THE WHOLE POINT OF THIS RULE.
+
+       It was unscoped, so `.panel:not(#two-step) { display: none !important }`
+       applied to EVERY page that loads this stylesheet — including
+       admin/reports/print.php, which is a standalone page outside the shell and
+       whose entire report body is built from .panel sections.
+
+       The effect on paper: the letterhead printed, the headline figures printed,
+       the signature block printed, and everything between them — visitors by
+       type, arrivals by destination, demographics, origins, peak days, record
+       integrity — was display:none. Measured under print media, every one of
+       those panels reported a height of 0.
+
+       That is what the office was seeing as "the report is cut off". It was not
+       a page-break problem and no amount of break-inside would have reached it:
+       the content was never laid out at all.
+
+       The shell exists only on pages rendered inside admin/_partials/head.php.
+       Standalone print views — this report, the visitor record, the guide ID
+       card — have no .admin-shell, so they now keep their content, while the
+       account page prints exactly as it did. */
+    .admin-shell .sidebar,
+    .admin-shell .topbar,
+    .admin-shell .panel:not(#two-step) { display: none !important; }
 }
+
+
+
+/* =============================================================================
+   SCREEN TABS — switching between two screens that belong together
+   -----------------------------------------------------------------------------
+   Messages / Data Requests, and Destination Reviews / Tour Guide Ratings.
+
+   DELIBERATELY NOT .tab-row. Those pills filter what is on the screen in front
+   of you; these navigate to a different screen. Two controls that look the same
+   and do different things is how an officer learns to distrust both, so a tab
+   bar with a rule under it says "this is a place you are" and a pill says "this
+   is a filter you set".
+   ========================================================================== */
+.screen-tabs {
+    display: flex;
+    gap: .25rem;
+    margin-bottom: 1.25rem;
+    border-bottom: 2px solid var(--line);
+    /* A narrow screen scrolls the strip rather than wrapping it onto a second
+       row, which would push the stat cards down and look like two toolbars. */
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.screen-tabs::-webkit-scrollbar { display: none; }
+
+.screen-tabs__tab {
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+    flex-shrink: 0;
+    padding: .65rem 1.1rem;
+    font-size: .86rem;
+    font-weight: 600;
+    color: var(--ink-3);
+    text-decoration: none;
+    border-bottom: 2px solid transparent;
+    /* Sits on top of the strip's own rule so the active underline replaces it
+       rather than doubling it. */
+    margin-bottom: -2px;
+    transition: color .15s var(--ease), border-color .15s var(--ease);
+}
+
+.screen-tabs__tab:hover {
+    color: var(--green-dark);
+}
+
+.screen-tabs__tab.is-active {
+    color: var(--green-dark);
+    border-bottom-color: var(--green);
+}
+
+/* What is WAITING on the other tab. Rendered only when non-zero — an empty
+   queue should look empty, not carry a grey nought. */
+.screen-tabs__count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.35rem;
+    height: 1.35rem;
+    padding: 0 .38rem;
+    border-radius: 20px;
+    background: var(--amber);
+    color: #fff;
+    font-size: .72rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}
+
+.screen-tabs__tab.is-active .screen-tabs__count {
+    background: var(--green);
+}
+
+
+/* =============================================================================
+   RECORD LIST — full-width rows for Data Requests and Guide Ratings
+   -----------------------------------------------------------------------------
+   NOT .inbox / .inbox__row, and that was a real bug before it was this class.
+   .inbox__row is itself a six-column grid built around the message screen's own
+   children (dot, subject, sender, pill, date, kebab). Dropping a single <details>
+   into it put the whole record in that grid's FIRST column — which is 8px wide,
+   for the unread dot — so every row rendered crushed against the left edge with
+   its own columns collapsed to nothing.
+
+   These rows hold one block each and want the full width. Same border, hover and
+   unread treatment as the inbox, none of its column geometry.
+   ========================================================================== */
+.record-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border-top: 1px solid var(--line);
+}
+
+.record-list__row {
+    border-bottom: 1px solid var(--line);
+    transition: background .12s var(--ease);
+}
+
+.record-list__row:last-child { border-bottom: 0; }
+.record-list__row:hover      { background: var(--canvas); }
+
+/* Unread is carried by weight and a left edge, not by a tinted row. A list where
+   most rows are coloured has told you nothing about any of them. */
+.record-list__row.is-unread {
+    box-shadow: inset 3px 0 0 var(--green);
+}
+
+
+/* =============================================================================
+   DATA REQUESTS — the expandable row
+   ========================================================================== */
+.req__summary {
+    display: grid;
+    /* reference · who · preview · status · date. The preview takes what is left,
+       which is what makes the row scan: everything else is a fixed, predictable
+       column an eye can run down. */
+    grid-template-columns: 7.5rem minmax(9rem, 14rem) 1fr auto auto;
+    align-items: center;
+    gap: .9rem;
+    padding: .85rem 1.1rem;
+    cursor: pointer;
+    list-style: none;
+}
+
+.req__summary::-webkit-details-marker { display: none; }
+
+.req__ref {
+    font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+    font-size: .78rem;
+    font-weight: 700;
+    color: var(--green-dark);
+    letter-spacing: .02em;
+}
+
+.req__who {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.req__who strong {
+    font-size: .87rem;
+    color: var(--ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.req__who em {
+    font-size: .76rem;
+    font-style: normal;
+    color: var(--ink-3);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.req__preview {
+    font-size: .82rem;
+    color: var(--ink-2);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.req__when {
+    font-size: .78rem;
+    color: var(--ink-3);
+    white-space: nowrap;
+}
+
+.req__body {
+    padding: .25rem 1.1rem 1.2rem;
+    border-top: 1px solid var(--line-soft);
+}
+
+.req__flag {
+    display: flex;
+    align-items: flex-start;
+    gap: .55rem;
+    margin: .9rem 0 0;
+    padding: .7rem .9rem;
+    border-radius: var(--radius-sm);
+    background: #F1F3F2;
+    font-size: .82rem;
+    color: var(--ink-2);
+}
+
+.req__heading {
+    margin: 1.2rem 0 .6rem;
+    font-size: .74rem;
+    font-weight: 800;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+}
+
+.req__meta {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: .7rem 1.4rem;
+    margin: 0;
+}
+
+.req__meta dt {
+    font-size: .72rem;
+    font-weight: 700;
+    color: var(--ink-3);
+    margin-bottom: .1rem;
+}
+
+.req__meta dd {
+    margin: 0;
+    font-size: .85rem;
+    color: var(--ink);
+    /* A long address wraps inside its cell instead of widening the grid. */
+    overflow-wrap: anywhere;
+}
+
+.req__label {
+    margin: 1.1rem 0 .4rem;
+    font-size: .8rem;
+    font-weight: 700;
+    color: var(--ink-2);
+}
+
+.req__text {
+    padding: .75rem .9rem;
+    background: var(--canvas);
+    border-radius: var(--radius-sm);
+    font-size: .86rem;
+    line-height: 1.65;
+    color: var(--ink);
+    /* A pasted paragraph of two thousand characters scrolls rather than pushing
+       the buttons under it off the bottom of the screen. */
+    max-height: 18rem;
+    overflow-y: auto;
+}
+
+.req__text--note {
+    background: var(--blue-pale);
+}
+
+.req__act {
+    margin-top: 1.3rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--line-soft);
+}
+
+.req__buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+    margin-top: .8rem;
+}
+
+/* Under a rule and set apart, because it is irreversible. Sitting it in the row
+   of status buttons is how the wrong one gets clicked. */
+.req__anon {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .7rem;
+    margin-top: 1.2rem;
+    padding-top: 1rem;
+    border-top: 1px dashed var(--line);
+}
+
+.req__anon .cell-sub {
+    flex: 1;
+    min-width: 15rem;
+    font-size: .76rem;
+    line-height: 1.5;
+}
+
+/* Tablet and below: the grid row becomes a stack. Five columns inside 700px
+   gives a reference truncated to three characters and a preview of one word. */
+@media (max-width: 991.98px) {
+    .req__summary {
+        grid-template-columns: 1fr auto;
+        gap: .4rem .8rem;
+    }
+
+    .req__ref     { grid-column: 1; }
+    .req__who     { grid-column: 1; }
+    .req__preview { grid-column: 1 / -1; white-space: normal; }
+    .req__when    { grid-column: 2; grid-row: 1; text-align: right; }
+    .req .pill    { grid-column: 2; grid-row: 2; justify-self: end; }
+}
+
+
+/* =============================================================================
+   TOUR GUIDE RATINGS — the moderation row
+   ========================================================================== */
+.grev { padding: 1rem 1.1rem; }
+
+.grev__head {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: .55rem .9rem;
+    margin-bottom: .7rem;
+}
+
+.grev__guide {
+    display: block;
+    font-size: .95rem;
+    color: var(--ink);
+}
+
+.grev__head .cell-sub {
+    font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+    font-size: .74rem;
+}
+
+.grev__stars {
+    color: #F5A623;
+    font-size: .85rem;
+    letter-spacing: .06em;
+    /* Pushed to the right so a column of rows lines its ratings up, whatever the
+       length of the name to the left of them. */
+    margin-left: auto;
+}
+
+/* The figure beside the stars. Five icons alone are a picture; an officer
+   skimming a column, or reading with a screen reader, needs the number — and
+   the stars themselves are aria-hidden precisely so this is what is announced. */
+.grev__score {
+    font-size: .8rem;
+    font-weight: 800;
+    color: var(--ink-2);
+    font-variant-numeric: tabular-nums;
+}
+
+.grev__text {
+    padding: .75rem .9rem;
+    background: var(--canvas);
+    border-radius: var(--radius-sm);
+    font-size: .87rem;
+    line-height: 1.65;
+    color: var(--ink);
+    max-height: 16rem;
+    overflow-y: auto;
+}
+
+.grev__none {
+    margin: 0;
+    font-size: .84rem;
+    font-style: italic;
+    color: var(--ink-3);
+}
+
+.grev__by {
+    margin: .6rem 0 0;
+    font-size: .78rem;
+    color: var(--ink-3);
+}
+
+.grev__acts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+    margin-top: .9rem;
+}
+
+@media (max-width: 575.98px) {
+    .grev__stars { margin-left: 0; }
+}
+
+
+/* =============================================================================
+   ABOUT · CULTURAL HERITAGE GALLERY — the uploaded photographs in Settings
+   -----------------------------------------------------------------------------
+   Cultural Heritage moved off the destinations and onto the About page, and with
+   it came several photographs rather than one slot. This is the list an officer
+   ticks to remove them.
+   ========================================================================== */
+.about-shots {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: .75rem;
+}
+
+/* The whole tile is the label, so a tap anywhere on the photograph ticks it —
+   a 16px checkbox beside a 140px picture is a target nobody aims for twice. */
+.about-shot {
+    display: block;
+    margin: 0;
+    cursor: pointer;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    background: var(--surface);
+    transition: border-color .15s var(--ease);
+}
+
+.about-shot:hover { border-color: var(--green); }
+
+/* Marked for removal, and it has to be unmistakable: this deletes the file. */
+.about-shot:has(input:checked) {
+    border-color: var(--red);
+    box-shadow: inset 0 0 0 2px var(--red);
+}
+
+.about-shot:has(input:checked) .about-shot__img { opacity: .45; }
+
+.about-shot__img {
+    display: block;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+    background: var(--canvas);
+    transition: opacity .15s var(--ease);
+}
+
+/* A row whose file has gone. Shown rather than hidden — it is the thing that
+   needs ticking, and a gallery that silently skips it never gets tidy. */
+.about-shot__img--gone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: .35rem;
+    font-size: .72rem;
+    color: var(--ink-3);
+    text-align: center;
+}
+
+.about-shot__img--gone i { font-size: 1.1rem; color: var(--amber); }
+
+.about-shot__pick {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    padding: .5rem .6rem;
+    font-size: .78rem;
+    color: var(--ink-2);
+    border-top: 1px solid var(--line-soft);
+}
+
+.about-shot:has(input:checked) .about-shot__pick { color: var(--red); font-weight: 600; }
+
+
+/* =============================================================================
+   An event's photographs, in the event composer
+   -----------------------------------------------------------------------------
+   The featured picture first, marked, then the rest. Each tile carries its own
+   two decisions — lead with this one, or remove it — beside the picture they
+   are about, rather than in a list of filenames under it. The same grid shows
+   the files just chosen, before they are sent.
+   ========================================================================== */
+.event-photos {
+    list-style: none;
+    margin: 0 0 .75rem;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+    gap: .6rem;
+}
+
+.event-photos--new { margin: .6rem 0 0; }
+
+.event-photos__item {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--surface, #fff);
+    overflow: hidden;
+}
+
+.event-photos__item img {
+    display: block;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    background: var(--canvas);
+}
+
+.event-photos__item.is-featured { border-color: var(--green); box-shadow: 0 0 0 1px var(--green); }
+
+.event-photos__badge {
+    position: absolute;
+    top: .35rem;
+    left: .35rem;
+    display: inline-flex;
+    align-items: center;
+    gap: .25rem;
+    padding: .12rem .45rem;
+    border-radius: 20px;
+    background: var(--green);
+    color: #fff;
+    font-size: .68rem;
+    font-weight: 600;
+}
+
+.event-photos__controls {
+    display: grid;
+    gap: .1rem;
+    padding: .4rem .5rem .45rem;
+    font-size: .76rem;
+    border-top: 1px solid var(--line-soft);
+}
+
+.event-photos__controls .form-check { margin: 0; min-height: 0; }
+
+/* A photo about to be removed says so before the save, so the officer sees
+   the gallery they are about to keep. */
+.event-photos__item:has(input[type="checkbox"]:checked) img { opacity: .35; }
+.event-photos__item:has(input[type="checkbox"]:checked) .event-photos__controls { color: var(--red); }
+
+.event-photos__name {
+    padding: .3rem .45rem;
+    font-size: .7rem;
+    color: var(--ink-3);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* A rule inside a ⋮ menu: the actions that take something away sit below it,
+   apart from the ones that only open something. */
+.kebab__rule {
+    margin: .25rem .2rem;
+    border: 0;
+    border-top: 1px solid var(--line-soft);
+    opacity: 1;
+}
+
+/* Compliance › Manage Requirements: the folded list of removed requirements.
+   A <details> dressed as a panel, so it opens without any script. */
+.requirement-removed > summary {
+    cursor: pointer;
+    list-style: none;
+}
+.requirement-removed > summary::-webkit-details-marker { display: none; }
+.requirement-removed > summary::after {
+    content: "\f078";
+    font: var(--fa-font-solid);
+    font-size: .75rem;
+    color: var(--ink-3);
+    margin-left: .5rem;
+    transition: transform .2s ease;
+}
+.requirement-removed[open] > summary::after { transform: rotate(180deg); }

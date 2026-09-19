@@ -38,7 +38,7 @@ if (is_post()) {
     $data = collect_announcement_input($v);
     $id   = AnnouncementRepository::create($data, Auth::id());
 
-    store_announcement_banner($id);
+    store_announcement_media($id, $data['type']);
 
     ActivityLog::record('announcement.create', 'announcement', $id, 'Created "' . $data['title'] . '"');
 

@@ -75,7 +75,7 @@ $hasCoords = $d['latitude'] !== null && $d['longitude'] !== null;
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Directions to <?= e((string) $d['name']) ?> — Tampakan Tourism</title>
 <meta name="description" content="Printable, offline directions to <?= e((string) $d['name']) ?> in Tampakan, South Cotabato.">
-<link rel="icon" href="<?= e(asset('img/tampakan_logo.png')) ?>" sizes="any">
+<link rel="icon" href="<?= e(asset('img/tourism-logo-mark.png')) ?>" type="image/png">
 
 <?php /* EVERY STYLE IS INLINE AND EVERY FONT IS A SYSTEM FONT. A stylesheet
          fetched from a CDN is one more thing that is not there when this page
@@ -164,8 +164,12 @@ $hasCoords = $d['latitude'] !== null && $d['longitude'] !== null;
 </div>
 
 <header>
+    <?php /* Both float right, so the first written is the outermost: the seal
+             at the edge, the office's mark beside it. */ ?>
     <img class="seal" src="<?= e(asset('img/tampakan_logo.png')) ?>"
          alt="Official Seal of the Municipality of Tampakan" width="62" height="62">
+    <img class="seal" src="<?= e(asset('img/tourism-logo-mark.png')) ?>"
+         alt="Logo of the Tampakan Municipal Tourism Office" width="62" height="62">
     <p class="office">Municipal Tourism Office &middot; Tampakan, South Cotabato</p>
     <h1>How to get to <?= e((string) $d['name']) ?></h1>
     <p class="where">

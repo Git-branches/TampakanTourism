@@ -46,9 +46,15 @@ $signatories = VisitorRecord::signatories([
          on this machine is XAMPP's own, dated 2015. The office opened the
          printable copy of a Department of Tourism return and saw XAMPP's
          orange logo on the tab. Same icon the rest of the system uses. */ ?>
-<link rel="icon" href="<?= e(asset('img/tampakan_logo.png')) ?>" sizes="any">
+<link rel="icon" href="<?= e(asset('img/tourism-logo-mark.png')) ?>" type="image/png">
 
 <link rel="stylesheet" href="<?= e(asset('css/admin.css')) ?>">
+<?php /* The shared print architecture. This sheet was already safe — its
+         container is .vr-sheet, not .sheet, so it never inherited the dialog's
+         max-height, and it set its own header-repeat rules. It loads the shared
+         file anyway so that the guarantee is the SAME one the arrival report
+         has, rather than two sets of rules that drift apart. */ ?>
+<link rel="stylesheet" href="<?= e(asset('css/report-print.css')) ?>">
 <style>
     /* Landscape: fourteen columns do not fit portrait at a legible size.
      *
@@ -65,8 +71,25 @@ $signatories = VisitorRecord::signatories([
      * sheet's own padding rather than the page's.
      *
      * A reader can still switch them back on with "Headers and footers" in the
-     * print dialog — that tick is theirs, not something CSS can hold shut. */
-    @page { size: A4 landscape; margin: 0; }
+     * print dialog — that tick is theirs, not something CSS can hold shut.
+     *
+     * -------------------------------------------------------------------------
+     * ORIENTATION ONLY — THE PAPER IS WHOEVER IS PRINTING IT.
+     *
+     * This said `A4 landscape`, which pins the sheet to one paper size. An
+     * office printing on Letter got an A4 page scaled to fit Letter, and on
+     * Legal an A4 page adrift in the middle of a longer sheet — in both cases
+     * not the margins this sheet was drawn with.
+     *
+     * `size: landscape` sets the ORIENTATION and leaves the size to the paper
+     * chosen in the print dialog. A4, Letter and Legal all come out as
+     * themselves, each with the 10mm border the body supplies below.
+     *
+     * Fourteen columns still decide the orientation: portrait cannot hold them
+     * at a legible size on any of the three. The narrowest of the three in
+     * landscape is Letter, at 279.4mm, so that is the width the table has to
+     * survive — checked, not assumed. */
+    @page { size: landscape; margin: 0; }
 
     body {
         background: #fff;
@@ -101,8 +124,18 @@ $signatories = VisitorRecord::signatories([
     @media print {
         /* The sheet's own margin, now that @page has none. Without this the
            table would start at the very edge of the paper and most printers
-           would clip the first column. */
-        body { padding: 10mm; }
+           would clip the first column.
+           -------------------------------------------------------------------
+           8mm, NOT 10mm. Measured on three papers: the sheet needs 200.6mm and
+           A4 landscape is the shortest of the three at 210mm, leaving 190mm once
+           a 10mm border is taken from each side. It printed over two sheets, and
+           the second carried the signature block and nothing else — the exact
+           failure the note further down was written about.
+
+           8mm is still plainly a margin and further inside the paper than most
+           printers can reach. The other 6mm comes from decoration below, never
+           from the table or from the space a pen needs. */
+        body { padding: 8mm; }
         .vr-actions { display: none; }
 
         /* ONE SHEET, INCLUDING THE SIGNATURES.
@@ -117,16 +150,28 @@ $signatories = VisitorRecord::signatories([
          * gaps above and between blocks. The ruled line each signature is
          * written on is NOT touched: it is the one measurement on this sheet
          * that exists for a physical reason. */
-        .vr-head p    { margin-bottom: .4rem; }
-        .vr-meta      { margin-bottom: .45rem; }
-        .vr-meta div  { margin-bottom: .1rem; }
+        /* Air between the masthead and the table. Not the ruled lines the
+           office writes the month and province on — those are untouched below;
+           only the gaps around them. */
+        .vr-head p    { margin-bottom: .22rem; }
+        .vr-meta      { margin-bottom: .25rem; }
+        .vr-meta div  { margin-bottom: .04rem; }
         .vr-footnote  { margin-top: .3rem; }
-        .vr-signatures { margin-top: 1rem; gap: 1rem 4rem; }
+        /* The gap ABOVE the signatures, not the space inside them. The 2.2rem
+           under each "Prepared by:" is what somebody signs on and is left
+           alone; this is only the air between the last note and the block. */
+        .vr-signatures { margin-top: .25rem; gap: 1rem 4rem; }
 
-        /* A hair off each row. Sixteen rows makes this worth more than any
-           single margin above, and at print resolution it is invisible. */
+        /* Likewise the air above the two explanatory lines. */
+        .vr-footnote { margin-top: .2rem; }
+        .vr-note     { margin-top: .25rem; }
+
+        /* A hair off each row. Fifteen rows makes this worth more than any
+           single margin above, and at print resolution it is invisible:
+           .18rem against .2rem is a third of a pixel per edge on screen and
+           nothing at all at 300dpi. */
         .visitor-record th,
-        .visitor-record td { padding-top: .2rem; padding-bottom: .2rem; }
+        .visitor-record td { padding-top: .18rem; padding-bottom: .18rem; }
 
         /* If it ever does need a second page — more attractions than this
            municipality has today — the signatures travel as one block and the
@@ -139,9 +184,9 @@ $signatories = VisitorRecord::signatories([
 </head>
 <body>
 
-<div class="vr-sheet">
+<div class="vr-sheet report-print-container">
 
-    <div class="vr-actions">
+    <div class="vr-actions report-print-hide">
         <button type="button" onclick="window.print()" class="btn btn-brand btn-sm">Print this sheet</button>
         <a href="visitor-record.php?year=<?= $year ?>&amp;month=<?= $month ?>"
            class="btn btn-sm btn-outline-secondary">Back</a>

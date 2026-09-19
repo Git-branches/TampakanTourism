@@ -36,7 +36,7 @@ if (!QrService::isPublishable()) {
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Cannot print yet — TourSync</title>
-        <link rel="icon" href="<?= e(asset('img/tampakan_logo.png')) ?>" sizes="any">
+        <link rel="icon" href="<?= e(asset('img/tourism-logo-mark.png')) ?>" type="image/png">
         <style>
             body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 1.5rem;
                    font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; background: #F4F6F4; color: #16211A; }
@@ -101,7 +101,7 @@ $instructions = QrService::posterInstructions();
 
 <?php /* This is the sheet that gets printed and mounted at the destination, so
          the tab it is printed from should not carry XAMPP's logo. */ ?>
-<link rel="icon" href="<?= e(asset('img/tampakan_logo.png')) ?>" sizes="any">
+<link rel="icon" href="<?= e(asset('img/tourism-logo-mark.png')) ?>" type="image/png">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -182,7 +182,11 @@ $instructions = QrService::posterInstructions();
         border-top: 8mm solid #2E7D32;
     }
 
-    .poster__seal { width: 22mm; height: 22mm; object-fit: contain; margin-bottom: 3mm; }
+    /* The seal and the office's own mark side by side, at the height the seal
+       alone had — a row adds width, not height, so the poster still fits the
+       sheet it was sized for. */
+    .poster__seals { display: flex; justify-content: center; gap: 4mm; margin-bottom: 3mm; }
+    .poster__seal { width: 22mm; height: 22mm; object-fit: contain; }
 
     .poster__office {
         font-size: 9pt;
@@ -375,8 +379,12 @@ $instructions = QrService::posterInstructions();
 
 <?php foreach ($destinations as $d): ?>
 <div class="poster">
-    <img class="poster__seal" src="<?= e(asset('img/tampakan_logo.png')) ?>"
-         alt="Seal of the Municipality of Tampakan">
+    <div class="poster__seals">
+        <img class="poster__seal" src="<?= e(asset('img/tampakan_logo.png')) ?>"
+             alt="Seal of the Municipality of Tampakan">
+        <img class="poster__seal" src="<?= e(asset('img/tourism-logo-mark.png')) ?>"
+             alt="Logo of the Tampakan Municipal Tourism Office">
+    </div>
 
     <p class="poster__office">Municipal Tourism Office</p>
     <p class="poster__muni">Municipality of Tampakan &middot; South Cotabato</p>

@@ -29,12 +29,24 @@ $report = ReportBuilder::build($type, [
     'quarter' => (int) ($_GET['quarter'] ?? 1),
     'start'   => (string) ($_GET['start'] ?? date('Y-m-01')),
     'end'     => (string) ($_GET['end'] ?? date('Y-m-d')),
-]);
+/* The same destination the screen and the print view were showing. An export
+   that quietly widens back to the whole municipality is the worst of the three,
+   because a spreadsheet carries no heading to contradict it. */
+], (int) ($_GET['destination'] ?? 0));
+
+$scope = $report['destination'] !== null ? ' — ' . (string) $report['destination']['name'] : '';
 
 ActivityLog::record('report.export', 'report', null,
-    ReportBuilder::PERIODS[$type] . ' report exported for ' . $report['period']['label']);
+    ReportBuilder::PERIODS[$type] . ' report exported for ' . $report['period']['label'] . $scope);
 
-$filename = 'tampakan-' . $type . '-report-' . $report['period']['start'] . '.csv';
+/* The file name says which destination too: three spreadsheets in a downloads
+   folder called tampakan-monthly-report-2026-09-01.csv are indistinguishable. */
+$slug = $report['destination'] !== null
+    ? '-' . trim((string) preg_replace('/[^a-z0-9]+/', '-',
+        mb_strtolower((string) $report['destination']['name'])), '-')
+    : '';
+
+$filename = 'tampakan-' . $type . '-report-' . $report['period']['start'] . $slug . '.csv';
 
 header('Content-Type: text/csv; charset=utf-8');
 header('Content-Disposition: attachment; filename="' . $filename . '"');
@@ -53,6 +65,15 @@ $section = static function (string $title) use ($out): void {
 // ---- Header -----------------------------------------------------------------
 fputcsv($out, ['MUNICIPAL TOURISM OFFICE — ' . mb_strtoupper((string) setting('office_municipality', 'MUNICIPALITY OF TAMPAKAN'))]);
 fputcsv($out, [mb_strtoupper(ReportBuilder::PERIODS[$type]) . ' TOURIST ARRIVAL REPORT']);
+/* Named on the sheet itself, not only in the file name. A spreadsheet gets
+   renamed, pasted into another workbook and mailed on; the row that says which
+   destination these figures are for has to travel with the numbers. */
+if ($report['destination'] !== null) {
+    fputcsv($out, ['Destination', (string) $report['destination']['name']]);
+    fputcsv($out, ['Scope', 'This destination only']);
+} else {
+    fputcsv($out, ['Scope', 'All destinations']);
+}
 fputcsv($out, ['Period', $report['period']['label']]);
 fputcsv($out, ['Covering', $report['period']['start'], 'to', $report['period']['end']]);
 fputcsv($out, ['Generated', $report['generated_at']]);

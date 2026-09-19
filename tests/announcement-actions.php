@@ -133,7 +133,9 @@ $is('the full page still renders whole',
 $is('the fragment drops the shell',
     !str_contains($frag, '<html') && !str_contains($frag, 'admin-shell'));
 $is('and still carries the composer', str_contains($frag, 'name="title"'));
-$is('with the file input on it', str_contains($frag, 'name="banner"'));
+/* An EVENT's composer takes several photographs now (photos[]); a notice's
+   still takes the single card picture (banner). This probe is an event. */
+$is('with the file input on it', str_contains($frag, 'name="photos[]"') && str_contains($frag, 'multiple'));
 $is('and an enctype, or the upload would send only a filename',
     str_contains($frag, 'multipart/form-data'));
 $is('it shows the picture already attached', str_contains($frag, $banner));

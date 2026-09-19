@@ -360,11 +360,37 @@ final class ArrivalReportRepository
         });
     }
 
-    public static function deleteDraft(int $id): void
+    /**
+     * Discards a report that was never handed over, with everything typed into
+     * it. Returns false, having changed nothing, for anything past draft.
+     *
+     * Only a draft. Once handed over, a submission is part of the record — the
+     * officer rejects it, the manager corrects it, and the history of both
+     * stays; a report that was sent back is 'rejected', not 'draft', and so is
+     * never discardable either. The destination is part of the WHERE clause as
+     * well as being checked by the page, so an id from another site deletes
+     * nothing whatever the request says.
+     *
+     * The typed lines, day totals and document ROWS cascade. The uploaded FILES
+     * are removed after the row is gone, never before.
+     */
+    public static function deleteDraft(int $id, int $destinationId): bool
     {
-        /* Only a draft. Once handed over, a submission is part of the record —
-           the officer rejects it, the manager corrects it, and the history of
-           both stays. */
-        Database::run('DELETE FROM arrival_reports WHERE id = ? AND status = \'draft\'', [$id]);
+        $files = array_column(Database::all(
+            'SELECT stored_name FROM arrival_report_documents WHERE report_id = ?', [$id]
+        ), 'stored_name');
+
+        $gone = Database::run(
+            'DELETE FROM arrival_reports WHERE id = ? AND destination_id = ? AND status = \'draft\'',
+            [$id, $destinationId]
+        )->rowCount() > 0;
+
+        if ($gone) {
+            foreach ($files as $stored) {
+                \App\Core\DocumentUploader::delete((string) $stored);
+            }
+        }
+
+        return $gone;
     }
 }

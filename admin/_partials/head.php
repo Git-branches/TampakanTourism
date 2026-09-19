@@ -46,6 +46,10 @@ $flashes    = Session::takeFlash();
 $bellUnread = 0;
 $bellItems  = [];
 
+/* Once a day, before the bell is read: old notifications everyone has read are
+   cleared. A no-op on every other call; see App\Core\Housekeeping. */
+\App\Core\Housekeeping::runDaily();
+
 try {
     $bellUnread = \App\Repositories\NotificationRepository::unreadCountFor((int) Auth::id());
     $bellItems  = array_map(
@@ -150,7 +154,7 @@ $nav = [
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title><?= e($pageTitle ?? 'Admin') ?> — TourSync</title>
-<link rel="icon" href="<?= e(asset('img/tampakan_logo.png')) ?>" sizes="any">
+<link rel="icon" href="<?= e(asset('img/tourism-logo-mark.png')) ?>" type="image/png">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
@@ -251,8 +255,8 @@ $nav = [
     <!-- ================= SIDEBAR ================= -->
     <aside class="sidebar" id="sidebar">
         <div class="sidebar__brand">
-            <img src="<?= e(asset('img/tampakan_logo.png')) ?>"
-                 alt="Seal of the Municipality of Tampakan" width="42" height="42">
+            <img src="<?= e(asset('img/tourism-logo-mark.png')) ?>"
+                 alt="Tampakan Municipal Tourism Office" width="42" height="42">
             <span>
                 <strong>TourSync</strong>
                 <small>Tourism Office</small>

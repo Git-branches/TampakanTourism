@@ -31,6 +31,7 @@ use App\Core\Csrf;
 use App\Core\Paginator;
 use App\Core\Session;
 use App\Repositories\ContactRepository as Messages;
+use App\Repositories\DataRequestRepository as DataRequests;
 
 Auth::require();
 
@@ -40,6 +41,23 @@ if (is_post()) {
     $id     = (int) ($_POST['id'] ?? 0);
     $status = (string) ($_POST['status'] ?? '');
     $note   = (string) ($_POST['office_note'] ?? '');
+
+    /* DELETE — a message already marked Spam, by the officer. Anything else is
+       an enquiry from the public and stays on record; ContactRepository's
+       WHERE clause enforces that whatever this request claims. */
+    if (($_POST['action'] ?? '') === 'delete') {
+        if (!Auth::isOfficer()) {
+            Session::flash('danger', 'Only the Tourism Officer can delete a message.');
+        } elseif (Messages::deleteSpam($id)) {
+            ActivityLog::record('contact.deleted', 'contact_message', null, 'Deleted spam message #' . $id);
+            Session::flash('success', 'The spam message was deleted.');
+        } else {
+            Session::flash('danger', 'Only a message marked as spam can be deleted. '
+                . 'Enquiries from the public are kept on record.');
+        }
+
+        redirect(base_url('/admin/messages/index.php?status=spam'));
+    }
 
     /* THE SAME HANDLER ANSWERS BOTH WAYS.
      *
@@ -140,11 +158,21 @@ $tone = static fn (string $s): string => match ($s) {
     default    => 'qr',
 };
 
+/* The strip above the stat cards, added when Data Requests joined this screen.
+   Both counts are what is WAITING on each tab, not how many exist — a number
+   that only ever goes up is not something an officer can act on. */
+$activeTab = 'messages';
+$tabCounts = [
+    'messages'      => Messages::unreadCount(),
+    'data-requests' => DataRequests::openCount(),
+];
+
 $pageTitle    = 'Messages';
 $pageIcon     = 'fa-envelope';
 $pageSubtitle = 'Enquiries sent through the public website';
 
 require __DIR__ . '/../_partials/head.php';
+require __DIR__ . '/_tabs.php';
 ?>
 
 <div class="stat-grid">
@@ -319,6 +347,23 @@ require __DIR__ . '/../_partials/head.php';
                                     </button>
                                 </form>
                             <?php endforeach; ?>
+
+                            <?php /* Spam only. A plain form, not data-msg-act: removing a
+                                     row is not a status change the script can redraw in
+                                     place, so it posts and the list reloads. */ ?>
+                            <?php if ($m['status'] === 'spam' && Auth::isOfficer()): ?>
+                                <?php
+                                $askDelete = 'Delete this spam message from ' . (string) $m['name']
+                                    . ' permanently? This cannot be undone.';
+                                ?>
+                                <form method="post" data-confirm="<?= e($askDelete) ?>" data-confirm-tone="danger">
+                                    <?= csrf_field() ?>
+                                    <input type="hidden" name="id" value="<?= $id ?>">
+                                    <button class="kebab__item kebab__item--danger" name="action" value="delete">
+                                        <i class="fa-solid fa-trash-can" aria-hidden="true"></i> Delete
+                                    </button>
+                                </form>
+                            <?php endif; ?>
                         </div>
                     </details>
                 </li>

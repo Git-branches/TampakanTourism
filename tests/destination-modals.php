@@ -76,7 +76,8 @@ $pages = [
     'edit'     => ['edit.php',     'the destination form',   'name="name"'],
     'photos'   => ['photos.php',   'the upload field',       'type="file"'],
     'routes'   => ['routes.php',   'a form',                 '<form'],
-    'heritage' => ['heritage.php', 'the add-item button',    'data-dialog="heritageAdd"'],
+    /* heritage.php was retired on 2026-09-19 with the destination_heritage
+       table; Cultural Heritage is written once, in the About section. */
 ];
 
 /* ---------------------------------------------------------------------------
@@ -209,10 +210,18 @@ printf("    %d trigger%s on the list\n", count($triggers[0]), count($triggers[0]
 
 /* Whatever the script does, the href must survive: it is what a middle-click,
    a Ctrl-click and a browser with JavaScript off all follow. */
-foreach (['edit.php', 'photos.php', 'routes.php', 'heritage.php'] as $file) {
+/* heritage.php IS NOT IN THIS LIST ANY MORE. Cultural Heritage moved to the
+   About section, written once for the whole municipality instead of once per
+   destination, and the office asked for the per-destination button to go. The
+   page itself is retained and still answers — it is checked as a fragment above
+   — but nothing links to it, so there is no href here to find. */
+foreach (['edit.php', 'photos.php', 'routes.php'] as $file) {
     $is('a plain link to ' . $file . ' is still there',
         (bool) preg_match('/href="' . preg_quote($file, '/') . '\?id=\d+"[^>]*data-modal-page/', $list));
 }
+
+$is('and the heritage button has gone from the cards',
+    !str_contains($list, 'heritage.php?id='));
 
 /* The dialog must be declared before the Add sheet, or the coordinate picker
    injected into it finds the Add sheet's #pickerMap instead of its own. */

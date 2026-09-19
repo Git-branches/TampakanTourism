@@ -35,9 +35,9 @@ $result     = DestinationRepository::paginate($filters, (int) ($_GET['page'] ?? 
 $pager      = Paginator::adopt($result);
 $categories = CategoryRepository::all();
 
-/* One query for the whole page rather than one per row — twenty destinations
-   should not mean twenty round trips to draw a badge. */
-$heritageCounts = \App\Repositories\HeritageRepository::countsByDestination();
+/* The per-destination heritage count was read here for a badge on a button that
+   no longer exists — Cultural Heritage moved to the About section. A query whose
+   only reader has gone is a round trip on every page load for nothing. */
 
 /* NOT $d. The table below walks the list with `foreach ($result['rows'] as $d)`,
    and the dialog is rendered after it — so a variable called $d here would hold
@@ -139,6 +139,12 @@ require __DIR__ . '/../_partials/head.php';
     </p>
 
     <div class="dest-grid">
+        <?php
+        /* Where Archive and Delete bring the officer back to: this list, with
+           its filters and page. archive.php only honours a path that starts
+           index.php. */
+        $returnTo = 'index.php' . (($_SERVER['QUERY_STRING'] ?? '') !== '' ? '?' . $_SERVER['QUERY_STRING'] : '');
+        ?>
         <?php foreach ($result['rows'] as $d): ?>
             <article class="dest-tile <?= $d['status'] === 'archived' ? 'is-archived' : '' ?>"
                      data-destination-id="<?= (int) $d['id'] ?>">
@@ -286,14 +292,72 @@ require __DIR__ . '/../_partials/head.php';
                                 <i class="fa-solid fa-diamond-turn-right" aria-hidden="true"></i>
                                 Route
                             </a>
-                            <a href="heritage.php?id=<?= (int) $d['id'] ?>"
-                               data-modal-page data-modal-title="Heritage &mdash; <?= e($d['name']) ?>">
-                                <i class="fa-solid fa-landmark-dome" aria-hidden="true"></i>
-                                Heritage
-                                <?php if (($heritageCounts[(int) $d['id']] ?? 0) > 0): ?>
-                                    <span class="card-menu__count"><?= n($heritageCounts[(int) $d['id']]) ?></span>
-                                <?php endif; ?>
-                            </a>
+                            <?php /* HERITAGE IS NO LONGER PER-DESTINATION.
+                                     Cultural Heritage moved to the About section,
+                                     where it is written once for the whole
+                                     municipality — the office's own note was that
+                                     they were maintaining the same material in two
+                                     places. The button is gone from every card and
+                                     the block is gone from the QR spot page.
+
+                                     The page and the destination_heritage table
+                                     were retired on 2026-09-19, at the office's
+                                     decision. The 32 entries and their photographs
+                                     were exported first and kept outside the site
+                                     (C:\xampp\TampakanTourism-removed-20260919). */ ?>
+
+                            <?php
+                            /* WITHDRAWING A DESTINATION, from the list.
+                             *
+                             * Archive was only on the edit screen, three clicks
+                             * deep. It is the normal way out: the site leaves
+                             * the public pages and the map, and every arrival,
+                             * report and inspection stays countable.
+                             *
+                             * Delete is offered only when there is nothing to
+                             * lose — see DestinationRepository::dependents().
+                             * A destination with any history shows Archive
+                             * alone, and the server refuses a delete of it
+                             * whatever the page showed. */
+                            $isActive   = $d['status'] === 'active';
+                            $archiveAsk = $isActive
+                                ? 'Archive ' . $d['name'] . '? It disappears from the public site and the map, '
+                                  . 'but every recorded arrival, report and inspection is kept. You can restore it at any time.'
+                                : 'Restore ' . $d['name'] . ' to the public site?';
+                            $canDelete  = Auth::isOfficer()
+                                && DestinationRepository::dependents((int) $d['id']) === [];
+                            ?>
+                            <hr class="card-menu__rule">
+
+                            <form method="post" action="archive.php"
+                                  data-confirm="<?= e($archiveAsk) ?>" data-confirm-tone="normal">
+                                <?= csrf_field() ?>
+                                <input type="hidden" name="id" value="<?= (int) $d['id'] ?>">
+                                <input type="hidden" name="status" value="<?= $isActive ? 'archived' : 'active' ?>">
+                                <input type="hidden" name="return" value="<?= e($returnTo) ?>">
+                                <button type="submit" class="card-menu__item">
+                                    <i class="fa-solid <?= $isActive ? 'fa-box-archive' : 'fa-box-open' ?>" aria-hidden="true"></i>
+                                    <?= $isActive ? 'Archive' : 'Restore' ?>
+                                </button>
+                            </form>
+
+                            <?php if ($canDelete): ?>
+                                <?php
+                                $deleteAsk = 'Delete ' . $d['name'] . ' permanently? It has no arrivals, reports, '
+                                    . 'inspections, reviews or manager, so no records are lost — its photographs '
+                                    . 'and route notes go with it. This cannot be undone.';
+                                ?>
+                                <form method="post" action="archive.php"
+                                      data-confirm="<?= e($deleteAsk) ?>" data-confirm-tone="danger">
+                                    <?= csrf_field() ?>
+                                    <input type="hidden" name="id" value="<?= (int) $d['id'] ?>">
+                                    <input type="hidden" name="action" value="delete">
+                                    <input type="hidden" name="return" value="<?= e($returnTo) ?>">
+                                    <button type="submit" class="card-menu__item is-danger">
+                                        <i class="fa-solid fa-trash-can" aria-hidden="true"></i> Delete
+                                    </button>
+                                </form>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>

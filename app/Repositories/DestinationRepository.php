@@ -318,6 +318,88 @@ final class DestinationRepository
         Database::run('UPDATE destinations SET status = ? WHERE id = ?', [$status, $id]);
     }
 
+    /**
+     * Everything that would be lost, or left pointing at nothing, if this
+     * destination were deleted — counted, and only the non-zero ones returned.
+     *
+     * The foreign keys are not a guide to what is safe. tourist_arrivals and
+     * arrival_reports are RESTRICT and would refuse, but inspection_reports,
+     * feedback and destination_managers are CASCADE: the database would delete
+     * a year of compliance evidence and every visitor review without a word.
+     * Alerts, announcements and videos are SET NULL and would survive with the
+     * site's name gone from them. All of it counts here.
+     *
+     * Photographs and routes are NOT listed: they describe
+     * the destination and mean nothing without it, so they go with it.
+     */
+    public static function dependents(int $id): array
+    {
+        $count = static fn (string $sql): int => (int) Database::scalar(
+            $sql, array_fill(0, substr_count($sql, '?'), $id)
+        );
+
+        return array_filter([
+            'tourist arrival records'   => $count('SELECT COUNT(*) FROM tourist_arrivals WHERE destination_id = ?'),
+            'arrival reports'           => $count('SELECT COUNT(*) FROM arrival_reports WHERE destination_id = ?'),
+            'daily arrival summaries'   => $count('SELECT COUNT(*) FROM arrival_daily_summary WHERE destination_id = ?'),
+            'inspection reports'        => $count('SELECT COUNT(*) FROM inspection_reports WHERE destination_id = ?'),
+            'visitor feedback'          => $count('SELECT COUNT(*) FROM feedback WHERE destination_id = ?'),
+            'destination managers'      => $count('SELECT COUNT(*) FROM destination_managers WHERE destination_id = ?'),
+            'alerts'                    => $count('SELECT COUNT(*) FROM destination_alerts WHERE destination_id = ?'),
+            'change requests'           => $count('SELECT COUNT(*) FROM destination_change_requests WHERE destination_id = ?'),
+            'announcements and events'  => $count('SELECT COUNT(*) FROM announcements WHERE destination_id = ?'),
+            'promotional videos'        => $count('SELECT COUNT(*) FROM promo_videos WHERE destination_id = ?'),
+            'tour guide requests'       => $count(
+                'SELECT COUNT(*) FROM tour_guide_requests WHERE destination_id = ?'
+                . ' OR id IN (SELECT request_id FROM tour_request_destinations WHERE destination_id = ?)'
+            ),
+        ]);
+    }
+
+    /**
+     * Permanently removes a destination that nothing depends on — one added by
+     * mistake, or twice. Returns false, having changed nothing, when
+     * dependents() finds anything at all; the office archives it instead.
+     *
+     * The check runs again inside the transaction, with the row locked, so an
+     * arrival recorded between the page being drawn and the button being
+     * pressed stops the delete rather than being cascaded into by it.
+     *
+     * The photograph FILES go after the rows commit, never before:
+     * a delete that fails half-way must not leave a destination whose pictures
+     * are already gone.
+     */
+    public static function deleteIfUnused(int $id): bool
+    {
+        $files = Database::transaction(static function () use ($id): ?array {
+            if (Database::first('SELECT id FROM destinations WHERE id = ? FOR UPDATE', [$id]) === null) {
+                return null;
+            }
+
+            if (self::dependents($id) !== []) {
+                return null;
+            }
+
+            $files = array_column(Database::all(
+                'SELECT file_path FROM destination_photos WHERE destination_id = ?', [$id]), 'file_path');
+
+            /* Photos, routes and the manager bell rows cascade. */
+            Database::run('DELETE FROM destinations WHERE id = ?', [$id]);
+
+            return $files;
+        });
+
+        if ($files === null) {
+            return false;
+        }
+
+        foreach ($files as $path) {
+            Uploader::delete($path);
+        }
+
+        return true;
+    }
+
     public static function addPhoto(int $destinationId, string $path, ?string $caption = null): int
     {
         $isFirst = (int) Database::scalar(

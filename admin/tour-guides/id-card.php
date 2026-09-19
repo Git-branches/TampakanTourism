@@ -39,7 +39,7 @@ $effective = (string) $guide['effective_status'];
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title>ID <?= e((string) $guide['guide_code']) ?> — <?= e((string) $guide['full_name']) ?></title>
-<link rel="icon" href="<?= e(asset('img/tampakan_logo.png')) ?>" sizes="any">
+<link rel="icon" href="<?= e(asset('img/tourism-logo-mark.png')) ?>" type="image/png">
 <style>
     body {
         margin: 0; padding: 1.5rem 1rem 3rem;
@@ -100,8 +100,10 @@ $effective = (string) $guide['effective_status'];
         </form>
     <?php endif; ?>
     <span class="grow">
-        2.63 &times; 3.88&nbsp;in portrait. Print at 100%, <strong>no scaling</strong> &mdash;
-        &ldquo;fit to page&rdquo; will make the card the wrong size.
+        A6, 105 &times; 148&nbsp;mm portrait &mdash; shown here at actual size.
+        Print on <strong>A4 landscape</strong> at 100%: set Scale to
+        &ldquo;Default&rdquo; or 100, <strong>not</strong> &ldquo;Fit to page&rdquo;,
+        which shrinks the card.
     </span>
 </div>
 

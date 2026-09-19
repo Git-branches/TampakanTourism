@@ -27,6 +27,7 @@ use App\Repositories\CategoryRepository;
 use App\Repositories\DestinationRepository;
 use App\Repositories\FeedbackRepository;
 use App\Repositories\HeroSlideRepository as HeroSlides;
+use App\Repositories\DataRequestRepository;
 
 /* Contact form state, carried across the redirect from api/contact/submit.php.
  *
@@ -615,6 +616,122 @@ $contact = [
     'hours_note' => 'Closed on weekends and national holidays',
 ];
 
+/* -----------------------------------------------------------------------------
+ | The About section's people and photographs.
+ |                      Presentation feedback 15 Sep, revised by the office 17 Sep
+ |
+ | TWO NAMED PROFILES, NOT A ROSTER. The first cut of this showed the Tourism
+ | Office as an organisational chart — a head above a row of staff. The office
+ | came back and asked for the opposite: the Mayor beside the Tampakan text, the
+ | Tourism Coordinator beside the Office text, and nobody else. So both are
+ | single fixed profiles held as settings rows, the same call as the mission and
+ | vision beside them. There is only ever one Mayor and one Coordinator; neither
+ | is a list, so neither earns a table.
+ |
+ | EVERY NAME, POSITION AND PHOTOGRAPH IS READ FROM THE DATABASE. Not one is a
+ | literal in this file, which is the point of the whole exercise: these are real
+ | officials holding real positions, and when one of them is reassigned the
+ | office must be able to put it right that afternoon from Settings › About
+ | without anybody touching PHP.
+ * -------------------------------------------------------------------------- */
+
+/**
+ * One profile, read from three settings keys.
+ *
+ * A NAME IS THE MINIMUM. A card reading "—" with a blank circle where the
+ * official portrait belongs is not a placeholder on a municipal website, it is
+ * an error nobody reported — so a profile with no name does not render at all.
+ * A photograph alone identifies nobody, and a position alone is a job with no
+ * holder.
+ *
+ * @return array{name:string, position:string, photo:string|null}|null
+ */
+$officialProfile = static function (string $prefix): ?array {
+    $name = trim((string) (setting('about_' . $prefix . '_name', '') ?? ''));
+
+    if ($name === '') {
+        return null;
+    }
+
+    return [
+        'name'     => $name,
+        'position' => trim((string) (setting('about_' . $prefix . '_position', '') ?? '')),
+        /* uploaded_url() returns null for a row pointing at a file that is no
+           longer on disk, so a photograph deleted from the server degrades to
+           the initials fallback rather than to a broken image. */
+        'photo'    => uploaded_url((string) (setting('about_' . $prefix . '_photo', '') ?? '')),
+    ];
+};
+
+$mayor       = $officialProfile('mayor');
+$coordinator = $officialProfile('coordinator');
+
+/* EVERY ABOUT BLOCK HOLDS A GALLERY, not a slot.
+ *
+ * Each of the four started as one settings row holding one file. The office
+ * asked for several everywhere, so the photographs live in about_photos keyed on
+ * the block, and the old single rows were moved into it by the migration.
+ *
+ * WHAT DIFFERS BETWEEN THEM IS ONLY HOW THEY ARE DRAWN. Cultural Heritage gets
+ * the 2×2 grid; the other three keep a single image with "View all photos" over
+ * its corner however many they hold. That was the office's instruction and it is
+ * expressed by the 'grid' flag on each block below, not by the storage.
+ *
+ * A row whose file has gone is dropped by published(), so a picture deleted from
+ * the server leaves a shorter gallery rather than a hole in the layout.
+ */
+$aboutGallery = static function (string $section, array $fallbacks = []): array {
+    $urls = array_column(
+        App\Repositories\AboutPhotoRepository::published($section),
+        'url'
+    );
+
+    /* The fallbacks are the pre-block legacy slots and the stock picture. They
+       stand in only when the office has uploaded nothing for that block at all
+       — one real photograph beats every fallback. */
+    return $urls !== [] ? $urls : array_values(array_filter($fallbacks));
+};
+
+$officeBlurb = trim((string) (setting('about_office_text', '') ?? ''));
+
+/* The two paragraphs of the About Tampakan column.
+ *
+ * TWO FIELDS, ONE COLUMN. They are edited separately — an office may want to
+ * change how it introduces the municipality without touching the historical
+ * record, and vice versa — but they render as consecutive paragraphs with no
+ * heading between them, because to a reader they are one piece of prose about
+ * the same subject.
+ *
+ * The history is transcribed from the office's own printed trifold brochure.
+ * Held in settings like every other word in this section: the dates, the
+ * Republic Act number and the meaning of "tamfaken" are the municipality's own
+ * record, and the office must be able to correct them without a developer. */
+$aboutHistory = trim((string) (setting('about_history', '') ?? ''));
+
+/* The cultural heritage block, also from the brochure. Its own field because
+   the office edits it separately, and its own block on the page because it is
+   about the municipality's traditions rather than about its founding. */
+$aboutHeritage = trim((string) (setting('about_heritage', '') ?? ''));
+
+/* -----------------------------------------------------------------------------
+ | The roster behind the Contact Us modal's Tour Guide rating.
+ |
+ | Active accreditations only. A suspended or revoked guide is not somebody the
+ | office is inviting the public to rate, and the endpoint enforces the same
+ | condition — a list here that disagreed with the check there would offer a
+ | name and then refuse the submission naming it.
+ |
+ | Two columns, no more. This select needs a label; the roster row also carries
+ | an address, a mobile number and an email, and there is no reason for any of
+ | those to reach the public page.
+ * -------------------------------------------------------------------------- */
+$guideRoster = Database::all(
+    "SELECT id, full_name, guide_code
+       FROM tour_guides
+      WHERE status = 'active'
+      ORDER BY full_name"
+);
+
 $currentYear = date('Y');
 ?>
 <!DOCTYPE html>
@@ -655,7 +772,7 @@ $currentYear = date('Y');
     <meta property="og:url" content="<?= e($site['url']) ?>/">
     <meta name="twitter:card" content="summary_large_image">
 
-    <link rel="icon" href="assets/img/tampakan_logo.png" sizes="any">
+    <link rel="icon" href="<?= e(asset('img/tourism-logo-mark.png')) ?>" type="image/png">
 
     <!-- ===================== Fonts ===================== -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -678,7 +795,7 @@ $currentYear = date('Y');
       "@type": "GovernmentOrganization",
       "name": "Municipal Tourism Office of Tampakan",
       "url": "<?= e($site['url']) ?>",
-      "logo": "<?= e($site['url']) ?>/assets/img/tampakan_logo.png",
+      "logo": "<?= e($site['url']) ?>/assets/img/tourism-logo-mark.png",
       "email": "<?= e($contact['email']) ?>",
       "telephone": "<?= e($contact['phone']) ?>",
       "address": {
@@ -730,7 +847,7 @@ $currentYear = date('Y');
                 <i class="preloader__arc preloader__arc--blue"></i>
                 <i class="preloader__arc preloader__arc--green"></i>
                 <i class="preloader__arc preloader__arc--gold"></i>
-                <img src="assets/img/tampakan_logo.png" alt="" class="preloader__logo">
+                <img src="<?= e(asset('img/tourism-logo-mark.png')) ?>" alt="" class="preloader__logo">
             </div>
 
             <svg class="preloader__route" viewBox="0 0 200 200" aria-hidden="true">
@@ -1570,74 +1687,482 @@ require __DIR__ . '/app/views/partials/public-nav.php';
 <!-- =========================================================================
      11 · ABOUT THE MUNICIPAL TOURISM OFFICE
      ====================================================================== -->
+<?php
+/* EVERY WORD AND EVERY PHOTOGRAPH COMES FROM SETTINGS.
+ *
+ * This was hard-coded: the office's own mission and vision, its founding year,
+ * and two stock photographs of somewhere that is not Tampakan. Those are the
+ * sentences most likely to be revised by the people they belong to, and they
+ * were the ones only a developer could change. Settings › Public site › About.
+ *
+ * The stock IDs remain as the last fallback for the two original slots, so an
+ * office that has uploaded nothing still gets a finished page. The slots added
+ * after the September presentation have NO stock fallback — see below. */
+$ab = static fn(string $k, string $fallback = ''): string
+    => trim((string) (setting($k, '') ?? '')) ?: $fallback;
+
+/* THE FOUR GALLERIES, each falling back to the pre-block legacy slot and then to
+   a stock picture — so a fresh install still gets a finished page and an office
+   that filled the old slots years ago keeps what it had. One uploaded photograph
+   beats every fallback. */
+$historyPhotos  = $aboutGallery('history', [
+    uploaded_url((string) (setting('about_image_small', '') ?? '')),
+    img('1518495973542-4542c06a5843', 800, 700),
+]);
+
+$tampakanPhotos = $aboutGallery('tampakan', [
+    uploaded_url((string) (setting('about_image_main', '') ?? '')),
+    img('1426604966848-d7adac402bff', 900, 1100),
+]);
+
+/* No stock fallback for these two. The Tourism Office and Cultural Heritage are
+   about this office and this municipality; a stock photograph of somewhere else
+   under either heading is worse than the block not being drawn. */
+$officePhotos   = $aboutGallery('office');
+$heritagePhotos = $aboutGallery('heritage');
+
+$badgeValue = $ab('about_badge_value');
+$badgeLabel = $ab('about_badge_label');
+$titleEm    = $ab('about_title_em');
+
+/* Is there a Tourism Office area to draw at all? A heading with nothing under
+   it is worse than no heading — it reads as a page that failed to load.
+ *
+ * MISSION AND VISION COUNT, and leaving them out of this test was a real bug
+ * the suite caught. They moved into this area during the September rework —
+ * they are the OFFICE's mission and vision, and beside a description of the
+ * municipality they read as the municipality's. But an office that wrote them
+ * months ago and has not yet filled in any of the new fields would then have
+ * had both statements silently vanish from the homepage: the words still in
+ * Settings, still saving, rendered nowhere. Exactly the failure the hero had.
+ */
+$hasMissionOrVision = false;
+
+foreach (['mission', 'vision'] as $part) {
+    if ($ab('about_' . $part . '_title') !== '' || $ab('about_' . $part . '_text') !== '') {
+        $hasMissionOrVision = true;
+        break;
+    }
+}
+
+/* Mission and vision are NOT in this test any more.
+ *
+ * They were, back when they lived inside the Tourism Office column and would
+ * have vanished with it. They now sit at the foot of the section under their own
+ * condition, so counting them here would draw an empty "About the Tourism
+ * Office" heading for an office that has written a mission and nothing else. */
+$hasOfficeArea = $officeBlurb !== ''
+    || trim((string) (setting('about_office_text2', '') ?? '')) !== ''
+    || $officePhotos !== []
+    || $coordinator !== null;
+
+/**
+ * One official's profile card — the Mayor, or the Tourism Coordinator.
+ *
+ * ONE PARTIAL FOR BOTH, because they differ in the words and in nothing else.
+ * Two copies of this markup would be two places to correct the next time an alt
+ * text or a heading level is wrong, and they would drift.
+ *
+ * Compact and inline, NOT an organisational chart. The office looked at the
+ * chart version and asked for this instead: a person named beside the text they
+ * are responsible for, at the size of a caption rather than a feature.
+ *
+ * @param array{name:string, position:string, photo:string|null} $person
+ */
+$profileCard = static function (array $person, string $fallbackRole = ''): void { ?>
+    <figure class="official">
+        <?php if ($person['photo'] !== null): ?>
+            <img src="<?= e($person['photo']) ?>"
+                 alt="<?= e($person['name']) ?>"
+                 class="official__photo" loading="lazy">
+        <?php else: ?>
+            <?php /* Initials rather than a stock silhouette. It is honest about
+                     holding a place, and it cannot be mistaken for a photograph
+                     of the person — see initials() in app/helpers.php. It fills
+                     the same frame the portrait will, so uploading one later
+                     does not move anything on the page. */ ?>
+            <span class="official__photo official__photo--blank" aria-hidden="true">
+                <?= e(initials($person['name'])) ?>
+            </span>
+        <?php endif; ?>
+
+        <figcaption class="official__body">
+            <strong class="official__name"><?= e($person['name']) ?></strong>
+            <?php
+            /* The stored position, or the block's own label when the office has
+               named somebody but not yet said what they are. A card carrying a
+               name and nothing else leaves a reader wondering why that person is
+               on the page at all. */
+            $role = $person['position'] !== '' ? $person['position'] : $fallbackRole;
+            ?>
+            <?php if ($role !== ''): ?>
+                <span class="official__role"><?= e($role) ?></span>
+            <?php endif; ?>
+        </figcaption>
+    </figure>
+<?php };
+?>
 <section id="about" class="section section--tint">
     <div class="container">
-        <div class="row align-items-center g-5">
 
-            <?php
-            /* EVERY WORD AND BOTH PHOTOGRAPHS COME FROM SETTINGS.
+        <?php
+        /* -------------------------------------------------------------------
+         * ONE PARTIAL, CALLED FOUR TIMES.
+         *
+         * Every block is the same editorial shape — photographs left, prose
+         * centre, and where there is one, the responsible official's portrait
+         * right. What differs is only which of the three are present:
+         *
+         *   Brief History      [ image ] [ content ]
+         *   About Tampakan     [ image ] [ content ] [ Mayor ]
+         *   Tourism Office     [ 2 imgs ] [ content ] [ Coordinator ]
+         *   Cultural Heritage  [ image ] [ content ]
+         *
+         * Writing that four times would mean four places to fix the next time an
+         * alt text or a heading level is wrong, and the copies always drift.
+         *
+         * THE PORTRAIT IS A COMPACT CARD, NOT AN ORGANISATIONAL CHART. A chart
+         * was built and withdrawn; the office asked for one named person beside
+         * the text they are responsible for.
+         * ---------------------------------------------------------------- */
+        $aboutBlock = static function (array $b) use ($profileCard): void {
+            /* THE TEXT TAKES BACK WHATEVER THE SIDE COLUMNS DO NOT USE.
              *
-             * This was hard-coded: the office's own mission and vision, its
-             * founding year, and two stock photographs of somewhere that is not
-             * Tampakan. Those are the sentences most likely to be revised by the
-             * people they belong to, and they were the ones only a developer
-             * could change. Settings › Public site › About the Office.
-             *
-             * The stock IDs remain as the last fallback, so an office that has
-             * uploaded nothing still gets a finished page. */
-            $ab = static fn(string $k, string $fallback = ''): string
-                => trim((string) (setting($k, '') ?? '')) ?: $fallback;
+             * Both are optional — the office may not have uploaded a photograph,
+             * and a section may have no official — and a fixed split would leave
+             * a third of the row as empty tint, which reads as a picture that
+             * failed to load rather than as a column that was never there. */
+            $photos    = array_values(array_filter($b['photos'] ?? []));
+            $hasPhoto  = $photos !== [];
+            $hasPerson = ($b['person'] ?? null) !== null;
 
-            $aboutMain  = uploaded_url((string) (setting('about_image_main', '') ?? ''))
-                       ?? img('1426604966848-d7adac402bff', 900, 1100);
-            $aboutSmall = uploaded_url((string) (setting('about_image_small', '') ?? ''))
-                       ?? img('1518495973542-4542c06a5843', 800, 700);
-
-            $badgeValue = $ab('about_badge_value');
-            $badgeLabel = $ab('about_badge_label');
-            $titleEm    = $ab('about_title_em');
+            [$photoCol, $textCol] = match (true) {
+                $hasPhoto && $hasPerson => ['col-lg-4', 'col-lg-5'],
+                /* Wider image and a comfortable measure beside it when there is
+                   no third column to make room for. */
+                $hasPhoto               => ['col-lg-5', 'col-lg-7'],
+                $hasPerson              => ['',          'col-lg-9'],
+                default                 => ['',          'col-12'],
+            };
             ?>
+            <div class="about-block" id="about-<?= e($b['id']) ?>">
 
-            <div class="col-lg-6">
-                <div class="about__gallery">
-                    <img src="<?= e($aboutMain) ?>" alt="The municipality of Tampakan"
-                         class="about__img about__img--tall" loading="lazy">
-                    <img src="<?= e($aboutSmall) ?>" alt=""
-                         class="about__img about__img--small" loading="lazy">
+                <?php /* The centred header. .section-head is the component every
+                         other section on this page opens with, so these read as
+                         parts of one website rather than as blocks somebody
+                         styled separately. */ ?>
+                <div class="section-head">
+                    <span class="eyebrow">
+                        <i class="fa-solid <?= e($b['icon']) ?>"></i> <?= e($b['eyebrow']) ?>
+                    </span>
 
-                    <?php /* Both fields blank means the office does not want the card,
-                             rather than an empty white box floating over the photo. */ ?>
-                    <?php if ($badgeValue !== '' || $badgeLabel !== ''): ?>
-                        <div class="about__badge">
-                            <i class="fa-solid fa-award"></i>
-                            <strong><?= e($badgeValue) ?></strong>
-                            <span><?= e($badgeLabel) ?></span>
+                    <?php /* Two fields joined here rather than one holding a
+                             <span>. An officer should not have to type markup to
+                             colour half a heading, and a field that accepts
+                             markup is a field that can break the page from the
+                             settings screen. */ ?>
+                    <h2 class="section-title">
+                        <?= e($b['title']) ?><?php if ($b['titleEm'] !== ''): ?>
+                            <span class="text-grad"><?= e($b['titleEm']) ?></span>
+                        <?php endif; ?>
+                    </h2>
+
+                    <?php if (($b['subtitle'] ?? '') !== ''): ?>
+                        <p class="section-sub"><?= e($b['subtitle']) ?></p>
+                    <?php endif; ?>
+                </div>
+
+                <div class="row g-4 g-lg-5 align-items-start">
+
+                    <?php if ($hasPhoto): ?>
+                        <div class="<?= e($photoCol) ?>">
+                            <?php
+                            /* ONE PHOTOGRAPH ON THE PAGE, THE REST BEHIND A DOOR.
+                             *
+                             * The Tourism Office briefly showed two stacked, and
+                             * the office asked for the destination pages' pattern
+                             * instead: a single image, and "View all photos" once
+                             * there is more than one. It keeps every block the
+                             * same height whether the office has uploaded one
+                             * picture or six, and it is the behaviour a visitor
+                             * has already met elsewhere on this site.
+                             *
+                             * The extras are still in the markup as [data-lightbox]
+                             * links — hidden, but present — because that is how the
+                             * viewer knows what to page through. Each block names
+                             * its OWN group, so the Office photographs and the
+                             * gallery further up the page are separate sets.
+                             */
+                            $lead  = $photos[0];
+                            $extra = array_slice($photos, 1);
+                            $group = 'about-' . $b['id'];
+
+                            /* THE GRID IS CULTURAL HERITAGE'S ALONE.
+                             *
+                             * Every block holds a gallery now, but the office was
+                             * explicit that only Cultural Heritage should look like
+                             * one — the other three keep a single image with "View
+                             * all photos" over its corner however many they hold.
+                             * Heritage is a set of festivals, which is a gallery;
+                             * the Municipal Building is one subject photographed
+                             * more than once, which is a picture with alternates.
+                             *
+                             * Still needs four to make a 2×2: below that it falls
+                             * back to the single image, because a grid with an
+                             * empty cell is worse than either. */
+                            $grid = ($b['grid'] ?? false) && count($photos) >= 4;
+                            ?>
+                            <?php if ($grid): ?>
+                                <?php
+                                /* Four tiles. The fourth is a real photograph with
+                                   the door over it, so the grid is never a hole —
+                                   the same thing every gallery of this shape does,
+                                   and what the office drew. */
+                                $tiles  = array_slice($photos, 0, 4);
+                                $behind = count($photos) - count($tiles);
+                                ?>
+                                <div class="about-grid">
+                                    <?php foreach ($tiles as $i => $src): ?>
+                                        <?php $last = $i === count($tiles) - 1 && $behind > 0; ?>
+                                        <a href="<?= e($src) ?>" data-lightbox="<?= e($group) ?>"
+                                           data-caption="<?= e($b['alt']) ?>"
+                                           class="about-grid__cell<?= $last ? ' is-more' : '' ?>"
+                                           <?= $last
+                                               ? 'aria-label="View all ' . n(count($photos)) . ' photos"'
+                                               : 'aria-label="' . e($b['alt']) . '"' ?>>
+                                            <img src="<?= e($src) ?>"
+                                                 alt="<?= $i === 0 ? e($b['alt']) : '' ?>"
+                                                 <?= $i === 0 ? '' : 'aria-hidden="true"' ?>
+                                                 class="about-grid__img" loading="lazy">
+
+                                            <?php if ($last): ?>
+                                                <span class="about-grid__veil">
+                                                    <strong>+<?= n($behind) ?></strong>
+                                                    <small>View all photos</small>
+                                                </span>
+                                            <?php endif; ?>
+                                        </a>
+                                    <?php endforeach; ?>
+                                </div>
+
+                                <?php /* Everything past the four tiles: in the
+                                         document for the viewer to page through,
+                                         out of the layout entirely. */ ?>
+                                <?php foreach (array_slice($photos, 4) as $src): ?>
+                                    <a href="<?= e($src) ?>" data-lightbox="<?= e($group) ?>"
+                                       data-caption="<?= e($b['alt']) ?>"
+                                       class="about-block__hidden" tabindex="-1" aria-hidden="true"></a>
+                                <?php endforeach; ?>
+
+                            <?php else: ?>
+                                <figure class="about-block__frame">
+                                    <?php /* THE LABEL IS INSIDE THE LINK, not a second
+                                             one beside it. Two anchors pointing at the
+                                             same photograph would both join the
+                                             viewer's group, and it would count two
+                                             pictures where there is one — "1 / 3" for
+                                             a pair. One trigger, one entry. */ ?>
+                                    <a href="<?= e($lead) ?>" data-lightbox="<?= e($group) ?>"
+                                       data-caption="<?= e($b['alt']) ?>"
+                                       class="about-block__link"
+                                       aria-label="<?= $extra === []
+                                           ? 'View ' . e($b['alt']) . ' larger'
+                                           : 'View all ' . n(count($photos)) . ' photos' ?>">
+                                        <img src="<?= e($lead) ?>" alt="<?= e($b['alt']) ?>"
+                                             class="about-block__img" loading="lazy">
+
+                                        <?php if ($extra !== []): ?>
+                                            <?php /* Over the corner of the photograph,
+                                                     the way the destination galleries
+                                                     do it — a door on the image rather
+                                                     than a button under it. */ ?>
+                                            <span class="about-block__more">
+                                                <i class="fa-regular fa-images" aria-hidden="true"></i>
+                                                View all <?= n(count($photos)) ?> photos
+                                            </span>
+                                        <?php endif; ?>
+                                    </a>
+
+                                    <?php /* Both badge fields blank means the office
+                                             does not want the card, rather than an
+                                             empty white box over the photograph. */ ?>
+                                    <?php if (($b['badge'] ?? null) !== null): ?>
+                                        <figcaption class="about__badge">
+                                            <i class="fa-solid fa-award"></i>
+                                            <strong><?= e($b['badge'][0]) ?></strong>
+                                            <span><?= e($b['badge'][1]) ?></span>
+                                        </figcaption>
+                                    <?php endif; ?>
+                                </figure>
+
+                                <?php /* The extras: reachable by the viewer, never
+                                         drawn. */ ?>
+                                <?php foreach ($extra as $src): ?>
+                                    <a href="<?= e($src) ?>" data-lightbox="<?= e($group) ?>"
+                                       data-caption="<?= e($b['alt']) ?>"
+                                       class="about-block__hidden" tabindex="-1" aria-hidden="true"></a>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </div>
+                    <?php endif; ?>
+
+                    <div class="<?= e($textCol) ?>">
+                        <?php /* LABELLED PARTS. Each is a settings field of its
+                                 own because they are edited separately, and each
+                                 carries its own small heading so a reader can
+                                 tell where one ends.
+
+                                 A part with no text is not drawn, heading and
+                                 all: an office that has not written its second
+                                 paragraph should not get an empty label sitting
+                                 over nothing. */ ?>
+                        <?php foreach ($b['parts'] as [$label, $text]): ?>
+                            <?php if (trim((string) $text) !== ''): ?>
+                                <?php if (trim((string) $label) !== ''): ?>
+                                    <h3 class="about-block__label"><?= e($label) ?></h3>
+                                <?php endif; ?>
+                                <div class="about-block__text"><?= nl2br(e($text)) ?></div>
+                            <?php endif; ?>
+                        <?php endforeach; ?>
+                    </div>
+
+                    <?php if ($hasPerson): ?>
+                        <div class="col-lg-3">
+                            <?php $profileCard($b['person'], $b['role']); ?>
                         </div>
                     <?php endif; ?>
                 </div>
             </div>
+        <?php };
+        ?>
 
-            <div class="col-lg-6">
-                <?php if ($ab('about_eyebrow') !== ''): ?>
-                    <span class="eyebrow">
-                        <i class="fa-solid fa-building-columns"></i> <?= e($ab('about_eyebrow')) ?>
-                    </span>
-                <?php endif; ?>
+        <!-- ---------------------------------------------------------------
+             01 · A BRIEF HISTORY
+             -------------------------------------------------------------
+             ITS OWN SECTION, AND FIRST. It used to run on as a second
+             paragraph inside About Tampakan, under a small label. The office
+             asked for it separated and moved to the front: the page now opens
+             on where the municipality came from, then says what it is today.
 
-                <?php /* Two fields joined here rather than one field holding a <span>.
-                         An officer should not have to type markup to colour half a
-                         heading, and a field that accepts markup is a field that can
-                         break the page from the settings screen. */ ?>
-                <h2 class="section-title">
-                    <?= e($ab('about_title')) ?><?php if ($titleEm !== ''): ?>
-                        <span class="text-grad"><?= e($titleEm) ?></span>
-                    <?php endif; ?>
-                </h2>
+             Every word is transcribed from the office's own printed trifold
+             brochure, through Settings. The dates, the Republic Act number and
+             the etymology of "tamfaken" are the municipality's own record —
+             theirs to state and correct, and nothing here is generated.
+             ------------------------------------------------------------ -->
+        <?php if ($aboutHistory !== ''): ?>
+            <?php $aboutBlock([
+                'id'       => 'history',
+                'eyebrow'  => $ab('about_history_eyebrow', 'Our Roots'),
+                'icon'     => 'fa-clock-rotate-left',
+                'title'    => $ab('about_history_title', 'A Brief'),
+                'titleEm'  => $ab('about_history_title_em', 'History'),
+                'subtitle' => $ab('about_history_subtitle', 'How Tampakan came to be'),
+                'parts'    => [['', $aboutHistory]],
+                'photos'   => $historyPhotos,
+                'badge'    => null,
+                'alt'      => 'Tampakan through its history',
+                'person'   => null,
+                'role'     => '',
+            ]); ?>
+        <?php endif; ?>
 
-                <?php if ($ab('about_lead') !== ''): ?>
-                    <p class="about__lead"><?= nl2br(e($ab('about_lead'))) ?></p>
-                <?php endif; ?>
+        <!-- ---------------------------------------------------------------
+             02 · ABOUT TAMPAKAN
+             -------------------------------------------------------------
+             ONE PHOTOGRAPH, the municipal building, at the office's explicit
+             instruction. This block carried an overlapping pair until they
+             asked for a single image.
+             ------------------------------------------------------------ -->
+        <?php $aboutBlock([
+            'id'       => 'tampakan',
+            'eyebrow'  => $ab('about_eyebrow', 'About Tampakan'),
+            'icon'     => 'fa-landmark',
+            'title'    => $ab('about_title', 'About'),
+            'titleEm'  => $ab('about_title_em', 'Tampakan'),
+            'subtitle' => $ab('about_subtitle', 'Discover the place we call home'),
+            'parts'    => [[$ab('about_lead_label'), $ab('about_lead')]],
+            'photos'   => $tampakanPhotos,
+            'badge'    => ($badgeValue !== '' || $badgeLabel !== '')
+                              ? [$badgeValue, $badgeLabel] : null,
+            'alt'      => 'Tampakan Municipal Building',
+            'person'   => $mayor,
+            'role'     => 'Municipal Mayor',
+        ]); ?>
 
+        <!-- ---------------------------------------------------------------
+             03 · ABOUT THE TOURISM OFFICE
+             ------------------------------------------------------------ -->
+        <?php if ($hasOfficeArea): ?>
+            <?php $aboutBlock([
+                'id'       => 'office',
+                'eyebrow'  => $ab('about_office_eyebrow', 'About the Tourism Office'),
+                'icon'     => 'fa-people-roof',
+                'title'    => 'About the',
+                'titleEm'  => 'Tourism Office',
+                'subtitle' => $ab('about_office_subtitle',
+                                  'Supporting tourism and local destinations'),
+                'parts'    => [
+                    [$ab('about_office_label'), $officeBlurb],
+                    ['', $ab('about_office_text2')],
+                ],
+                'photos'   => $officePhotos,
+                'badge'    => null,
+                'alt'      => 'The Municipal Tourism Office of Tampakan',
+                'person'   => $coordinator,
+                'role'     => 'Municipal Tourism Coordinator',
+            ]); ?>
+        <?php endif; ?>
+
+        <!-- ---------------------------------------------------------------
+             04 · CULTURAL HERITAGE
+             -------------------------------------------------------------
+             The photograph slot is deliberately here before the office has an
+             image to put in it — they asked for it to be ready. With none
+             uploaded the block renders as heading and prose across a
+             comfortable measure; the day a photograph arrives it becomes the
+             same image-and-content shape as the two above, with no further
+             work.
+             ------------------------------------------------------------ -->
+        <?php /* Text OR photographs. An office that has uploaded a gallery and
+                 not yet written the paragraph should see its pictures, not an
+                 absent section — and the block already draws correctly with
+                 either half missing. */ ?>
+        <?php if ($aboutHeritage !== '' || $heritagePhotos !== []): ?>
+            <?php $aboutBlock([
+                'id'       => 'heritage',
+                'eyebrow'  => $ab('about_heritage_eyebrow', 'Culture & Traditions'),
+                'icon'     => 'fa-hands-holding-circle',
+                'title'    => $ab('about_heritage_title', 'Cultural'),
+                'titleEm'  => $ab('about_heritage_title_em', 'Heritage'),
+                'subtitle' => $ab('about_heritage_subtitle',
+                                  'The festivals and traditions we celebrate'),
+                'parts'    => [['', $aboutHeritage]],
+                /* THE ONE BLOCK WITH A GALLERY RATHER THAN A SLOT.
+                   Cultural Heritage moved off the destination pages and the
+                   office asked to upload as many photographs as they have. The
+                   others still take a single settings row, which is right for
+                   "the Municipal Building" and wrong for "our festivals". */
+                'photos'   => $heritagePhotos,
+                'grid'     => true,        // the only block drawn as a gallery
+                'badge'    => null,
+                'alt'      => 'Cultural heritage of Tampakan',
+                'person'   => null,
+                'role'     => '',
+            ]); ?>
+        <?php endif; ?>
+
+        <?php /* -----------------------------------------------------------
+                 05 / 06 · MISSION AND VISION
+
+                 Side by side at the foot of the section, content and styling
+                 untouched at the office's instruction. They were once stacked
+                 inside the Tourism Office column, where a three-column row
+                 squeezed two paragraphs of statement into a 30-character
+                 measure. They are the office's two standing commitments and
+                 they read as a pair.
+              -------------------------------------------------------------- */ ?>
+        <?php if ($hasMissionOrVision): ?>
+            <div class="row g-4 mv-row">
                 <?php foreach ([
                     ['mission', 'fa-solid fa-bullseye'],
                     ['vision',  'fa-regular fa-eye'],
@@ -1647,17 +2172,19 @@ require __DIR__ . '/app/views/partials/public-nav.php';
                     $mvText  = $ab('about_' . $part . '_text');
                     ?>
                     <?php if ($mvTitle !== '' || $mvText !== ''): ?>
-                        <div class="mv-card mv-card--<?= $part ?>">
-                            <span class="mv-card__icon"><i class="<?= e($icon) ?>"></i></span>
-                            <div>
-                                <h3><?= e($mvTitle) ?></h3>
-                                <p><?= nl2br(e($mvText)) ?></p>
+                        <div class="col-lg-6">
+                            <div class="mv-card mv-card--<?= $part ?>">
+                                <span class="mv-card__icon"><i class="<?= e($icon) ?>"></i></span>
+                                <div>
+                                    <h3><?= e($mvTitle) ?></h3>
+                                    <p><?= nl2br(e($mvText)) ?></p>
+                                </div>
                             </div>
                         </div>
                     <?php endif; ?>
                 <?php endforeach; ?>
             </div>
-        </div>
+        <?php endif; ?>
     </div>
 </section>
 
@@ -1705,41 +2232,632 @@ require __DIR__ . '/app/views/partials/public-nav.php';
                     </li>
                 </ul>
 
-                <!-- Embedded Google Map (keyless embed — no API key required) -->
+                <?php /* LEAFLET AND OPENSTREETMAP, NOT A GOOGLE MAPS IFRAME.
+                         ---------------------------------------------------------
+                         This box showed "This content is blocked. Contact the site
+                         owner to fix the issue." — the Content-Security-Policy in
+                         app/bootstrap.php allows frames from 'self' and YouTube
+                         and nothing else, so the embed never rendered. It has
+                         never rendered.
+
+                         The fix is not to add Google to frame-src. A Maps embed
+                         sets third-party cookies, and the cookie notice on this
+                         same page tells every visitor "No advertising, analytics
+                         or tracking cookies are used". Opening the header would
+                         have made a municipal privacy statement untrue in order
+                         to show a map.
+
+                         The site already had the answer: map.php and the tourist
+                         map above both use Leaflet with OpenStreetMap tiles, the
+                         script is already loaded on this page, and img-src
+                         already allows the tiles. No header changes, no API key,
+                         no tracking — and the same map everywhere. */ ?>
                 <div class="contact-map">
-                    <iframe
-                        src="https://www.google.com/maps?q=Tampakan,%20South%20Cotabato,%20Philippines&z=13&output=embed"
-                        title="Google Map of Tampakan, South Cotabato"
-                        loading="lazy" referrerpolicy="no-referrer-when-downgrade"
-                        allowfullscreen></iframe>
+                    <div id="officeMap"
+                         data-lat="<?= e((string) $site['lat']) ?>"
+                         data-lng="<?= e((string) $site['lng']) ?>"
+                         data-label="<?= e((string) setting('office_name', 'Municipal Tourism Office')) ?>"
+                         data-address="<?= e((string) $contact['address']) ?>"
+                         role="img"
+                         aria-label="Map showing the Municipal Tourism Office in Tampakan, South Cotabato"></div>
                 </div>
             </div>
 
-            <!-- Contact form — client-side only; wire to a mailer/controller later -->
-            <div class="col-lg-7">
-                <div class="contact-form-card">
-                    <h3 class="contact-form-card__title">Send Us a Message</h3>
-                    <p class="contact-form-card__sub">We usually respond within one working day.</p>
+            <?php /* THE FORM MOVED INTO A MODAL.        15 Sep 2026
+                     -------------------------------------------------------
+                     What was here: one form of six fields, always open, always
+                     the same shape, taking up more of the homepage than any
+                     other single thing on it.
 
-                    <?php /* A REAL POST to a real endpoint. This form spent the
-                             project's whole life discarding what people wrote
-                             into it. */ ?>
-                    <?php /* data-no-busy, and it is not cosmetic.
-                             notify.js marks a submit button busy on every form
-                             it sees submitted, then swallows further clicks on
-                             it. It does that even when the submit was cancelled
-                             — so one click with a field still empty left this
-                             button spinning "Sending…" and refusing every click
-                             after it. The form was dead until the page reloaded.
-                             This form cancels its own submit in both branches
-                             and drives the button itself, which is precisely the
-                             case notify.js documents this attribute for. */ ?>
+                     The office asked for three kinds of enquiry that are
+                     genuinely different — a rating of a named guide, a formal
+                     data request of fourteen fields, and a general message.
+                     Rendering all three inline would have made the longest
+                     section on the page longer still, and shown every visitor
+                     two forms they did not want.
+
+                     So the page keeps a chooser and the forms live in a modal.
+                     The section is shorter than it was before, not longer. */ ?>
+            <div class="col-lg-7">
+                <div class="contact-form-card contact-start">
+                    <h3 class="contact-form-card__title">Send Us a Message</h3>
+                    <p class="contact-form-card__sub">
+                        Tell us what your enquiry is about and we will open the right form.
+                    </p>
+
+                    <div class="contact-start__pick">
+                        <label for="cfCategory" class="form-label">
+                            What is this about? <span>*</span>
+                        </label>
+
+                        <?php /* A real <select>, not three buttons dressed as one.
+                                 The office asked for a dropdown; it is also the
+                                 control a phone renders as a native picker, which
+                                 is a better target than three cards squeezed side
+                                 by side on a 360px screen. */ ?>
+                        <select class="form-select form-select-lg" id="cfCategory"
+                                aria-describedby="cfCategoryHelp">
+                            <option value="">Choose a category&hellip;</option>
+                            <option value="tour-guide">Tour Guide</option>
+                            <option value="data-request">Data Request / Inquiries</option>
+                            <option value="other">Other Concerns / Suggestions</option>
+                        </select>
+
+                        <p class="contact-start__help" id="cfCategoryHelp">
+                            Rate a guide you travelled with, request tourism data, or write to us
+                            about anything else.
+                        </p>
+
+                        <?php /* NO data-bs-toggle, and that is the point.
+                                 The category can no longer be changed once the
+                                 dialog is open, so opening it without one chosen
+                                 would drop the visitor into whichever form came
+                                 first with no way to say that was not the one
+                                 they wanted. script.js opens it, and only once a
+                                 category has actually been picked.
+
+                                 Nothing is lost by taking the attribute off: the
+                                 dialog is a Bootstrap modal, so a browser that
+                                 could not run the handler could not have opened
+                                 it declaratively either. */ ?>
+                        <button type="button" class="btn btn-green btn-lg w-100" id="cfOpen">
+                            <i class="fa-regular fa-pen-to-square"></i> Continue
+                        </button>
+                    </div>
+
+                    <?php /* THE SERVER'S ANSWER STILL LANDS ON THE PAGE, not in
+                             the modal. A visitor with no JavaScript posts the
+                             form normally and is redirected back to #contact with
+                             the modal closed; if this lived inside the modal they
+                             would be told nothing at all.
+
+                             script.js moves a live answer up into the modal while
+                             it is open, so nobody has to close it to find out
+                             whether their message was sent. */ ?>
+                    <div id="formAlert"
+                         class="form-alert <?= $contactFlashes !== [] ? 'form-alert--' . e($contactFlashes[0]['type'] === 'success' ? 'success' : 'error') . ' is-visible' : '' ?>"
+                         role="status" aria-live="polite">
+                        <?php if ($contactFlashes !== []): ?>
+                            <i class="fa-solid <?= $contactFlashes[0]['type'] === 'success' ? 'fa-circle-check' : 'fa-circle-exclamation' ?>"></i>
+                            <span><?= e((string) $contactFlashes[0]['message']) ?></span>
+                        <?php endif; ?>
+                    </div>
+
+                    <ul class="contact-start__notes">
+                        <li><i class="fa-solid fa-shield-halved"></i>
+                            Your details go to the Municipal Tourism Office and nowhere else.</li>
+                        <li><i class="fa-regular fa-clock"></i>
+                            We usually respond within one working day.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+</main>
+
+<!-- =========================================================================
+     13 · FOOTER
+     ====================================================================== -->
+<footer class="footer">
+    <div class="footer__top">
+        <div class="container">
+            <div class="row g-4 g-lg-5">
+
+                <div class="col-lg-4 col-md-6">
+                    <?php /* Both marks — see the same pair in
+                             app/views/partials/public-footer.php, which every
+                             page but this one uses. The landing page carries its
+                             own copy of the footer, so a change to one has to be
+                             made to the other. */ ?>
+                    <div class="footer__brand">
+                        <img src="assets/img/tampakan_logo.png" alt="Official Seal of the Municipality of Tampakan, Province of South Cotabato" width="70" height="70">
+                        <img src="assets/img/tourism-logo-mark.png" alt="Logo of the Tampakan Municipal Tourism Office" width="70" height="70">
+                    </div>
+                    <h4 class="footer__title"><?= e($site['municipality']) ?></h4>
+                    <p class="footer__text">
+                        The official tourism portal of Tampakan, South Cotabato. Promoting sustainable,
+                        community-based highland tourism for every visitor and every barangay.
+                    </p>
+                    <ul class="footer__social">
+                        <li><a href="<?= e($contact['facebook']) ?>" target="_blank" rel="noopener" aria-label="Facebook"><i class="fa-brands fa-facebook-f"></i></a></li>
+                        <li><a href="#" aria-label="Instagram"><i class="fa-brands fa-instagram"></i></a></li>
+                        <li><a href="#" aria-label="YouTube"><i class="fa-brands fa-youtube"></i></a></li>
+                        <li><a href="#" aria-label="TikTok"><i class="fa-brands fa-tiktok"></i></a></li>
+                        <li><a href="mailto:<?= e($contact['email']) ?>" aria-label="Email"><i class="fa-solid fa-envelope"></i></a></li>
+                    </ul>
+                </div>
+
+                <div class="col-lg-2 col-md-6 col-6">
+                    <h4 class="footer__title">Quick Links</h4>
+                    <ul class="footer__links">
+                        <?php foreach (array_slice(public_nav(), 0, 4) as $link): ?>
+                        <li><a href="<?= e($link['href']) ?>"><i class="fa-solid fa-angle-right"></i><?= e($link['label']) ?></a></li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+
+                <div class="col-lg-2 col-md-6 col-6">
+                    <h4 class="footer__title">Discover</h4>
+                    <ul class="footer__links">
+                        <?php foreach (array_slice(public_nav(), 4) as $link): ?>
+                        <li><a href="<?= e($link['href']) ?>"><i class="fa-solid fa-angle-right"></i><?= e($link['label']) ?></a></li>
+                        <?php endforeach; ?>
+                        <li><a href="#why-visit"><i class="fa-solid fa-angle-right"></i>Why Visit</a></li>
+                        <li><a href="#gallery"><i class="fa-solid fa-angle-right"></i>Photo Gallery</a></li>
+                    </ul>
+                </div>
+
+                <div class="col-lg-4 col-md-6">
+                    <h4 class="footer__title">Tourism Office</h4>
+                    <ul class="footer__contact">
+                        <li><i class="fa-solid fa-location-dot"></i><span><?= e($contact['address']) ?></span></li>
+                        <li><i class="fa-solid fa-phone"></i><span><?= e($contact['phone']) ?> &middot; <?= e($contact['mobile']) ?></span></li>
+                        <li><i class="fa-regular fa-envelope"></i><span><?= e($contact['email']) ?></span></li>
+                        <li><i class="fa-regular fa-clock"></i><span><?= e($contact['hours']) ?></span></li>
+                    </ul>
+                    <?php /* "Staff", not "Administrator". The office asked for it
+                             and they are right: the people who sign in here are
+                             the tourism staff and the destination managers, and
+                             only one of them is an administrator of anything.
+                             The destination is unchanged. */ ?>
+                    <a href="<?= e($site['admin_url']) ?>" class="btn btn-soft-light btn-sm mt-2">
+                        <i class="fa-solid fa-lock"></i> Staff Login
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer__bottom">
+        <div class="container">
+            <?php /* Copyright left, links right — unchanged. What changed is in
+                     .footer__bottom-row: the row now stops short of the chat
+                     launcher's corner instead of running underneath it. */ ?>
+            <div class="footer__bottom-row">
+                <p class="mb-0">
+                    &copy; <?= e((string) $currentYear) ?> <?= e($site['municipality']) ?>, <?= e($site['province']) ?>.
+                    All rights reserved.
+                </p>
+                <ul class="footer__legal">
+                    <li><a href="#privacy" data-bs-toggle="modal" data-bs-target="#privacyModal">Privacy Policy</a></li>
+                    <li><a href="#terms" data-bs-toggle="modal" data-bs-target="#termsModal">Terms &amp; Conditions</a></li>
+                    <li><a href="#" data-cookie-open>Cookies</a></li>
+                    <li><a href="#contact">Sitemap</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</footer>
+
+<?php require __DIR__ . '/app/views/partials/cookie-notice.php'; ?>
+
+<!-- Back-to-top button -->
+<a href="#top" id="backToTop" class="back-to-top" aria-label="Back to top">
+    <i class="fa-solid fa-chevron-up"></i>
+</a>
+
+<!-- =========================================================================
+     LIGHTBOX — driven by script.js
+     ====================================================================== -->
+<?php require __DIR__ . '/app/views/partials/lightbox.php'; ?>
+
+<!-- =========================================================================
+     CONTACT US — THE CATEGORISED ENQUIRY MODAL             15 Sep 2026
+     -------------------------------------------------------------------------
+     THREE SEPARATE <form> ELEMENTS, NOT ONE THAT SWAPS ITS ACTION.
+
+     One form would have to carry every field of all three, post fields the
+     endpoint it reached has no use for, and — the part that actually breaks —
+     hold `required` on inputs that are display:none. A hidden required control
+     fails checkValidity() and the browser refuses to submit while reporting
+     "an invalid form control is not focusable", which the visitor sees as a
+     Submit button that does nothing at all.
+
+     Three forms, each validating only itself, each posting to its own endpoint.
+     Only the visible one is ever submitted.
+     ====================================================================== -->
+<div class="modal fade" id="inquiryModal" tabindex="-1"
+     aria-labelledby="inquiryModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable"
+         id="inquiryDialog">
+        <div class="modal-content inquiry-modal">
+
+            <?php /* THE TITLE IS THE CATEGORY, and it is the only place the
+                     category is named inside the dialog.
+                     The chooser on the page behind has already been answered by
+                     the time this opens; asking the same question again at the
+                     top of the form is a second control that can disagree with
+                     the first, and one more thing between the visitor and the
+                     fields they came to fill in. script.js writes both the label
+                     and the icon from whichever category was chosen. */ ?>
+            <div class="modal-header">
+                <h5 class="modal-title" id="inquiryModalLabel">
+                    <i class="fa-regular fa-envelope" data-inquiry-icon aria-hidden="true"></i>
+                    <span data-inquiry-title>Contact the Tourism Office</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <div class="modal-body">
+
+                <?php /* Where an answer appears while the modal is open. The copy
+                         on the page behind stays authoritative for the no-script
+                         path; script.js writes into whichever of the two the
+                         visitor can actually see. */ ?>
+                <div id="inquiryAlert" class="form-alert" role="status" aria-live="polite"></div>
+
+                <!-- ===========================================================
+                     A · TOUR GUIDE — rate a guide you travelled with
+                     ======================================================== -->
+                <div class="inquiry__panel" data-panel="tour-guide" hidden>
+
+                    <?php if ($guideRoster === []): ?>
+                        <?php /* No accredited guide on the roster, so nothing
+                                 honest to put in the select. An empty dropdown
+                                 above a Submit button is a form that can only
+                                 fail; this says why instead. */ ?>
+                        <div class="inquiry__empty">
+                            <i class="fa-regular fa-address-card"></i>
+                            <p>
+                                There are no accredited guides listed just now. Please use
+                                <strong>Other Concerns / Suggestions</strong> to tell us about
+                                your guide, and the Office will follow it up.
+                            </p>
+                        </div>
+                    <?php else: ?>
+                        <p class="inquiry__lead">
+                            Travelled with one of our accredited guides? Tell the Office how it went.
+                            Ratings are read by an officer before they appear anywhere.
+                        </p>
+
+                        <form id="guideReviewForm" class="row g-3" novalidate data-no-busy
+                              data-inquiry-form
+                              method="post" action="<?= e(base_url('/api/contact/guide-review.php')) ?>">
+                            <?= csrf_field() ?>
+
+                            <?php /* Honeypot and dwell, the same pair guarding every
+                                     other public form here. */ ?>
+                            <div class="visually-hidden" aria-hidden="true">
+                                <label for="grWebsite">Leave this blank</label>
+                                <input type="text" id="grWebsite" name="website" tabindex="-1" autocomplete="off">
+                            </div>
+                            <input type="hidden" name="rendered_at" value="<?= time() ?>">
+
+                            <div class="col-12">
+                                <label for="grGuide" class="form-label">Tour Guide <span>*</span></label>
+                                <select class="form-select" id="grGuide" name="guide_id" required>
+                                    <option value="">Choose the guide you travelled with&hellip;</option>
+                                    <?php foreach ($guideRoster as $g): ?>
+                                        <option value="<?= (int) $g['id'] ?>">
+                                            <?= e((string) $g['full_name']) ?>
+                                            (<?= e((string) $g['guide_code']) ?>)
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <div class="invalid-feedback">Please choose a tour guide.</div>
+                            </div>
+
+                            <div class="col-12">
+                                <?php /* RADIO BUTTONS UNDER THE STARS, not a widget
+                                         driven by click handlers. A rating control
+                                         built from divs is invisible to a keyboard
+                                         and to a screen reader; this one is a real
+                                         radio group that arrow keys already work in,
+                                         with the stars drawn over it in CSS.
+                                         Rendered high to low so that the visual
+                                         order left-to-right is 1..5 after the CSS
+                                         reverses the row — which is also what makes
+                                         the "highlight every star up to this one"
+                                         hover work with a sibling selector alone. */ ?>
+                                <span class="form-label d-block" id="grRatingLabel">
+                                    Rating <span>*</span>
+                                </span>
+                                <div class="star-rate" role="radiogroup" aria-labelledby="grRatingLabel">
+                                    <?php foreach ([5, 4, 3, 2, 1] as $stars): ?>
+                                        <input type="radio" class="star-rate__input" name="rating"
+                                               id="grStar<?= $stars ?>" value="<?= $stars ?>" required>
+                                        <label class="star-rate__star" for="grStar<?= $stars ?>"
+                                               title="<?= $stars ?> out of 5">
+                                            <i class="fa-solid fa-star" aria-hidden="true"></i>
+                                            <span class="visually-hidden"><?= $stars ?> out of 5</span>
+                                        </label>
+                                    <?php endforeach; ?>
+                                </div>
+                                <?php /* A CLASS OF ITS OWN, NOT .invalid-feedback.d-block.
+                                         That pairing showed the error on a form
+                                         nobody had touched yet: .d-block is
+                                         display:block !important, [hidden] is
+                                         display:none !important, they tie on
+                                         specificity, and Bootstrap's utilities are
+                                         loaded last — so the attribute lost and the
+                                         message was on screen from the moment the
+                                         modal opened.
+
+                                         .invalid-feedback would not have worked
+                                         here anyway: Bootstrap reveals it through
+                                         `:invalid ~ .invalid-feedback`, and this sits
+                                         beside the star group rather than beside an
+                                         input, so the rule never matches it. This
+                                         message is driven by script and by the
+                                         attribute alone. */ ?>
+                                <div class="rating-error" data-rating-error hidden>
+                                    Please choose a rating.
+                                </div>
+                            </div>
+
+                            <div class="col-12">
+                                <label for="grComment" class="form-label">Comment</label>
+                                <textarea class="form-control" id="grComment" name="comment" rows="4"
+                                          maxlength="1000"
+                                          placeholder="What was the guide like? Anything the Office should know?"></textarea>
+                                <div class="form-text">Optional. Up to 1,000 characters.</div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <label for="grName" class="form-label">Your Name</label>
+                                <input type="text" class="form-control" id="grName" name="visitor_name"
+                                       maxlength="120" autocomplete="name" placeholder="Optional">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="grEmail" class="form-label">Your Email</label>
+                                <input type="email" class="form-control" id="grEmail" name="visitor_email"
+                                       maxlength="190" autocomplete="email" placeholder="Optional">
+                                <div class="invalid-feedback">Please enter a valid email address.</div>
+                            </div>
+
+                            <div class="col-12">
+                                <div class="inquiry__actions">
+                                    <button type="button" class="btn btn-quiet" data-bs-dismiss="modal">Cancel</button>
+                                    <button type="submit" class="btn btn-green">
+                                        <i class="fa-regular fa-star"></i> Submit Rating
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    <?php endif; ?>
+                </div>
+
+                <!-- ===========================================================
+                     B · DATA REQUEST — the official form, field for field
+                     ======================================================== -->
+                <div class="inquiry__panel" data-panel="data-request" hidden>
+                    <p class="inquiry__lead">
+                        This is the Office's official Data Request form. Please complete it as fully
+                        as you can — an incomplete request takes longer to act on.
+                    </p>
+
+                    <form id="dataRequestForm" class="row g-3" novalidate data-no-busy
+                          data-inquiry-form
+                          method="post" action="<?= e(base_url('/api/contact/data-request.php')) ?>">
+                        <?= csrf_field() ?>
+
+                        <div class="visually-hidden" aria-hidden="true">
+                            <label for="drWebsite">Leave this blank</label>
+                            <input type="text" id="drWebsite" name="website" tabindex="-1" autocomplete="off">
+                        </div>
+                        <input type="hidden" name="rendered_at" value="<?= time() ?>">
+
+                        <?php /* FIELDSETS, NOT STYLED DIVS WITH A HEADING.
+                                 The office asked for three logical sections. A
+                                 <fieldset> with a <legend> is the element that
+                                 actually groups controls for assistive technology
+                                 — a screen reader announces "Requester Information"
+                                 as it enters the group. A div with an <h4> in it
+                                 looks identical and announces nothing. */ ?>
+
+                        <!-- 1 · Requester Information -->
+                        <fieldset class="col-12 form-section">
+                            <legend class="form-section__title">
+                                <span class="form-section__step">1</span> Requester Information
+                            </legend>
+
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <label for="drOrg" class="form-label">Department / Organization</label>
+                                    <input type="text" class="form-control" id="drOrg" name="organisation"
+                                           maxlength="190" autocomplete="organization"
+                                           placeholder="e.g. Provincial Tourism Office, or leave blank if personal">
+                                </div>
+
+                                <div class="col-md-4">
+                                    <label for="drFirst" class="form-label">First Name <span>*</span></label>
+                                    <input type="text" class="form-control" id="drFirst" name="first_name"
+                                           required maxlength="80" autocomplete="given-name">
+                                    <div class="invalid-feedback">Please enter your first name.</div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="drMiddle" class="form-label">Middle Name</label>
+                                    <input type="text" class="form-control" id="drMiddle" name="middle_name"
+                                           maxlength="80" autocomplete="additional-name">
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="drLast" class="form-label">Last Name <span>*</span></label>
+                                    <input type="text" class="form-control" id="drLast" name="last_name"
+                                           required maxlength="80" autocomplete="family-name">
+                                    <div class="invalid-feedback">Please enter your last name.</div>
+                                </div>
+
+                                <div class="col-12">
+                                    <label for="drAddress" class="form-label">Home Address</label>
+                                    <input type="text" class="form-control" id="drAddress" name="home_address"
+                                           maxlength="255" autocomplete="street-address"
+                                           placeholder="House/Purok, Barangay, Municipality, Province">
+                                </div>
+
+                                <div class="col-md-5">
+                                    <label for="drBirth" class="form-label">Birthdate</label>
+                                    <?php /* max=today, enforced again on the server.
+                                             The attribute stops the obvious slip in
+                                             the picker; the server stops the post
+                                             that never went near the picker. */ ?>
+                                    <input type="date" class="form-control" id="drBirth" name="birthdate"
+                                           max="<?= e(date('Y-m-d')) ?>" autocomplete="bday">
+                                    <div class="invalid-feedback">Please check the birthdate.</div>
+                                </div>
+
+                                <div class="col-md-3">
+                                    <label for="drAge" class="form-label">Age</label>
+                                    <?php /* CALCULATED, AND NOT SUBMITTED — it has no
+                                             name attribute, so it never reaches the
+                                             server. An age is a fact with a shelf
+                                             life of a year; the birthdate beside it
+                                             is the durable one, and every screen
+                                             derives the age from that. This box is
+                                             here so the requester can see that what
+                                             they entered means what they meant. */ ?>
+                                    <input type="text" class="form-control" id="drAge"
+                                           readonly tabindex="-1" placeholder="—"
+                                           aria-describedby="drAgeHelp">
+                                    <div class="form-text" id="drAgeHelp">From birthdate</div>
+                                </div>
+
+                                <div class="col-md-4">
+                                    <label for="drCivil" class="form-label">Civil Status</label>
+                                    <select class="form-select" id="drCivil" name="civil_status">
+                                        <option value="">Choose&hellip;</option>
+                                        <?php foreach (DataRequestRepository::CIVIL_STATUSES as $cs): ?>
+                                            <option value="<?= e($cs) ?>"><?= e($cs) ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+
+                                <div class="col-12">
+                                    <label for="drTitle" class="form-label">Title / Job / Designation</label>
+                                    <input type="text" class="form-control" id="drTitle" name="designation"
+                                           maxlength="160" autocomplete="organization-title"
+                                           placeholder="e.g. Research Assistant, Student, Journalist">
+                                </div>
+                            </div>
+                        </fieldset>
+
+                        <!-- 2 · Contact Information -->
+                        <fieldset class="col-12 form-section">
+                            <legend class="form-section__title">
+                                <span class="form-section__step">2</span> Contact Information
+                            </legend>
+
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="drEmail" class="form-label">Email Address <span>*</span></label>
+                                    <input type="email" class="form-control" id="drEmail" name="email"
+                                           required maxlength="190" autocomplete="email"
+                                           placeholder="you@example.com">
+                                    <div class="invalid-feedback">Please enter a valid email address.</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="drPhone" class="form-label">Contact Number</label>
+                                    <input type="tel" class="form-control" id="drPhone" name="contact_number"
+                                           maxlength="40" autocomplete="tel" placeholder="+63 9XX XXX XXXX">
+                                </div>
+                            </div>
+                        </fieldset>
+
+                        <!-- 3 · Request Details -->
+                        <fieldset class="col-12 form-section">
+                            <legend class="form-section__title">
+                                <span class="form-section__step">3</span> Request Details
+                            </legend>
+
+                            <div class="row g-3">
+                                <div class="col-12">
+                                    <label for="drPurpose" class="form-label">Purpose of Request <span>*</span></label>
+                                    <textarea class="form-control" id="drPurpose" name="purpose" rows="3"
+                                              required minlength="10" maxlength="1000"
+                                              placeholder="What will the data be used for?"></textarea>
+                                    <div class="invalid-feedback">Please tell us what the data is for.</div>
+                                </div>
+
+                                <div class="col-12">
+                                    <label for="drData" class="form-label">Requested Data / Content <span>*</span></label>
+                                    <textarea class="form-control" id="drData" name="requested_data" rows="4"
+                                              required minlength="10" maxlength="2000"
+                                              placeholder="Which figures, for which destinations, and over what period?"></textarea>
+                                    <div class="invalid-feedback">Please describe the data you need.</div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <label for="drNeeded" class="form-label">Preferred Completion Date</label>
+                                    <input type="date" class="form-control" id="drNeeded" name="needed_by"
+                                           min="<?= e(date('Y-m-d')) ?>">
+                                    <div class="form-text">The Office will tell you if this is not possible.</div>
+                                    <div class="invalid-feedback">Please choose a date that has not passed.</div>
+                                </div>
+                            </div>
+                        </fieldset>
+
+                        <div class="col-12">
+                            <div class="form-check inquiry__consent">
+                                <input class="form-check-input" type="checkbox" id="drConsent" required>
+                                <label class="form-check-label" for="drConsent">
+                                    I consent to the Municipal Tourism Office processing the personal details
+                                    above for the purpose of this request, in line with the
+                                    <a href="#privacy" data-bs-toggle="modal" data-bs-target="#privacyModal">Privacy Policy</a>.
+                                </label>
+                                <div class="invalid-feedback">Your consent is required.</div>
+                            </div>
+                        </div>
+
+                        <div class="col-12">
+                            <div class="inquiry__actions">
+                                <button type="button" class="btn btn-quiet" data-bs-dismiss="modal">Cancel</button>
+                                <button type="submit" class="btn btn-green">
+                                    <i class="fa-regular fa-paper-plane"></i> Submit Request
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- ===========================================================
+                     C · OTHER CONCERNS / SUGGESTIONS
+                     ======================================================== -->
+                <div class="inquiry__panel" data-panel="other" hidden>
+                    <p class="inquiry__lead">
+                        Anything else — a suggestion, a concern, or a question about visiting Tampakan.
+                    </p>
+
+                    <?php /* KEEPS THE ID #contactForm AND THE SAME ENDPOINT.
+                             This is the form that was on the page, moved. The
+                             office's inbox filters messages by subject, and that
+                             filter is built from what this form has been sending
+                             since it shipped; a version that stopped sending a
+                             subject would leave the filter offering topics no new
+                             message ever carries.
+
+                             The topic select is therefore kept, even though the
+                             brief lists only name/email/message for this
+                             category. It is one field, it preserves a screen the
+                             office already uses, and "Other Concerns" is broad
+                             enough that knowing which kind genuinely helps. */ ?>
                     <form id="contactForm" class="row g-3" novalidate data-no-busy
+                          data-inquiry-form
                           method="post" action="<?= e(base_url('/api/contact/submit.php')) ?>">
                         <?= csrf_field() ?>
 
-                        <?php /* Honeypot and dwell time, the same pair guarding
-                                 every other public form here. */ ?>
+                        <input type="hidden" name="category" value="other">
+
                         <div class="visually-hidden" aria-hidden="true">
                             <label for="cfWebsite">Leave this blank</label>
                             <input type="text" id="cfWebsite" name="website" tabindex="-1" autocomplete="off">
@@ -1797,7 +2915,7 @@ require __DIR__ . '/app/views/partials/public-nav.php';
                             </div>
                         </div>
                         <div class="col-12">
-                            <div class="form-check">
+                            <div class="form-check inquiry__consent">
                                 <input class="form-check-input" type="checkbox" id="cfConsent" required>
                                 <label class="form-check-label" for="cfConsent">
                                     I consent to the Municipal Tourism Office processing my details in line with the
@@ -1807,23 +2925,11 @@ require __DIR__ . '/app/views/partials/public-nav.php';
                             </div>
                         </div>
                         <div class="col-12">
-                            <button type="submit" class="btn btn-primary-grad btn-lg w-100">
-                                <i class="fa-regular fa-paper-plane"></i> Send Message
-                            </button>
-                        </div>
-                        <div class="col-12">
-                            <?php /* Two sources fill this. The server's answer,
-                                     rendered below after a redirect, is the one
-                                     that means the message was actually stored.
-                                     script.js only ever writes the client-side
-                                     "you missed a field" case into it. */ ?>
-                            <div id="formAlert"
-                                 class="form-alert <?= $contactFlashes !== [] ? 'form-alert--' . e($contactFlashes[0]['type'] === 'success' ? 'success' : 'error') . ' is-visible' : '' ?>"
-                                 role="status" aria-live="polite">
-                                <?php if ($contactFlashes !== []): ?>
-                                    <i class="fa-solid <?= $contactFlashes[0]['type'] === 'success' ? 'fa-circle-check' : 'fa-circle-exclamation' ?>"></i>
-                                    <span><?= e((string) $contactFlashes[0]['message']) ?></span>
-                                <?php endif; ?>
+                            <div class="inquiry__actions">
+                                <button type="button" class="btn btn-quiet" data-bs-dismiss="modal">Cancel</button>
+                                <button type="submit" class="btn btn-green">
+                                    <i class="fa-regular fa-paper-plane"></i> Send Message
+                                </button>
                             </div>
                         </div>
                     </form>
@@ -1831,101 +2937,7 @@ require __DIR__ . '/app/views/partials/public-nav.php';
             </div>
         </div>
     </div>
-</section>
-
-</main>
-
-<!-- =========================================================================
-     13 · FOOTER
-     ====================================================================== -->
-<footer class="footer">
-    <div class="footer__top">
-        <div class="container">
-            <div class="row g-4 g-lg-5">
-
-                <div class="col-lg-4 col-md-6">
-                    <div class="footer__brand">
-                        <img src="assets/img/tampakan_logo.png" alt="Official Seal of the Municipality of Tampakan, Province of South Cotabato" width="70" height="70">
-                    </div>
-                    <h4 class="footer__title"><?= e($site['municipality']) ?></h4>
-                    <p class="footer__text">
-                        The official tourism portal of Tampakan, South Cotabato. Promoting sustainable,
-                        community-based highland tourism for every visitor and every barangay.
-                    </p>
-                    <ul class="footer__social">
-                        <li><a href="<?= e($contact['facebook']) ?>" target="_blank" rel="noopener" aria-label="Facebook"><i class="fa-brands fa-facebook-f"></i></a></li>
-                        <li><a href="#" aria-label="Instagram"><i class="fa-brands fa-instagram"></i></a></li>
-                        <li><a href="#" aria-label="YouTube"><i class="fa-brands fa-youtube"></i></a></li>
-                        <li><a href="#" aria-label="TikTok"><i class="fa-brands fa-tiktok"></i></a></li>
-                        <li><a href="mailto:<?= e($contact['email']) ?>" aria-label="Email"><i class="fa-solid fa-envelope"></i></a></li>
-                    </ul>
-                </div>
-
-                <div class="col-lg-2 col-md-6 col-6">
-                    <h4 class="footer__title">Quick Links</h4>
-                    <ul class="footer__links">
-                        <?php foreach (array_slice(public_nav(), 0, 4) as $link): ?>
-                        <li><a href="<?= e($link['href']) ?>"><i class="fa-solid fa-angle-right"></i><?= e($link['label']) ?></a></li>
-                        <?php endforeach; ?>
-                    </ul>
-                </div>
-
-                <div class="col-lg-2 col-md-6 col-6">
-                    <h4 class="footer__title">Discover</h4>
-                    <ul class="footer__links">
-                        <?php foreach (array_slice(public_nav(), 4) as $link): ?>
-                        <li><a href="<?= e($link['href']) ?>"><i class="fa-solid fa-angle-right"></i><?= e($link['label']) ?></a></li>
-                        <?php endforeach; ?>
-                        <li><a href="#why-visit"><i class="fa-solid fa-angle-right"></i>Why Visit</a></li>
-                        <li><a href="#gallery"><i class="fa-solid fa-angle-right"></i>Photo Gallery</a></li>
-                    </ul>
-                </div>
-
-                <div class="col-lg-4 col-md-6">
-                    <h4 class="footer__title">Tourism Office</h4>
-                    <ul class="footer__contact">
-                        <li><i class="fa-solid fa-location-dot"></i><span><?= e($contact['address']) ?></span></li>
-                        <li><i class="fa-solid fa-phone"></i><span><?= e($contact['phone']) ?> &middot; <?= e($contact['mobile']) ?></span></li>
-                        <li><i class="fa-regular fa-envelope"></i><span><?= e($contact['email']) ?></span></li>
-                        <li><i class="fa-regular fa-clock"></i><span><?= e($contact['hours']) ?></span></li>
-                    </ul>
-                    <a href="<?= e($site['admin_url']) ?>" class="btn btn-soft-light btn-sm mt-2">
-                        <i class="fa-solid fa-lock"></i> Administrator Login
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="footer__bottom">
-        <div class="container">
-            <div class="d-md-flex justify-content-between align-items-center text-center text-md-start">
-                <p class="mb-2 mb-md-0">
-                    &copy; <?= e((string) $currentYear) ?> <?= e($site['municipality']) ?>, <?= e($site['province']) ?>.
-                    All rights reserved.
-                </p>
-                <ul class="footer__legal">
-                    <li><a href="#privacy" data-bs-toggle="modal" data-bs-target="#privacyModal">Privacy Policy</a></li>
-                    <li><a href="#terms" data-bs-toggle="modal" data-bs-target="#termsModal">Terms &amp; Conditions</a></li>
-                    <li><a href="#" data-cookie-open>Cookies</a></li>
-                    <li><a href="#contact">Sitemap</a></li>
-                </ul>
-            </div>
-        </div>
-    </div>
-</footer>
-
-<?php require __DIR__ . '/app/views/partials/cookie-notice.php'; ?>
-
-<!-- Back-to-top button -->
-<a href="#top" id="backToTop" class="back-to-top" aria-label="Back to top">
-    <i class="fa-solid fa-chevron-up"></i>
-</a>
-
-<!-- =========================================================================
-     LIGHTBOX — driven by script.js
-     ====================================================================== -->
-<?php require __DIR__ . '/app/views/partials/lightbox.php'; ?>
+</div>
 
 <!-- =========================================================================
      LEGAL MODALS

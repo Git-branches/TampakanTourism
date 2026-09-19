@@ -140,13 +140,24 @@ final class ManagerAuth
            an officer session alive underneath. */
         unset($_SESSION['_admin']);
 
+        /* Read back rather than taken from $manager: attempt() may have just
+           re-hashed the password, and a fingerprint of the old hash would sign
+           this session out on its very next request. */
+        $stored = Database::first(
+            'SELECT password_hash, must_change_password FROM destination_managers WHERE id = ?',
+            [(int) $manager['id']]
+        );
+
         $_SESSION[self::KEY] = [
             'id'             => (int) $manager['id'],
             'full_name'      => $manager['full_name'],
             'username'       => $manager['username'],
             'destination_id' => (int) $manager['destination_id'],
             'destination'    => $manager['destination_name'],
+            'pw'             => Password::fingerprint($stored['password_hash'] ?? null),
+            'must_change'    => (int) ($stored['must_change_password'] ?? 0) === 1,
         ];
+        self::$verified = true;
 
         Database::run(
             'UPDATE destination_managers
@@ -174,9 +185,98 @@ final class ManagerAuth
     // Reading the session
     // -------------------------------------------------------------------------
 
+    /**
+     * Signed in — and still allowed to be.
+     *
+     * Deactivating a manager, or revoking their sign-in, used to stop only the
+     * NEXT sign-in: a manager already in the portal kept filing figures until
+     * they closed the tab. The account is now re-read once per request, and a
+     * session whose account was deactivated, revoked, or given a new password
+     * since it opened ends on its next click.
+     */
     public static function check(): bool
     {
-        return isset($_SESSION[self::KEY]['id']);
+        if (!isset($_SESSION[self::KEY]['id'])) {
+            return false;
+        }
+
+        return self::$verified ??= self::stillValid();
+    }
+
+    /** Once per request; every check() after the first reads this. */
+    private static ?bool $verified = null;
+
+    /** Why a session was just ended, for the sign-in page to say. */
+    private static ?string $ended = null;
+
+    private static function stillValid(): bool
+    {
+        $row = Database::first(
+            'SELECT is_active, password_hash, must_change_password FROM destination_managers WHERE id = ?',
+            [(int) $_SESSION[self::KEY]['id']]
+        );
+
+        $held = $_SESSION[self::KEY]['pw'] ?? null;
+        $now  = $row !== null ? Password::fingerprint($row['password_hash']) : '';
+
+        if ($row === null || (int) $row['is_active'] !== 1) {
+            self::$ended = 'This account has been deactivated. Contact the Municipal Tourism Office.';
+        } elseif ($row['password_hash'] === null || $row['password_hash'] === '') {
+            self::$ended = 'Your sign-in was withdrawn by the Municipal Tourism Office.';
+        } elseif ($held !== null && !hash_equals((string) $held, $now)) {
+            self::$ended = 'The password for this account was changed, so you were signed out here. Sign in with the new one.';
+        }
+
+        if (self::$ended !== null) {
+            /* The key only: the flash saying why lives in the session too. */
+            unset($_SESSION[self::KEY]);
+            Session::regenerate();
+
+            return false;
+        }
+
+        /* A session opened before this check existed adopts the current
+           fingerprint instead of being thrown out mid-task. */
+        if ($held === null) {
+            $_SESSION[self::KEY]['pw'] = $now;
+        }
+
+        $_SESSION[self::KEY]['must_change'] = (int) $row['must_change_password'] === 1;
+
+        return true;
+    }
+
+    /**
+     * After the manager changes their own password: this session continues on
+     * the new fingerprint, under a new id, while every other one ends.
+     */
+    public static function refreshCredentials(): void
+    {
+        if (!isset($_SESSION[self::KEY]['id'])) {
+            return;
+        }
+
+        $row = Database::first(
+            'SELECT password_hash, must_change_password FROM destination_managers WHERE id = ?',
+            [(int) $_SESSION[self::KEY]['id']]
+        );
+
+        if ($row === null) {
+            return;
+        }
+
+        Session::regenerate();
+        Csrf::rotate();
+
+        $_SESSION[self::KEY]['pw']          = Password::fingerprint($row['password_hash']);
+        $_SESSION[self::KEY]['must_change'] = (int) $row['must_change_password'] === 1;
+        self::$verified = true;
+    }
+
+    /** True while the manager is still on the password the office issued. */
+    public static function mustChangePassword(): bool
+    {
+        return self::check() && !empty($_SESSION[self::KEY]['must_change']);
     }
 
     public static function user(): ?array
@@ -220,13 +320,46 @@ final class ManagerAuth
      * Called on the first line of every manager page. Hiding a link is
      * presentation; this is the access control.
      */
-    public static function require(): void
+    public static function require(bool $passwordPage = false): void
     {
         if (!self::check()) {
             Session::put('_manager_intended', $_SERVER['REQUEST_URI'] ?? '');
-            Session::flash('warning', 'Please sign in to continue.');
+            Session::flash('warning', self::$ended ?? 'Please sign in to continue.');
             redirect(base_url('/manager/login.php'));
         }
+
+        /* THE TEMPORARY PASSWORD OPENS ONE DOOR. Until the manager replaces
+           it, every manager page sends them to the page that does — the
+           dashboard, the logbook and the reports are not reachable on a
+           password the office also knows. */
+        if (!$passwordPage && self::mustChangePassword()) {
+            redirect(base_url('/manager/set-password.php'));
+        }
+    }
+
+    /**
+     * Gives a manager a sign-in with a new temporary password, and returns it.
+     *
+     * The only way a manager password is ever set by somebody other than the
+     * manager, whether at account creation or a reset. Every call generates a
+     * different password; it is stored only as an Argon2id hash; and the account
+     * is flagged so the manager must replace it at first sign-in. The plain
+     * password exists only in the return value — the caller shows it once and
+     * lets it go.
+     */
+    public static function issueTemporaryPassword(int $managerId, string $username): string
+    {
+        $password = Password::temporary();
+
+        Database::run(
+            'UPDATE destination_managers
+                SET username = ?, password_hash = ?, must_change_password = 1,
+                    password_changed_at = NOW(), failed_attempts = 0, locked_until = NULL
+              WHERE id = ?',
+            [$username, self::hash($password), $managerId]
+        );
+
+        return $password;
     }
 
     /**

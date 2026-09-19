@@ -22,18 +22,41 @@ final class ContactRepository
         'spam'     => 'Spam',
     ];
 
+    /**
+     * Which door of the Contact Us modal a message came through.
+     *
+     * Only 'other' ever reaches this table — the other two categories are
+     * genuinely different records and have their own. The constant is here
+     * anyway so the column has one authority on what may go in it, and so a
+     * fourth category added later is added in one place.
+     *
+     * @var array<string, string>
+     */
+    public const CATEGORIES = [
+        'other' => 'Other Concerns / Suggestions',
+    ];
+
     /** @param array<string, mixed> $data */
     public static function create(array $data): int
     {
+        /* NULL rather than a default when the caller says nothing.
+           Every message written before the categorised modal shipped came
+           through the single old form, and stamping those — or anything else
+           that arrives without saying — 'other' would assert a category the
+           visitor was never offered. */
+        $category = trim((string) ($data['category'] ?? ''));
+        $category = isset(self::CATEGORIES[$category]) ? $category : null;
+
         return Database::insert(
-            'INSERT INTO contact_messages (name, email, phone, subject, message, device_hash)
-             VALUES (?, ?, ?, ?, ?, ?)',
+            'INSERT INTO contact_messages (name, email, phone, subject, category, message, device_hash)
+             VALUES (?, ?, ?, ?, ?, ?, ?)',
             [
                 mb_substr(trim((string) $data['name']), 0, 120),
                 mb_substr(trim((string) $data['email']), 0, 190),
                 trim((string) ($data['phone'] ?? '')) !== ''
                     ? mb_substr(trim((string) $data['phone']), 0, 40) : null,
                 mb_substr(trim((string) $data['subject']), 0, 120),
+                $category,
                 mb_substr(trim((string) $data['message']), 0, 2000),
                 $data['device_hash'] ?? null,
             ]
@@ -140,6 +163,30 @@ final class ContactRepository
         }
 
         return $out;
+    }
+
+    /**
+     * Permanently removes a message the office has marked as SPAM.
+     *
+     * A genuine enquiry is a record of what the public asked the municipality
+     * and whether it was answered, and it stays; Spam is the office's own
+     * judgement that it was never one. The WHERE clause is the rule — a message
+     * in any other status is untouched whatever the request says. Each message
+     * is one row with no thread behind it, so nothing else goes with it except
+     * the bell entry that announced it.
+     */
+    public static function deleteSpam(int $id): bool
+    {
+        $gone = Database::run(
+            "DELETE FROM contact_messages WHERE id = ? AND status = 'spam'",
+            [$id]
+        )->rowCount() > 0;
+
+        if ($gone) {
+            NotificationRepository::forgetEntity('contact_message', $id);
+        }
+
+        return $gone;
     }
 
     public static function unreadCount(): int

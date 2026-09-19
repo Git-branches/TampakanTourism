@@ -21,6 +21,7 @@ use App\Core\Session;
 use App\Core\Uploader;
 use App\Core\SmsGateway;
 use App\Core\Validator;
+use App\Repositories\AboutPhotoRepository as AboutPhotos;
 use App\Repositories\HeroSlideRepository as Hero;
 
 Auth::require('officer');
@@ -101,11 +102,10 @@ $editable = [
 
     /* municipal_heritage and municipal_heritage_title were here — a paragraph
        about Tampakan shown on every destination's QR page, below that
-       destination's own heritage. Removed at the office's request: they keep
-       heritage per destination instead (admin/destinations/heritage.php), which
-       is what they actually use — 10 of 10 destinations have heritage photo
-       items, and the municipal text was never filled in, so the section never
-       once appeared on a QR page.
+       destination's own heritage. Removed at the office's request, and the
+       text was never filled in, so the section never once appeared on a QR
+       page. (Per-destination heritage was itself retired later, on 2026-09-19:
+       Cultural Heritage is now written once, in the About section.)
 
        BOTH KEYS HAD TO LEAVE $editable, not just the fields. The save loop below
        writes $_POST[$key] ?? '' for every key in here, so a key with no rendered
@@ -264,7 +264,23 @@ if (is_post()) {
      * they are saved by this panel's own button and must not be touched by the
      * page-wide Save. */
     if ($action === 'about_save') {
-        $back = base_url('/admin/settings/index.php') . '#public';
+        /* BACK TO THE PANEL THAT WAS SAVED, not to the top of the tab.
+         *
+         * There are five About panels now and an officer editing the fourth
+         * should not be returned above the first to scroll down again. The
+         * anchor comes from the form, so a panel added later carries its own
+         * without anything here needing to know about it.
+         *
+         * Whitelisted against the panel ids rather than trusted: an anchor is
+         * echoed into a Location header, and a redirect target taken from a
+         * posted value is somebody else's open redirect. */
+        $panels = ['aboutHistoryPanel', 'aboutTampakanPanel', 'aboutOfficePanel',
+                   'aboutHeritagePanel', 'aboutMvPanel'];
+
+        $anchor = (string) ($_POST['return_panel'] ?? '');
+        $anchor = in_array($anchor, $panels, true) ? $anchor : 'public';
+
+        $back = base_url('/admin/settings/index.php') . '#' . $anchor;
 
         /* The words. Trimmed and clipped to something a layout can hold; the
            lengths are the column's, not an opinion about writing. */
@@ -279,12 +295,81 @@ if (is_post()) {
             'about_mission_text'  => 700,
             'about_vision_title'  => 60,
             'about_vision_text'   => 700,
+            /* Added after the 15 September 2026 presentation, when the About
+               section grew a Tourism Office area and the Mayor's profile. */
+            'about_office_text'    => 900,
+            'about_mayor_name'     => 160,
+            'about_mayor_position' => 160,
+
+            /* The office's revision two days later: a brief history from their
+               own printed brochure, and the Tourism Coordinator named beside the
+               Office description in place of the organisational chart.
+
+               about_history is 4000 because it is the only field here holding
+               continuous prose rather than a line or a short statement — the
+               brochure's history runs to four paragraphs and the office will
+               want room to correct and extend it. */
+            'about_history'              => 4000,
+            'about_heritage'             => 2000,
+            'about_coordinator_name'     => 160,
+            'about_coordinator_position' => 160,
+
+            /* The office's layout wireframe, same day: each block gained a line
+               of subtitle under its heading, the prose column gained a small
+               label over each part, and the Tourism Office gained a second
+               paragraph. Each is blank-tolerant — the template falls back to a
+               sensible default, and an empty part is not drawn at all. */
+            'about_subtitle'         => 160,
+            'about_lead_label'       => 80,
+            'about_office_subtitle'  => 160,
+            'about_office_label'     => 80,
+            'about_office_text2'     => 900,
+            'about_heritage_title'   => 60,
+            'about_heritage_title_em'=> 60,
+
+            /* A Brief History became a section of its own, first on the page,
+               so it gained a heading of its own to go with it. */
+            'about_history_eyebrow'   => 60,
+            'about_history_title'     => 80,
+            'about_history_title_em'  => 80,
+            'about_history_subtitle'  => 160,
+            'about_heritage_subtitle' => 160,
+
+            /* Both had an input on the panel and no entry here, so an officer
+               could type into them and watch the value vanish on Save — the
+               mirror image of the blanking bug, and just as silent. The static
+               check now runs in both directions. */
+            'about_office_eyebrow'    => 80,
+            'about_heritage_eyebrow'  => 80,
         ];
 
         $changed = [];
 
+        /* ONLY WHAT THE FORM ACTUALLY SENT.
+         *
+         * This used to write `$_POST[$key] ?? ''` across every key in $fields,
+         * which made any key the markup had stopped rendering into an empty
+         * string on the officer's next Save — their mission statement gone, no
+         * error, no sign. That happened. It was then guarded by refusing any
+         * post that did not carry all twenty-nine keys.
+         *
+         * Neither is needed now. The About settings are five separate panels
+         * with five separate forms — one per section of the public page, because
+         * one form holding all of it was a screen nobody could navigate — and
+         * each posts only its own fields. A key that is absent simply was not on
+         * the form that was submitted, so it is left exactly as it was.
+         *
+         * CLEARING A FIELD STILL WORKS: an emptied textarea posts as '' and is
+         * PRESENT in $_POST, so it is written. Only genuinely absent keys are
+         * skipped. That distinction is the whole of the fix, and it removes the
+         * blanking bug rather than guarding against it.
+         */
         foreach ($fields as $key => $max) {
-            $value = trim((string) ($_POST[$key] ?? ''));
+            if (!array_key_exists($key, $_POST)) {
+                continue;
+            }
+
+            $value = trim((string) $_POST[$key]);
 
             /* mb_substr, not substr: this copy carries en dashes and the odd
                ñ, and cutting a multi-byte character in half stores a broken
@@ -306,9 +391,27 @@ if (is_post()) {
             );
         }
 
-        /* The two photographs, each replacing the file it supersedes only AFTER
-           the new one is safely on disk and the row points at it. */
-        foreach (['about_image_main' => 'main', 'about_image_small' => 'small'] as $key => $field) {
+        /* The photographs, each replacing the file it supersedes only AFTER the
+           new one is safely on disk and the row points at it.
+           The first two are the original pair; the four after them arrived with
+           the September presentation's About rework. They go through exactly the
+           same loop — one upload path, one delete path, no second way to do it. */
+        /* ONLY THE TWO PORTRAITS ARE STILL SINGLE SLOTS.
+         *
+         * Every section photograph moved into the about_photos gallery, handled
+         * below — a single-slot loop cannot express "add three and keep the two
+         * already there". The Mayor and the Coordinator stay here because there
+         * is exactly one official photograph of each; a gallery of Mayors is not
+         * a thing.
+         *
+         * The section keys are gone from this loop but NOT from the database:
+         * about_image_main and about_image_small are still read by index.php as
+         * the last fallback before the stock picture, and the migration left
+         * them alone for that reason. They simply have no upload field now. */
+        foreach ([
+            'about_mayor_photo'  => 'mayor',
+            'about_coordinator_photo' => 'coordinator',
+        ] as $key => $field) {
             $file = 'image_' . $field;
 
             if (($_FILES[$file]['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
@@ -344,6 +447,58 @@ if (is_post()) {
                 }
 
                 $changed[$key] = '';
+            }
+        }
+
+        /* ---------------------------------------------------------------
+         * THE CULTURAL HERITAGE GALLERY — several photographs, not a slot.
+         *
+         * Removals run BEFORE the additions. An office replacing a set ticks
+         * the old ones and chooses the new ones in the same visit; doing it the
+         * other way round would delete rows that had just been added if an id
+         * were ever reused, and it costs nothing to be sure.
+         * ------------------------------------------------------------- */
+        foreach ((array) ($_POST['remove_about_photo'] ?? []) as $photoId) {
+            $photoId = (int) $photoId;
+
+            if ($photoId > 0) {
+                AboutPhotos::delete($photoId);       // takes the file with it
+                $changed['photos'] = 'removed';
+            }
+        }
+
+        /* ADDITIONS, ONE FIELD PER BLOCK.
+         *
+         * All four About blocks take a gallery now, so each panel posts its own
+         * photos_<section>[]. Driven off the repository's own list of sections
+         * rather than a literal here: a block added later needs no edit in this
+         * handler, and a section name that is not in that list never reaches a
+         * query.
+         *
+         * PHP gives a multi-file field as parallel arrays — name[], tmp_name[],
+         * error[] — not as a list of files. Uploader::storeMany() is the one
+         * place that reshapes them, so this does not do it by hand. */
+        foreach (array_keys(AboutPhotos::SECTIONS) as $section) {
+            $incoming = $_FILES['photos_' . $section] ?? null;
+
+            if (!is_array($incoming) || ($incoming['name'][0] ?? '') === '') {
+                continue;
+            }
+
+            $uploader = new Uploader();
+            $stored   = $uploader->storeMany($incoming, 'banners');
+
+            /* A REJECTED FILE IS REPORTED, and the ones that did save are kept.
+               Refusing the whole batch because one photograph was a HEIC would
+               make an office re-choose nine good files to find the bad one. */
+            if ($uploader->errors() !== []) {
+                Session::flash('danger', 'Some photographs were not added: '
+                    . implode(' ', $uploader->errors()));
+            }
+
+            foreach ($stored as $path) {
+                AboutPhotos::add($section, $path);
+                $changed[$section . '_photos'] = 'added';
             }
         }
 
@@ -906,138 +1061,435 @@ require __DIR__ . '/../_partials/head.php';
          * Settings rows rather than a table, because this is one block of a
          * fixed shape. The hero earned a table by being a LIST the office can
          * lengthen; there will only ever be one mission and one vision. */
-        $aboutMain  = uploaded_url((string) (setting('about_image_main', '') ?? ''));
-        $aboutSmall = uploaded_url((string) (setting('about_image_small', '') ?? ''));
+        /* THE FLAG COUNTS THE SLOTS THE PAGE ACTUALLY USES, not the two legacy
+           ones. It read the legacy pair, so an office that had filled in the
+           Municipal Building and the Tourism Office photographs was still told
+           it was showing stock pictures — and one that had filled in only the
+           legacy pair was told it was fine when four sections were bare. */
+        $sectionPhotos = ['about_town_photo', 'about_hall_photo',
+                          'about_office_photo', 'about_office_photo2'];
+
+        $missingPhotos = 0;
+
+        foreach ($sectionPhotos as $key) {
+            if (uploaded_url((string) (setting($key, '') ?? '')) === null) {
+                $missingPhotos++;
+            }
+        }
 
         /* Two fields rather than asking an officer to type a <span> for the
            coloured half of the heading. The public page joins them. */
         $aboutText = static fn(string $k): string => (string) (setting($k, '') ?? '');
         ?>
-        <section class="panel" data-settab="public" id="aboutPanel">
-            <?php section_head('fa-building-columns', 'About the Office',
-                'The block on the homepage where the office introduces itself.',
-                $aboutMain === null && $aboutSmall === null ? 'stock photos' : '',
-                'flag') ?>
+        <?php
+        /* ---------------------------------------------------------------------
+         * FIVE PANELS, ONE PER SECTION OF THE PUBLIC PAGE.
+         *
+         * This was a single panel holding all thirty-one fields and nine
+         * photograph slots. It worked, and it was a screen nobody could
+         * navigate — an officer wanting to change the Cultural Heritage text
+         * scrolled past the whole of About Tampakan and the Tourism Office to
+         * reach it, and had no way to tell where one section ended.
+         *
+         * Now each panel matches a block on the homepage, in the same order, and
+         * carries its own Save. The save handler writes ONLY the keys a request
+         * actually contains (see `about_save` above), which is what makes five
+         * forms safe where one was necessary before: a panel posting its own
+         * fields leaves every other section exactly as it was.
+         *
+         * Each form carries return_panel so Save returns to the panel it came
+         * from rather than to the top of the tab.
+         * ------------------------------------------------------------------ */
 
-            <div class="panel__body">
-                <form method="post" enctype="multipart/form-data" novalidate>
-                    <?= csrf_field() ?>
-                    <input type="hidden" name="action" value="about_save">
-
-                    <div class="row g-3">
-                        <div class="col-md-4">
-                            <label class="form-label" for="about_eyebrow">Eyebrow</label>
-                            <input type="text" class="form-control" id="about_eyebrow"
-                                   name="about_eyebrow" maxlength="60"
-                                   value="<?= e($aboutText('about_eyebrow')) ?>">
-                            <p class="field-hint">The small line above the heading.</p>
-                        </div>
-
-                        <div class="col-md-4">
-                            <label class="form-label" for="about_title">Heading</label>
-                            <input type="text" class="form-control" id="about_title"
-                                   name="about_title" maxlength="80"
-                                   value="<?= e($aboutText('about_title')) ?>">
-                            <p class="field-hint">Shown in dark text.</p>
-                        </div>
-
-                        <div class="col-md-4">
-                            <label class="form-label" for="about_title_em">Heading, coloured half</label>
-                            <input type="text" class="form-control" id="about_title_em"
-                                   name="about_title_em" maxlength="80"
-                                   value="<?= e($aboutText('about_title_em')) ?>">
-                            <p class="field-hint">Continues the heading in green. Leave empty for none.</p>
-                        </div>
-
-                        <div class="col-12">
-                            <label class="form-label" for="about_lead">Introduction</label>
-                            <textarea class="form-control" id="about_lead" name="about_lead"
-                                      rows="4" maxlength="900"><?= e($aboutText('about_lead')) ?></textarea>
-                        </div>
-
-                        <div class="col-md-4">
-                            <label class="form-label" for="about_badge_value">Badge</label>
-                            <input type="text" class="form-control" id="about_badge_value"
-                                   name="about_badge_value" maxlength="30"
-                                   value="<?= e($aboutText('about_badge_value')) ?>">
-                            <p class="field-hint">The large line on the card over the photograph.</p>
-                        </div>
-
-                        <div class="col-md-8">
-                            <label class="form-label" for="about_badge_label">Badge caption</label>
-                            <input type="text" class="form-control" id="about_badge_label"
-                                   name="about_badge_label" maxlength="80"
-                                   value="<?= e($aboutText('about_badge_label')) ?>">
-                            <p class="field-hint">Leave both blank and the card is not drawn at all.</p>
-                        </div>
-
-                        <?php foreach ([
-                            ['mission', 'Mission', 'fa-bullseye'],
-                            ['vision',  'Vision',  'fa-eye'],
-                        ] as [$part, $label, $icon]): ?>
-                            <div class="col-md-6">
-                                <label class="form-label" for="about_<?= $part ?>_title">
-                                    <i class="fa-solid <?= e($icon) ?>"></i> <?= e($label) ?> heading
-                                </label>
-                                <input type="text" class="form-control" id="about_<?= $part ?>_title"
-                                       name="about_<?= $part ?>_title" maxlength="60"
-                                       value="<?= e($aboutText('about_' . $part . '_title')) ?>">
-
-                                <label class="form-label mt-2" for="about_<?= $part ?>_text">
-                                    <?= e($label) ?> statement
-                                </label>
-                                <textarea class="form-control" id="about_<?= $part ?>_text"
-                                          name="about_<?= $part ?>_text" rows="4"
-                                          maxlength="700"><?= e($aboutText('about_' . $part . '_text')) ?></textarea>
-                            </div>
-                        <?php endforeach; ?>
-
-                        <?php /* Two photographs: a tall one and the smaller one that
-                                 overlaps its corner. Same convention as the hero —
-                                 leave a slot empty and the stock picture stands in. */ ?>
-                        <?php foreach ([
-                            ['main',  'Main photograph', 'Tall, portrait. 900 &times; 1100 works well.', $aboutMain],
-                            ['small', 'Inset photograph', 'The smaller one overlapping its corner.',     $aboutSmall],
-                        ] as [$slot, $label, $hint, $current]): ?>
-                            <div class="col-md-6">
-                                <label class="form-label" for="about_img_<?= $slot ?>"><?= e($label) ?></label>
-                                <input type="file" class="form-control" id="about_img_<?= $slot ?>"
-                                       name="image_<?= $slot ?>" accept="image/jpeg,image/png,image/webp">
-                                <p class="field-hint">
-                                    <?= $hint ?>
-                                    JPG, PNG or WebP up to <?= n(Uploader::maxMegabytes()) ?>&nbsp;MB.
-                                    <?= $current === null
-                                        ? 'None yet, so a stock photograph is shown.'
-                                        : 'Leave empty to keep the one already saved.' ?>
-                                </p>
-
-                                <?php if ($current !== null): ?>
-                                    <img class="hero-sheet__thumb" src="<?= e($current) ?>"
-                                         alt="Current <?= e(strtolower($label)) ?>">
-                                    <div class="form-check mt-2">
-                                        <input class="form-check-input" type="checkbox" value="1"
-                                               id="about_rm_<?= $slot ?>" name="remove_<?= $slot ?>">
-                                        <label class="form-check-label" for="about_rm_<?= $slot ?>">
-                                            Remove it and go back to the stock photograph
-                                        </label>
-                                    </div>
-                                <?php endif; ?>
-                            </div>
-                        <?php endforeach; ?>
-                    </div>
-
-                    <?php /* Its own Save, said out loud — the bar at the foot of the
-                             screen belongs to the settings form and does not reach
-                             this one. */ ?>
-                    <div class="about-save">
-                        <button type="submit" class="btn btn-brand">
-                            <i class="fa-solid fa-floppy-disk"></i> Save the About section
-                        </button>
-                        <span class="cell-sub">Saved on its own, not by the button at the bottom.</span>
-                    </div>
-                </form>
+        /** One text input. */
+        $aboutInput = static function (string $key, string $label, string $col = 'col-md-3',
+                                       string $placeholder = '', string $hint = '') use ($aboutText): void { ?>
+            <div class="<?= e($col) ?>">
+                <label class="form-label" for="<?= e($key) ?>"><?= $label ?></label>
+                <input type="text" class="form-control" id="<?= e($key) ?>"
+                       name="<?= e($key) ?>" maxlength="160"
+                       value="<?= e($aboutText($key)) ?>"
+                       <?= $placeholder !== '' ? 'placeholder="' . e($placeholder) . '"' : '' ?>>
+                <?php if ($hint !== ''): ?><p class="field-hint"><?= $hint ?></p><?php endif; ?>
             </div>
-        </section>
+        <?php };
+
+        /** One photograph slot: file input, current thumbnail, remove tick. */
+        $aboutPhoto = static function (string $slot, string $key, string $label,
+                                       string $hint, bool $hasStock = false): void { ?>
+            <?php $current = uploaded_url((string) (setting($key, '') ?? '')); ?>
+            <div class="col-md-6">
+                <label class="form-label" for="about_img_<?= $slot ?>"><?= $label ?></label>
+                <input type="file" class="form-control" id="about_img_<?= $slot ?>"
+                       name="image_<?= $slot ?>" accept="image/jpeg,image/png,image/webp">
+                <p class="field-hint">
+                    <?= $hint ?>
+                    JPG, PNG or WebP up to <?= n(Uploader::maxMegabytes()) ?>&nbsp;MB.
+                    <?php if ($current !== null): ?>
+                        Leave empty to keep the one already saved.
+                    <?php elseif ($hasStock): ?>
+                        None yet, so a stock photograph is shown.
+                    <?php else: ?>
+                        None yet.
+                    <?php endif; ?>
+                </p>
+
+                <?php if ($current !== null): ?>
+                    <img class="hero-sheet__thumb" src="<?= e($current) ?>"
+                         alt="Current <?= e(strtolower(strip_tags($label))) ?>">
+                    <div class="form-check mt-2">
+                        <input class="form-check-input" type="checkbox" value="1"
+                               id="about_rm_<?= $slot ?>" name="remove_<?= $slot ?>">
+                        <label class="form-check-label" for="about_rm_<?= $slot ?>">Remove it</label>
+                    </div>
+                <?php endif; ?>
+            </div>
+        <?php };
+
+        /** Opens a panel and its form. */
+        $aboutPanelOpen = static function (string $id, string $icon, string $number,
+                                           string $title, string $sub, string $flag = ''): void { ?>
+            <section class="panel" data-settab="public" id="<?= e($id) ?>">
+                <?php section_head($icon, $number . ' · ' . $title, $sub, $flag, 'flag') ?>
+                <div class="panel__body">
+                    <form method="post" enctype="multipart/form-data" novalidate>
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="action" value="about_save">
+                        <input type="hidden" name="return_panel" value="<?= e($id) ?>">
+                        <div class="row g-3">
+        <?php };
+
+        /** Closes it, with its own Save. */
+        $aboutPanelClose = static function (string $what): void { ?>
+                        </div>
+
+                        <div class="about-save">
+                            <button type="submit" class="btn btn-brand">
+                                <i class="fa-solid fa-floppy-disk"></i> Save <?= e($what) ?>
+                            </button>
+                            <span class="cell-sub">
+                                This panel saves on its own. The other sections are not touched.
+                            </span>
+                        </div>
+                    </form>
+                </div>
+            </section>
+        <?php };
+
+        /**
+         * A BLOCK'S PHOTOGRAPHS: add several at once, tick to remove.
+         *
+         * One component for all four About blocks. Every one of them holds a
+         * gallery now — the office asked for several photographs everywhere, not
+         * only in Cultural Heritage — and a section that manages its pictures
+         * differently from the section above it is one an officer has to learn
+         * twice.
+         *
+         * The PUBLIC page still draws them differently: only Cultural Heritage
+         * becomes a 2×2 grid, the rest keep one image with "View all photos"
+         * over its corner. That is a layout decision and it lives in index.php;
+         * this screen is about what is stored.
+         */
+        /** The one sentence under the upload field that differs per block. */
+        $noPhotoHint = static function (string $section, int $count): string {
+            if ($count === 0) {
+                return $section === 'heritage'
+                    ? 'None yet &mdash; the section shows its heading and text only.'
+                    : 'None yet &mdash; a stock photograph stands in until you upload one.';
+            }
+
+            /* Only Cultural Heritage becomes a grid, so only it should promise
+               one. Telling an officer their four Tourism Office photographs will
+               be "shown as a grid" when the page draws one and hides three is
+               the kind of wrong hint that makes them distrust all of them. */
+            if ($section === 'heritage') {
+                return $count >= 4
+                    ? 'The website shows the first four as a grid; the rest open behind &ldquo;View all photos&rdquo;.'
+                    : 'Four or more are shown as a grid. Below that, one is shown with the rest behind &ldquo;View all photos&rdquo;.';
+            }
+
+            return $count > 1
+                ? 'The website shows the first one, with the rest behind &ldquo;View all photos&rdquo;.'
+                : 'The website shows this one.';
+        };
+
+        /**
+         * A panel's warning flag: has this block any photographs at all?
+         *
+         * READS THE GALLERY, not a settings row. The single-slot keys were
+         * emptied when their files moved into about_photos, so a flag built on
+         * `about_hall_photo` became permanently true — "no building photograph"
+         * sitting on a panel that has one. A flag that is always on is worse
+         * than no flag: an officer learns to ignore it, including the day it is
+         * right.
+         */
+        $noShots = static fn(string $section): string
+            => AboutPhotos::count($section) === 0 ? 'no photograph yet' : '';
+
+        $aboutGalleryField = static function (string $section) use ($noPhotoHint): void {
+            $shots = AboutPhotos::all($section);
+            $count = count($shots);
+            ?>
+            <div class="col-12">
+                <label class="form-label" for="photos_<?= e($section) ?>">
+                    <i class="fa-regular fa-images"></i> Photographs
+                </label>
+                <input type="file" class="form-control" id="photos_<?= e($section) ?>"
+                       name="photos_<?= e($section) ?>[]" multiple
+                       accept="image/jpeg,image/png,image/webp">
+                <p class="field-hint">
+                    Choose several at once. They are <strong>added</strong> to the ones below,
+                    never replacing them. JPG, PNG or WebP up to
+                    <?= n(Uploader::maxMegabytes()) ?>&nbsp;MB each.
+                    <?= $noPhotoHint($section, $count) ?>
+                </p>
+            </div>
+
+            <?php if ($shots !== []): ?>
+                <div class="col-12">
+                    <p class="field-hint mb-2">
+                        <?= n($count) ?> photograph<?= $count === 1 ? '' : 's' ?>, in this order.
+                        Tick any you want removed &mdash;
+                        <strong>the file is deleted with it</strong> and that cannot be undone.
+                    </p>
+
+                    <div class="about-shots">
+                        <?php foreach ($shots as $shot): ?>
+                            <?php $url = uploaded_url((string) $shot['file_path']); ?>
+                            <label class="about-shot">
+                                <?php if ($url !== null): ?>
+                                    <img src="<?= e($url) ?>" alt="" class="about-shot__img">
+                                <?php else: ?>
+                                    <?php /* The row outlived its file. Shown rather
+                                             than hidden — it is the thing the office
+                                             needs to tick to tidy up, and a gallery
+                                             that silently skips it never gets clean. */ ?>
+                                    <span class="about-shot__img about-shot__img--gone">
+                                        <i class="fa-solid fa-triangle-exclamation"></i>
+                                        file missing
+                                    </span>
+                                <?php endif; ?>
+
+                                <span class="about-shot__pick">
+                                    <input class="form-check-input" type="checkbox"
+                                           name="remove_about_photo[]" value="<?= (int) $shot['id'] ?>">
+                                    Remove
+                                </span>
+                            </label>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            <?php endif; ?>
+        <?php };
+        ?>
+
+        <!-- ============================================================
+             01 · A BRIEF HISTORY
+             ========================================================= -->
+        <?php $aboutPanelOpen('aboutHistoryPanel', 'fa-clock-rotate-left', '01',
+            'A Brief History',
+            'The opening block of the homepage’s About section.',
+            $aboutText('about_history') === '' ? 'no history written' : ''); ?>
+
+            <?php $aboutInput('about_history_eyebrow', 'Eyebrow', 'col-md-3', 'Our Roots'); ?>
+            <?php $aboutInput('about_history_title', 'Heading', 'col-md-3', 'A Brief',
+                'No trailing space &mdash; the gap is added for you.'); ?>
+            <?php $aboutInput('about_history_title_em', 'Heading, coloured half', 'col-md-3', 'History'); ?>
+            <?php $aboutInput('about_history_subtitle', 'Subtitle', 'col-md-3',
+                'How Tampakan came to be'); ?>
+
+            <div class="col-12">
+                <label class="form-label" for="about_history">
+                    <i class="fa-solid fa-clock-rotate-left"></i> History content
+                </label>
+                <textarea class="form-control" id="about_history" name="about_history"
+                          rows="9" maxlength="4000"><?= e($aboutText('about_history')) ?></textarea>
+                <p class="field-hint">
+                    Leave a blank line between paragraphs. Leave the whole field empty and the
+                    section is not drawn at all.
+                    <strong>These are the municipality&rsquo;s own historical facts</strong> &mdash;
+                    the dates, the Republic Act number, the meaning of &ldquo;tamfaken&rdquo; &mdash;
+                    transcribed from the Office&rsquo;s printed brochure. They are yours to state and
+                    to correct; nothing here is generated or filled in for you.
+                </p>
+            </div>
+
+            <?php $aboutGalleryField('history'); ?>
+
+
+        <?php $aboutPanelClose('A Brief History'); ?>
+
+
+        <!-- ============================================================
+             02 · ABOUT TAMPAKAN
+             ========================================================= -->
+        <?php $aboutPanelOpen('aboutTampakanPanel', 'fa-landmark', '02',
+            'About Tampakan',
+            'The municipality itself, with the Mayor beside it.',
+            $noShots('tampakan')); ?>
+
+            <?php $aboutInput('about_eyebrow', 'Eyebrow', 'col-md-3', 'About Tampakan'); ?>
+            <?php $aboutInput('about_title', 'Heading', 'col-md-3', 'About',
+                'No trailing space &mdash; the gap is added for you.'); ?>
+            <?php $aboutInput('about_title_em', 'Heading, coloured half', 'col-md-3', 'Tampakan'); ?>
+            <?php $aboutInput('about_subtitle', 'Subtitle', 'col-md-3',
+                'Discover the place we call home'); ?>
+
+            <?php $aboutInput('about_lead_label', 'Paragraph label', 'col-md-3', 'About Tampakan',
+                'Leave empty for no label.'); ?>
+
+            <div class="col-md-9">
+                <label class="form-label" for="about_lead">Description</label>
+                <textarea class="form-control" id="about_lead" name="about_lead"
+                          rows="4" maxlength="900"><?= e($aboutText('about_lead')) ?></textarea>
+            </div>
+
+            <?php $aboutInput('about_badge_value', 'Badge', 'col-md-4', '',
+                'The large line on the small card over the photograph.'); ?>
+            <?php $aboutInput('about_badge_label', 'Badge caption', 'col-md-8', '',
+                'Leave both blank and the card is not drawn at all.'); ?>
+
+            <?php $aboutGalleryField('tampakan'); ?>
+
+
+            <div class="col-12"><hr class="my-2"></div>
+
+            <?php $aboutInput('about_mayor_name', '<i class="fa-solid fa-user-tie"></i> Mayor&rsquo;s full name',
+                'col-md-6', '',
+                'Leave blank and no Mayor&rsquo;s profile is shown. Nothing is filled in for you &mdash;
+                 this is an official name and the system will not guess it.'); ?>
+            <?php $aboutInput('about_mayor_position', 'Mayor&rsquo;s official position',
+                'col-md-6', 'e.g. Municipal Mayor'); ?>
+
+            <?php $aboutPhoto('mayor', 'about_mayor_photo', 'Mayor&rsquo;s official photograph',
+                'Portrait; shown in a 4:5 frame. Without one, the Mayor&rsquo;s initials are shown.'); ?>
+
+        <?php $aboutPanelClose('About Tampakan'); ?>
+
+
+        <!-- ============================================================
+             03 · ABOUT THE TOURISM OFFICE
+             ========================================================= -->
+        <?php $aboutPanelOpen('aboutOfficePanel', 'fa-people-roof', '03',
+            'About the Tourism Office',
+            'The Office, with the Tourism Coordinator beside it.',
+            $noShots('office')); ?>
+
+            <?php $aboutInput('about_office_eyebrow', 'Eyebrow', 'col-md-4',
+                'About the Tourism Office'); ?>
+            <?php $aboutInput('about_office_subtitle', 'Subtitle', 'col-md-5',
+                'Supporting tourism and local destinations'); ?>
+            <?php $aboutInput('about_office_label', 'Paragraph label', 'col-md-3',
+                'About the Tourism Office', 'Leave empty for no label.'); ?>
+
+            <div class="col-12">
+                <label class="form-label" for="about_office_text">
+                    <i class="fa-solid fa-people-roof"></i> Description
+                </label>
+                <textarea class="form-control" id="about_office_text" name="about_office_text"
+                          rows="4" maxlength="900"><?= e($aboutText('about_office_text')) ?></textarea>
+                <p class="field-hint">
+                    What the Office does. Leave this, the second paragraph, both photographs and
+                    the Coordinator all blank and the whole section is left off the page.
+                </p>
+            </div>
+
+            <div class="col-12">
+                <label class="form-label" for="about_office_text2">Second paragraph</label>
+                <textarea class="form-control" id="about_office_text2" name="about_office_text2"
+                          rows="3" maxlength="900"><?= e($aboutText('about_office_text2')) ?></textarea>
+                <p class="field-hint">Optional. Runs on under the description with no label of its own.</p>
+            </div>
+
+            <?php $aboutGalleryField('office'); ?>
+
+
+            <div class="col-12"><hr class="my-2"></div>
+
+            <?php $aboutInput('about_coordinator_name',
+                '<i class="fa-solid fa-user-tie"></i> Tourism Coordinator&rsquo;s full name',
+                'col-md-6', '',
+                'Leave blank and no Coordinator profile is shown. Nothing is filled in for you.'); ?>
+            <?php $aboutInput('about_coordinator_position', 'Coordinator&rsquo;s official position',
+                'col-md-6', 'e.g. Municipal Tourism Coordinator'); ?>
+
+            <?php $aboutPhoto('coordinator', 'about_coordinator_photo',
+                'Coordinator&rsquo;s photograph',
+                'Portrait; shown in a 4:5 frame. Without one, the Coordinator&rsquo;s initials are shown.'); ?>
+
+        <?php $aboutPanelClose('the Tourism Office'); ?>
+
+
+        <!-- ============================================================
+             04 · CULTURAL HERITAGE
+             ========================================================= -->
+        <?php $aboutPanelOpen('aboutHeritagePanel', 'fa-hands-holding-circle', '04',
+            'Cultural Heritage',
+            'The festivals and traditions, below the Tourism Office.',
+            $aboutText('about_heritage') === '' ? 'nothing written' : ''); ?>
+
+            <?php $aboutInput('about_heritage_eyebrow', 'Eyebrow', 'col-md-3',
+                'Culture & Traditions'); ?>
+            <?php $aboutInput('about_heritage_title', 'Heading', 'col-md-3', 'Cultural',
+                'No trailing space &mdash; the gap is added for you.'); ?>
+            <?php $aboutInput('about_heritage_title_em', 'Heading, coloured half',
+                'col-md-3', 'Heritage'); ?>
+            <?php $aboutInput('about_heritage_subtitle', 'Subtitle', 'col-md-3',
+                'The festivals and traditions we celebrate'); ?>
+
+            <div class="col-12">
+                <label class="form-label" for="about_heritage">
+                    <i class="fa-solid fa-hands-holding-circle"></i> Cultural heritage content
+                </label>
+                <textarea class="form-control" id="about_heritage" name="about_heritage"
+                          rows="7" maxlength="2000"><?= e($aboutText('about_heritage')) ?></textarea>
+                <p class="field-hint">
+                    Also transcribed from the Office&rsquo;s brochure. Leave it empty and the section
+                    is not drawn at all.
+                </p>
+            </div>
+
+            <?php $aboutGalleryField('heritage'); ?>
+
+        <?php $aboutPanelClose('Cultural Heritage'); ?>
+
+
+        <!-- ============================================================
+             05 · MISSION & VISION
+             -------------------------------------------------------------
+             A fifth panel rather than a corner of one of the four above. The
+             office named four sections; these are sections 05 and 06 of the
+             public page and belong to neither of the blocks beside them, and
+             folding them into the Tourism Office panel would have made that one
+             long again — which is the thing being fixed.
+             ========================================================= -->
+        <?php $aboutPanelOpen('aboutMvPanel', 'fa-bullseye', '05',
+            'Mission &amp; Vision',
+            'The two statements at the foot of the About section.'); ?>
+
+            <?php foreach ([
+                ['mission', 'Mission', 'fa-bullseye'],
+                ['vision',  'Vision',  'fa-eye'],
+            ] as [$part, $label, $icon]): ?>
+                <div class="col-md-6">
+                    <label class="form-label" for="about_<?= $part ?>_title">
+                        <i class="fa-solid <?= e($icon) ?>"></i> <?= e($label) ?> heading
+                    </label>
+                    <input type="text" class="form-control" id="about_<?= $part ?>_title"
+                           name="about_<?= $part ?>_title" maxlength="60"
+                           value="<?= e($aboutText('about_' . $part . '_title')) ?>">
+
+                    <label class="form-label mt-2" for="about_<?= $part ?>_text">
+                        <?= e($label) ?> statement
+                    </label>
+                    <textarea class="form-control" id="about_<?= $part ?>_text"
+                              name="about_<?= $part ?>_text" rows="5"
+                              maxlength="700"><?= e($aboutText('about_' . $part . '_text')) ?></textarea>
+                </div>
+            <?php endforeach; ?>
+
+        <?php $aboutPanelClose('Mission &amp; Vision'); ?>
+
 
         <?php /* THE SYSTEM TAB, IN THE MAIN COLUMN LIKE EVERY OTHER TAB.
                  Read-only, so it sits outside the settings form with the hero —
@@ -1479,8 +1931,53 @@ foreach ($slides as $s) {
     var bad = document.querySelector('.is-invalid, .field-error');
     var owner = bad ? bad.closest('[data-settab]') : null;
 
-    show(owner ? owner.getAttribute('data-settab')
-               : (window.location.hash || '#office').replace('#', ''));
+    /* THE HASH MAY NAME A PANEL RATHER THAN A TAB.
+     *
+     * show() matches its argument against data-settab. A hash that matches no
+     * tab therefore hid EVERY panel and left the officer on a blank screen —
+     * which is exactly what happened once the About panels began redirecting to
+     * #aboutHistoryPanel and the rest after a save: press Save, and the section
+     * you were editing disappears.
+     *
+     * So an unrecognised hash is looked up as an element id first, and the tab
+     * that OWNS it is shown. That fixes the save redirect and every other deep
+     * link into a panel, without this script needing a list of panel names.
+     */
+    /* READ THE HASH ONCE, BEFORE show() REWRITES IT. show() replaces it with the
+       tab name, so anything read afterwards is '#public' and the panel anchor is
+       already gone. */
+    var rawHash = (window.location.hash || '').replace('#', '');
+
+    function tabFromHash(raw) {
+        if (!raw) { return 'office'; }
+
+        /* A real tab name wins. */
+        for (var i = 0; i < panels.length; i++) {
+            if (panels[i].getAttribute('data-settab') === raw) { return raw; }
+        }
+
+        /* Otherwise: whose panel is this? getElementById rather than a selector
+           built from the hash — a hash is user-controlled and goes nowhere near
+           querySelector, which would throw on anything that is not valid CSS. */
+        var target = document.getElementById(raw);
+        var holder = target ? target.closest('[data-settab]') : null;
+
+        return holder ? holder.getAttribute('data-settab') : 'office';
+    }
+
+    show(owner ? owner.getAttribute('data-settab') : tabFromHash(rawHash));
+
+    /* Now bring the panel itself into view — after the tab is showing, because
+       scrolling to a hidden element does nothing. */
+    (function () {
+        var target = rawHash ? document.getElementById(rawHash) : null;
+
+        if (!target || target.hidden || target.offsetParent === null) { return; }
+
+        requestAnimationFrame(function () {
+            target.scrollIntoView({ block: 'start', behavior: 'auto' });
+        });
+    })();
 
     /* The collapse behaviour that used to be written here now lives in
        assets/js/admin.js, because User Accounts and My Account grew the same

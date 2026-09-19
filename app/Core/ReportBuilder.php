@@ -28,6 +28,45 @@ final class ReportBuilder
     ];
 
     /**
+     * NARROWS EVERY FIGURE TO ONE DESTINATION, IN SQL.
+     *
+     * The office needs a destination-specific report to check what the system
+     * holds against what the site itself submitted to them. That check is
+     * worthless if the filtering happens anywhere but the query: a report that
+     * says "Kolondatal Nature Park" at the top and counts the whole
+     * municipality underneath is worse than no report, because it looks right.
+     *
+     * So this returns the clause and its parameter, and every method below
+     * splices both in. Returning the pair together is what stops a clause being
+     * added without its binding — the failure mode that turns a filtered report
+     * back into an unfiltered one.
+     *
+     * A null or non-positive id means the whole municipality, which is what
+     * every existing caller passes by omitting the argument.
+     *
+     * @return array{0:string, 1:array<int, int>}
+     */
+    private static function scope(?int $destinationId): array
+    {
+        return ($destinationId === null || $destinationId <= 0)
+            ? ['', []]
+            : [' AND destination_id = ?', [$destinationId]];
+    }
+
+    /** The destination a report is scoped to, or null for the whole municipality. */
+    public static function destination(?int $destinationId): ?array
+    {
+        if ($destinationId === null || $destinationId <= 0) {
+            return null;
+        }
+
+        return Database::first(
+            'SELECT id, name, barangay, status FROM destinations WHERE id = ?',
+            [$destinationId]
+        );
+    }
+
+    /**
      * Resolves a period selection into a concrete date range.
      *
      * @return array{start:string, end:string, label:string}
@@ -117,33 +156,40 @@ final class ReportBuilder
      * CSV export cannot disagree with each other about what the month's total
      * was — a report that differs from its own export is worse than none.
      */
-    public static function build(string $type, array $params): array
+    public static function build(string $type, array $params, ?int $destinationId = null): array
     {
         $period = self::resolvePeriod($type, $params);
         [$start, $end] = [$period['start'], $period['end']];
+
+        $d = $destinationId;
 
         return [
             'type'         => $type,
             'period'       => $period,
             'generated_at' => date('Y-m-d H:i:s'),
-            'totals'       => self::totals($start, $end),
-            'comparison'   => self::comparison($type, $start, $end),
-            'destinations' => self::byDestination($start, $end),
-            'types'        => self::byTouristType($start, $end),
-            'stay'         => self::byStayType($start, $end),
-            'demographics' => self::demographics($start, $end),
-            'origins'      => self::origins($start, $end),
-            'purposes'     => self::byPurpose($start, $end),
-            'timeline'     => self::timeline($type, $start, $end),
-            'peak'         => self::peakDays($start, $end),
-            'integrity'    => self::integrity($start, $end),
+            /* Null on a municipality-wide report. The templates key off this to
+               decide whether they are titled for one site. */
+            'destination'  => self::destination($d),
+            'totals'       => self::totals($start, $end, $d),
+            'comparison'   => self::comparison($type, $start, $end, $d),
+            'destinations' => self::byDestination($start, $end, $d),
+            'types'        => self::byTouristType($start, $end, $d),
+            'stay'         => self::byStayType($start, $end, $d),
+            'demographics' => self::demographics($start, $end, $d),
+            'origins'      => self::origins($start, $end, 10, $d),
+            'purposes'     => self::byPurpose($start, $end, $d),
+            'timeline'     => self::timeline($type, $start, $end, $d),
+            'peak'         => self::peakDays($start, $end, $d),
+            'integrity'    => self::integrity($start, $end, $d),
         ];
     }
 
     // -------------------------------------------------------------------------
 
-    public static function totals(string $start, string $end): array
+    public static function totals(string $start, string $end, ?int $destinationId = null): array
     {
+        [$where, $bind] = self::scope($destinationId);
+
         $row = Database::first(
             "SELECT COUNT(*) AS records,
                     COALESCE(SUM(total_visitors), 0) AS visitors,
@@ -151,8 +197,8 @@ final class ReportBuilder
                     COUNT(DISTINCT destination_id) AS destinations,
                     COUNT(DISTINCT visit_date) AS active_days
                FROM tourist_arrivals
-              WHERE status = 'valid' AND visit_date BETWEEN ? AND ?",
-            [$start, $end]
+              WHERE status = 'valid' AND visit_date BETWEEN ? AND ?{$where}",
+            array_merge([$start, $end], $bind)
         );
 
         $days = max(1, (int) ((strtotime($end) - strtotime($start)) / 86400) + 1);
@@ -174,8 +220,9 @@ final class ReportBuilder
      * A total on its own answers nothing an officer can act on. "Up 18% on last
      * month" is the sentence that belongs in a report to the Mayor.
      */
-    public static function comparison(string $type, string $start, string $end): array
+    public static function comparison(string $type, string $start, string $end, ?int $destinationId = null): array
     {
+        [$where, $bind] = self::scope($destinationId);
         $length = (strtotime($end) - strtotime($start)) / 86400 + 1;
 
         switch ($type) {
@@ -202,10 +249,12 @@ final class ReportBuilder
 
         $current  = (int) Database::scalar(
             "SELECT COALESCE(SUM(total_visitors),0) FROM tourist_arrivals
-              WHERE status='valid' AND visit_date BETWEEN ? AND ?", [$start, $end]);
+              WHERE status='valid' AND visit_date BETWEEN ? AND ?{$where}",
+            array_merge([$start, $end], $bind));
         $previous = (int) Database::scalar(
             "SELECT COALESCE(SUM(total_visitors),0) FROM tourist_arrivals
-              WHERE status='valid' AND visit_date BETWEEN ? AND ?", [$prevStart, $prevEnd]);
+              WHERE status='valid' AND visit_date BETWEEN ? AND ?{$where}",
+            array_merge([$prevStart, $prevEnd], $bind));
 
         return [
             'label'        => $label,
@@ -218,8 +267,24 @@ final class ReportBuilder
         ];
     }
 
-    public static function byDestination(string $start, string $end): array
+    public static function byDestination(string $start, string $end, ?int $destinationId = null): array
     {
+        /* The only method whose filter is on the DESTINATION row rather than on
+           the arrivals: the join is a LEFT JOIN so that a site with no arrivals
+           still appears with a zero. Putting `d.id = ?` in the arrivals half of
+           the ON clause would leave every other destination listed at zero,
+           which reads as "these sites recorded nothing" instead of "these sites
+           are not in this report". On a filtered report this table becomes a
+           single row, which is what a destination report should show.
+
+           Note d.status: a destination retired since the period would drop out
+           of a municipality-wide report. Naming it explicitly keeps a filtered
+           report working for a site the office has since archived — they still
+           need last year's figures for it. */
+        [$where, $bind] = ($destinationId === null || $destinationId <= 0)
+            ? [" AND d.status = 'active'", []]
+            : [' AND d.id = ?', [$destinationId]];
+
         return Database::all(
             "SELECT d.id, d.name, d.barangay,
                     COUNT(a.id) AS records,
@@ -228,22 +293,23 @@ final class ReportBuilder
                LEFT JOIN tourist_arrivals a
                       ON a.destination_id = d.id AND a.status = 'valid'
                      AND a.visit_date BETWEEN ? AND ?
-              WHERE d.status = 'active'
+              WHERE 1 = 1{$where}
               GROUP BY d.id, d.name, d.barangay
               ORDER BY visitors DESC, d.name",
-            [$start, $end]
+            array_merge([$start, $end], $bind)
         );
     }
 
-    public static function byTouristType(string $start, string $end): array
+    public static function byTouristType(string $start, string $end, ?int $destinationId = null): array
     {
+        [$where, $bind] = self::scope($destinationId);
         $out = array_fill_keys(array_keys(ArrivalRepository::TYPES), 0);
 
         foreach (Database::all(
             "SELECT tourist_type, COALESCE(SUM(total_visitors),0) AS visitors
                FROM tourist_arrivals
-              WHERE status='valid' AND visit_date BETWEEN ? AND ?
-              GROUP BY tourist_type", [$start, $end]
+              WHERE status='valid' AND visit_date BETWEEN ? AND ?{$where}
+              GROUP BY tourist_type", array_merge([$start, $end], $bind)
         ) as $row) {
             $out[$row['tourist_type']] = (int) $row['visitors'];
         }
@@ -258,15 +324,16 @@ final class ReportBuilder
      * tourist as different things, so a report that merges them cannot be
      * carried straight into a DOT submission.
      */
-    public static function byStayType(string $start, string $end): array
+    public static function byStayType(string $start, string $end, ?int $destinationId = null): array
     {
+        [$where, $bind] = self::scope($destinationId);
         $out = ['day_trip' => 0, 'overnight' => 0, 'not_stated' => 0];
 
         foreach (Database::all(
             "SELECT COALESCE(stay_type,'not_stated') AS stay, COALESCE(SUM(total_visitors),0) AS visitors
                FROM tourist_arrivals
-              WHERE status='valid' AND visit_date BETWEEN ? AND ?
-              GROUP BY stay", [$start, $end]
+              WHERE status='valid' AND visit_date BETWEEN ? AND ?{$where}
+              GROUP BY stay", array_merge([$start, $end], $bind)
         ) as $row) {
             $out[$row['stay']] = (int) $row['visitors'];
         }
@@ -275,16 +342,17 @@ final class ReportBuilder
     }
 
     /** Age and sex breakdown — the Feature 2 requirement that reports fulfil. */
-    public static function demographics(string $start, string $end): array
+    public static function demographics(string $start, string $end, ?int $destinationId = null): array
     {
+        [$where, $bind] = self::scope($destinationId);
         $age = array_fill_keys(array_keys(ArrivalRepository::AGE_BRACKETS), 0);
         $age['not_stated'] = 0;
 
         foreach (Database::all(
             "SELECT COALESCE(age_bracket,'not_stated') AS bracket, COALESCE(SUM(total_visitors),0) AS visitors
                FROM tourist_arrivals
-              WHERE status='valid' AND visit_date BETWEEN ? AND ?
-              GROUP BY bracket", [$start, $end]
+              WHERE status='valid' AND visit_date BETWEEN ? AND ?{$where}
+              GROUP BY bracket", array_merge([$start, $end], $bind)
         ) as $row) {
             $age[$row['bracket']] = (int) $row['visitors'];
         }
@@ -294,8 +362,8 @@ final class ReportBuilder
         foreach (Database::all(
             "SELECT COALESCE(sex,'not_stated') AS s, COALESCE(SUM(total_visitors),0) AS visitors
                FROM tourist_arrivals
-              WHERE status='valid' AND visit_date BETWEEN ? AND ?
-              GROUP BY s", [$start, $end]
+              WHERE status='valid' AND visit_date BETWEEN ? AND ?{$where}
+              GROUP BY s", array_merge([$start, $end], $bind)
         ) as $row) {
             $sex[$row['s']] = (int) $row['visitors'];
         }
@@ -304,21 +372,22 @@ final class ReportBuilder
     }
 
     /** Where visitors travelled from — cities, provinces, and countries. */
-    public static function origins(string $start, string $end, int $limit = 10): array
+    public static function origins(string $start, string $end, int $limit = 10, ?int $destinationId = null): array
     {
         $limit = max(1, min($limit, 50));
+        [$where, $bind] = self::scope($destinationId);
 
-        $query = static function (string $column) use ($start, $end, $limit): array {
+        $query = static function (string $column) use ($start, $end, $limit, $where, $bind): array {
             // The column is chosen from a fixed list below, never from request input.
             return Database::all(
                 "SELECT {$column} AS place, COALESCE(SUM(total_visitors),0) AS visitors
                    FROM tourist_arrivals
-                  WHERE status='valid' AND visit_date BETWEEN ? AND ?
+                  WHERE status='valid' AND visit_date BETWEEN ? AND ?{$where}
                     AND {$column} IS NOT NULL AND {$column} <> ''
                   GROUP BY {$column}
                   ORDER BY visitors DESC
                   LIMIT {$limit}",
-                [$start, $end]
+                array_merge([$start, $end], $bind)
             );
         };
 
@@ -329,16 +398,17 @@ final class ReportBuilder
         ];
     }
 
-    public static function byPurpose(string $start, string $end): array
+    public static function byPurpose(string $start, string $end, ?int $destinationId = null): array
     {
+        [$where, $bind] = self::scope($destinationId);
         $out = array_fill_keys(array_keys(ArrivalRepository::PURPOSES), 0);
         $out['not_stated'] = 0;
 
         foreach (Database::all(
             "SELECT COALESCE(purpose,'not_stated') AS p, COALESCE(SUM(total_visitors),0) AS visitors
                FROM tourist_arrivals
-              WHERE status='valid' AND visit_date BETWEEN ? AND ?
-              GROUP BY p", [$start, $end]
+              WHERE status='valid' AND visit_date BETWEEN ? AND ?{$where}
+              GROUP BY p", array_merge([$start, $end], $bind)
         ) as $row) {
             $out[$row['p']] = (int) $row['visitors'];
         }
@@ -352,8 +422,9 @@ final class ReportBuilder
      * A year plotted by day is 365 unreadable points; a week plotted by month
      * is one. The grouping follows the report type rather than a fixed choice.
      */
-    public static function timeline(string $type, string $start, string $end): array
+    public static function timeline(string $type, string $start, string $end, ?int $destinationId = null): array
     {
+        [$where, $bind] = self::scope($destinationId);
         $byMonth = in_array($type, ['annual', 'quarterly'], true)
             || (strtotime($end) - strtotime($start)) > 86400 * 92;
 
@@ -362,8 +433,8 @@ final class ReportBuilder
                 "SELECT DATE_FORMAT(visit_date, '%Y-%m') AS bucket,
                         COALESCE(SUM(total_visitors),0) AS visitors
                    FROM tourist_arrivals
-                  WHERE status='valid' AND visit_date BETWEEN ? AND ?
-                  GROUP BY bucket ORDER BY bucket", [$start, $end]
+                  WHERE status='valid' AND visit_date BETWEEN ? AND ?{$where}
+                  GROUP BY bucket ORDER BY bucket", array_merge([$start, $end], $bind)
             );
 
             return array_map(static fn($r) => [
@@ -375,8 +446,8 @@ final class ReportBuilder
         $rows = Database::all(
             "SELECT visit_date AS bucket, COALESCE(SUM(total_visitors),0) AS visitors
                FROM tourist_arrivals
-              WHERE status='valid' AND visit_date BETWEEN ? AND ?
-              GROUP BY visit_date ORDER BY visit_date", [$start, $end]
+              WHERE status='valid' AND visit_date BETWEEN ? AND ?{$where}
+              GROUP BY visit_date ORDER BY visit_date", array_merge([$start, $end], $bind)
         );
 
         return array_map(static fn($r) => [
@@ -386,21 +457,22 @@ final class ReportBuilder
     }
 
     /** Busiest dates and busiest weekdays — the basis for staffing advice. */
-    public static function peakDays(string $start, string $end): array
+    public static function peakDays(string $start, string $end, ?int $destinationId = null): array
     {
+        [$where, $bind] = self::scope($destinationId);
         $busiest = Database::all(
             "SELECT visit_date, COALESCE(SUM(total_visitors),0) AS visitors
                FROM tourist_arrivals
-              WHERE status='valid' AND visit_date BETWEEN ? AND ?
-              GROUP BY visit_date ORDER BY visitors DESC LIMIT 5", [$start, $end]
+              WHERE status='valid' AND visit_date BETWEEN ? AND ?{$where}
+              GROUP BY visit_date ORDER BY visitors DESC LIMIT 5", array_merge([$start, $end], $bind)
         );
 
         $weekdays = Database::all(
             "SELECT DAYNAME(visit_date) AS day, DAYOFWEEK(visit_date) AS n,
                     COALESCE(SUM(total_visitors),0) AS visitors
                FROM tourist_arrivals
-              WHERE status='valid' AND visit_date BETWEEN ? AND ?
-              GROUP BY day, n ORDER BY n", [$start, $end]
+              WHERE status='valid' AND visit_date BETWEEN ? AND ?{$where}
+              GROUP BY day, n ORDER BY n", array_merge([$start, $end], $bind)
         );
 
         return ['busiest_dates' => $busiest, 'weekdays' => $weekdays];
@@ -413,8 +485,9 @@ final class ReportBuilder
      * what was left out invites the question at the worst possible moment;
      * stating it up front is what makes the number defensible.
      */
-    public static function integrity(string $start, string $end): array
+    public static function integrity(string $start, string $end, ?int $destinationId = null): array
     {
+        [$where, $bind] = self::scope($destinationId);
         $row = Database::first(
             "SELECT
                 SUM(status='valid')   AS valid_records,
@@ -425,8 +498,8 @@ final class ReportBuilder
                 COALESCE(SUM(CASE WHEN status='valid' AND source='qr'     THEN total_visitors END),0) AS qr_visitors,
                 COALESCE(SUM(CASE WHEN status='valid' AND source='manual' THEN total_visitors END),0) AS manual_visitors
                FROM tourist_arrivals
-              WHERE visit_date BETWEEN ? AND ?",
-            [$start, $end]
+              WHERE visit_date BETWEEN ? AND ?{$where}",
+            array_merge([$start, $end], $bind)
         );
 
         return [
@@ -440,14 +513,20 @@ final class ReportBuilder
         ];
     }
 
-    /** Records a produced report so a figure quoted in a meeting stays reproducible. */
-    public static function save(string $type, array $period, ?int $adminId, array $params = []): int
+    /**
+     * Records a produced report so a figure quoted in a meeting stays reproducible.
+     *
+     * $suffix names the destination on a scoped report. Without it a history row
+     * for one site is indistinguishable from the municipality-wide report of the
+     * same month — and those are different numbers under the same title.
+     */
+    public static function save(string $type, array $period, ?int $adminId, array $params = [], string $suffix = ''): int
     {
         return Database::insert(
             'INSERT INTO reports (title, type, period_start, period_end, parameters, generated_by)
              VALUES (?, ?, ?, ?, ?, ?)',
             [
-                self::PERIODS[$type] . ' Report — ' . $period['label'],
+                self::PERIODS[$type] . ' Report — ' . $period['label'] . $suffix,
                 $type,
                 $period['start'],
                 $period['end'],

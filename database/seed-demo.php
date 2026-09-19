@@ -435,7 +435,10 @@ if ($mode === '--undo') {
        everything above points at them. */
     $order = [
         'arrival_report_entries', 'arrival_report_days', 'tourist_arrivals',
-        'arrival_reports', 'destination_heritage', 'destination_photos', 'announcements',
+        /* destination_heritage was here. The table was retired on 2026-09-19
+           (Cultural Heritage lives in About now), so ids a manifest still lists
+           for it are skipped — the rows went with the table. */
+        'arrival_reports', 'destination_photos', 'announcements',
         'destination_alerts', 'destination_change_requests', 'contact_messages',
         'destinations',
     ];
@@ -495,7 +498,7 @@ printf("  attaching to %d active destination(s): %s\n\n",
     count($destinations), implode(', ', array_column($destinations, 'name')));
 
 $manifest = ['tourist_arrivals' => [], 'arrival_reports' => [], 'arrival_report_entries' => [],
-             'arrival_report_days' => [], 'destination_heritage' => [], 'destinations' => [], 'announcements' => [],
+             'arrival_report_days' => [], 'destinations' => [], 'announcements' => [],
              'destination_photos' => [], '_files' => []];
 
 mt_srand(20260830);   // the same sample every run, so a rehearsal is repeatable
@@ -783,9 +786,9 @@ if ($write) {
 
             Database::run(
                 'INSERT INTO arrival_reports
-                    (destination_id, period_start, period_end, period_type, status, notes,
+                    (destination_id, period_start, period_end, status, notes,
                      submitted_by, submitted_at, reviewed_by, reviewed_at, rejection_reason)
-                 VALUES (?, ?, ?, "monthly", ?, ?, ?, ?, ?, ?, ?)',
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [
                     (int) $dest['id'],
                     $start->format('Y-m-d'),
@@ -902,62 +905,10 @@ if ($write) {
 }
 
 /* ===========================================================================
-   3. Heritage items on the QR page
-   ---------------------------------------------------------------------------
-   The images are COPIES of existing destination photographs, never references
-   to them. HeritageRepository::delete() unlinks the file when no other item
-   uses it — pointing at a real photograph would mean --undo deleting one of
-   the office's own pictures.
+   3. (Heritage items on the QR page — removed 2026-09-19 with the
+      destination_heritage table. Cultural Heritage is written once, in the
+      About section.)
    ======================================================================== */
-
-$heritage = [
-    ['Woven abaca and t\'nalak', 'Cloth woven on a backstrap loom by weavers from the surrounding barangays. '
-        . 'Patterns are learned by memory rather than written down, which is why no two lengths are identical.'],
-    ['The stone marker at the trail head', 'Placed by the families who first cleared the path to this site. '
-        . 'Visitors are asked not to climb on it or move the stones around its base.'],
-    ['Brassware and everyday tools', 'Cast and hammered locally and still used at gatherings. '
-        . 'The pieces on display were lent by households in the barangay.'],
-];
-
-$pool = glob(dirname(__DIR__) . '/uploads/destinations/*.jpg') ?: [];
-
-printf("\n  heritage items to write: %d (%d per destination)\n",
-    count($heritage) * count($destinations), count($heritage));
-
-if ($pool === []) {
-    echo "    (no source photographs in uploads/destinations — heritage items will have no image)\n";
-}
-
-if ($write) {
-    foreach ($destinations as $dest) {
-        foreach ($heritage as $order => [$title, $body]) {
-            $stored = '';
-
-            if ($pool !== []) {
-                $source = $pool[($order + (int) $dest['id']) % count($pool)];
-                $name   = bin2hex(random_bytes(16)) . '.jpg';
-                $target = dirname(__DIR__) . '/uploads/destinations/' . $name;
-
-                if (copy($source, $target)) {
-                    $stored = 'uploads/destinations/' . $name;
-                    $manifest['_files'][] = $stored;
-                }
-            }
-
-            Database::run(
-                'INSERT INTO destination_heritage (destination_id, image_path, title, body, sort_order)
-                 VALUES (?, ?, ?, ?, ?)',
-                [(int) $dest['id'], $stored, $title, $body, $order + 1]
-            );
-
-            $manifest['destination_heritage'][] = (int) Database::scalar('SELECT LAST_INSERT_ID()');
-        }
-    }
-
-    printf("  wrote %s heritage items and copied %s image(s)\n",
-        number_format(count($manifest['destination_heritage'])),
-        number_format(count($manifest['_files'])));
-}
 
 /* ===========================================================================
    4. Announcements

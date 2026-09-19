@@ -87,6 +87,7 @@ final class Maintenance
         echo '<!doctype html><html lang="en"><head><meta charset="utf-8">'
            . '<meta name="viewport" content="width=device-width, initial-scale=1">'
            . '<title>Briefly offline &mdash; ' . e($office) . '</title>'
+           . '<link rel="icon" href="' . e(asset('img/tourism-logo-mark.png')) . '" type="image/png">'
            . '<style>'
            . 'body{margin:0;min-height:100vh;display:grid;place-items:center;padding:2rem;'
            . 'font-family:"Segoe UI",system-ui,sans-serif;background:#F4F7F5;color:#1C2529}'

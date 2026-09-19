@@ -213,6 +213,188 @@ $inSheet = !empty($inSheet);
                  * fails cannot take an edited paragraph down with it. */
                 $banner = trim((string) ($a['banner_path'] ?? ''));
                 ?>
+                <?php if ($isEvent): ?>
+                <?php
+                /* AN EVENT HAS A GALLERY, not one picture.
+                 *
+                 * The featured photograph is still banner_path — the homepage
+                 * card and the large picture on the event page — so an event
+                 * made before galleries existed is simply a gallery of one. The
+                 * rest live in announcement_photos. The event page lays them
+                 * out as one large picture and three beside it, with the others
+                 * behind "View all photos", the way Cultural Heritage does.
+                 *
+                 * Several files in one save, so the request can outgrow PHP's
+                 * limits; the script below checks the total before sending,
+                 * because a request over post_max_size arrives EMPTY and fails
+                 * as an expired session, which explains nothing. */
+                $eventPhotos = $isEdit ? AnnouncementRepository::photos((int) $a['id']) : [];
+                $perFile     = \App\Core\Uploader::maxBytes();
+                $perRequest  = upload_limit_bytes();
+                $perSave     = (int) ini_get('max_file_uploads') ?: 20;
+                ?>
+                <div class="col-12 event-photos-field">
+                    <label for="photos" class="form-label">Event photos</label>
+
+                    <?php if ($banner !== '' || $eventPhotos !== []): ?>
+                        <ul class="event-photos" aria-label="Current photos">
+                            <?php if ($banner !== ''): ?>
+                                <li class="event-photos__item is-featured">
+                                    <img src="<?= e(base_url($banner)) ?>" alt="Featured photo" loading="lazy">
+                                    <span class="event-photos__badge">
+                                        <i class="fa-solid fa-star" aria-hidden="true"></i> Featured
+                                    </span>
+                                    <div class="event-photos__controls">
+                                        <label class="form-check">
+                                            <input type="radio" class="form-check-input" name="featured_photo" value="0" checked>
+                                            <span class="form-check-label">Keep as featured</span>
+                                        </label>
+                                        <label class="form-check">
+                                            <input type="checkbox" class="form-check-input" name="remove_banner" value="1">
+                                            <span class="form-check-label">Remove</span>
+                                        </label>
+                                    </div>
+                                </li>
+                            <?php endif; ?>
+
+                            <?php foreach ($eventPhotos as $i => $photo): ?>
+                                <li class="event-photos__item">
+                                    <img src="<?= e(base_url((string) $photo['file_path'])) ?>"
+                                         alt="Event photo <?= $i + 2 ?>" loading="lazy">
+                                    <div class="event-photos__controls">
+                                        <label class="form-check">
+                                            <input type="radio" class="form-check-input" name="featured_photo"
+                                                   value="<?= (int) $photo['id'] ?>">
+                                            <span class="form-check-label">Make featured</span>
+                                        </label>
+                                        <label class="form-check">
+                                            <input type="checkbox" class="form-check-input" name="remove_photos[]"
+                                                   value="<?= (int) $photo['id'] ?>">
+                                            <span class="form-check-label">Remove</span>
+                                        </label>
+                                    </div>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                    <?php endif; ?>
+
+                    <input type="file" id="photos" name="photos[]" multiple
+                           accept="image/jpeg,image/png,image/webp" class="form-control"
+                           data-per-file="<?= (int) $perFile ?>"
+                           data-per-request="<?= (int) $perRequest ?>"
+                           data-per-save="<?= (int) $perSave ?>">
+                    <p class="field-hint">
+                        Choose several at once. JPG, PNG or WebP, up to <?= (int) floor($perFile / 1048576) ?> MB each
+                        and <?= (int) floor($perRequest / 1048576) ?> MB per save.
+                        <?= $banner !== ''
+                            ? 'New photos are added after the ones above.'
+                            : 'The first photo becomes the featured one &mdash; the homepage card and the large picture on the event page.' ?>
+                        An event holds up to <?= AnnouncementRepository::MAX_PHOTOS ?>.
+                    </p>
+                    <p class="field-error" data-photos-problem hidden></p>
+                    <ul class="event-photos event-photos--new" data-photos-preview hidden aria-label="Photos to be added"></ul>
+
+                    <script>
+                    /* Scoped to THIS form. The list page can hold two copies of
+                       the composer at once — the New Event sheet and an Edit
+                       dialog — so nothing here is looked up by id. */
+                    (function (field) {
+                        var input   = field.querySelector('input[type="file"]');
+                        var problem = field.querySelector('[data-photos-problem]');
+                        var preview = field.querySelector('[data-photos-preview]');
+                        var form    = field.closest('form');
+                        var urls    = [];
+                        var TYPES   = ['image/jpeg', 'image/png', 'image/webp'];
+                        var MB      = 1048576;
+
+                        function limits() {
+                            return {
+                                perFile:    Number(input.getAttribute('data-per-file')),
+                                perRequest: Number(input.getAttribute('data-per-request')),
+                                perSave:    Number(input.getAttribute('data-per-save'))
+                            };
+                        }
+
+                        /* The one thing the browser can know for certain: what is
+                           about to be sent. The server still judges every file. */
+                        function check() {
+                            var files = Array.prototype.slice.call(input.files || []);
+                            var l = limits();
+                            var total = 0;
+                            var wrong = [];
+                            var large = [];
+
+                            files.forEach(function (f) {
+                                total += f.size;
+                                if (TYPES.indexOf(f.type) === -1) { wrong.push(f.name); }
+                                else if (f.size > l.perFile) { large.push(f.name); }
+                            });
+
+                            if (files.length > l.perSave) {
+                                return 'Choose at most ' + l.perSave + ' photos per save. Save, then open the event again to add more.';
+                            }
+                            if (wrong.length) {
+                                return 'Only JPG, PNG and WebP pictures can be added: ' + wrong.join(', ') + '.';
+                            }
+                            if (large.length) {
+                                return 'Over ' + Math.floor(l.perFile / MB) + ' MB: ' + large.join(', ') + '.';
+                            }
+                            /* A little under the limit: the rest of the form travels
+                               in the same request. */
+                            if (total > l.perRequest - MB) {
+                                return 'These photos add up to ' + (total / MB).toFixed(1) + ' MB, more than one save can carry ('
+                                    + Math.floor(l.perRequest / MB) + ' MB). Add them in two or more saves.';
+                            }
+                            return '';
+                        }
+
+                        function draw() {
+                            urls.forEach(function (u) { URL.revokeObjectURL(u); });
+                            urls = [];
+                            preview.innerHTML = '';
+
+                            var files = Array.prototype.slice.call(input.files || []);
+                            files.forEach(function (f) {
+                                if (TYPES.indexOf(f.type) === -1) { return; }
+                                var url = URL.createObjectURL(f);
+                                urls.push(url);
+
+                                var li  = document.createElement('li');
+                                li.className = 'event-photos__item';
+                                var img = document.createElement('img');
+                                img.src = url;
+                                img.alt = '';
+                                li.appendChild(img);
+                                var name = document.createElement('span');
+                                name.className = 'event-photos__name';
+                                name.textContent = f.name;
+                                li.appendChild(name);
+                                preview.appendChild(li);
+                            });
+
+                            preview.hidden = preview.children.length === 0;
+
+                            var said = check();
+                            problem.textContent = said;
+                            problem.hidden = said === '';
+                            input.classList.toggle('is-invalid', said !== '');
+                        }
+
+                        input.addEventListener('change', draw);
+
+                        form.addEventListener('submit', function (event) {
+                            var said = check();
+                            if (said === '') { return; }
+                            event.preventDefault();
+                            event.stopImmediatePropagation();
+                            problem.textContent = said;
+                            problem.hidden = false;
+                            input.focus();
+                        }, true);
+                    })(document.currentScript.parentElement);
+                    </script>
+                </div>
+                <?php else: ?>
                 <div class="col-12">
                     <label for="banner" class="form-label">Card picture</label>
 
@@ -235,6 +417,7 @@ $inSheet = !empty($inSheet);
                         <?= $banner !== '' ? 'Choosing a new file replaces the one above.' : 'Left empty, a stock photograph is used.' ?>
                     </p>
                 </div>
+                <?php endif; ?>
 
                 <div class="col-md-6">
                     <label for="publish_at" class="form-label">Publish at</label>

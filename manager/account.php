@@ -22,6 +22,7 @@ use App\Core\ActivityLog;
 use App\Core\Csrf;
 use App\Core\Database;
 use App\Core\ManagerAuth;
+use App\Core\Password;
 use App\Core\Session;
 use App\Core\SmsGateway;
 
@@ -86,10 +87,14 @@ if (is_post()) {
             $errors['current_password'] = 'That is not your current password.';
         }
 
-        if (mb_strlen($new) < 10) {
-            $errors['new_password'] = 'Use at least 10 characters.';
-        } elseif (!preg_match('/[A-Za-z]/', $new) || !preg_match('/\d/', $new)) {
-            $errors['new_password'] = 'Use at least one letter and one number.';
+        /* The officer's rule, not a lighter one of its own: this account files
+           figures that end up in a report to the Mayor. */
+        $problems = Password::problems($new);
+
+        if ($problems !== []) {
+            $errors['new_password'] = 'The new password ' . implode(', and ', $problems) . '.';
+        } elseif ($new === $current && !isset($errors['current_password'])) {
+            $errors['new_password'] = 'The new password must be different from the current one.';
         }
 
         if ($new !== $confirm) {
@@ -99,15 +104,19 @@ if (is_post()) {
         if ($errors === []) {
             Database::run(
                 'UPDATE destination_managers
-                    SET password_hash = ?, password_changed_at = NOW(),
+                    SET password_hash = ?, password_changed_at = NOW(), must_change_password = 0,
                         failed_attempts = 0, locked_until = NULL
                   WHERE id = ?',
                 [ManagerAuth::hash($new), $id]
             );
 
+            /* This phone continues; any other device still signed in with the old
+               password is signed out on its next click. */
+            ManagerAuth::refreshCredentials();
+
             ActivityLog::record('manager.password_changed', 'manager', $id, 'Changed own password');
 
-            Session::flash('success', 'Password changed.');
+            Session::flash('success', 'Password changed successfully. Any other device signed in to this account has been signed out.');
             redirect(base_url('/manager/account.php'));
         }
     }
@@ -242,7 +251,8 @@ require_once __DIR__ . '/../admin/_partials/section-head.php';
                 <input type="password" id="new_password" name="new_password" required
                        autocomplete="new-password"
                        class="form-control <?= isset($errors['new_password']) ? 'is-invalid' : '' ?>">
-                <p class="text-muted small mt-1 mb-0">At least 10 characters, with a letter and a number.</p>
+                <p class="text-muted small mt-1 mb-0">At least 10 characters, with a letter and a number,
+                    and not built around a common word.</p>
             </div>
 
             <div class="col-md-4">

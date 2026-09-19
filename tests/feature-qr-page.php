@@ -98,8 +98,16 @@ check('the entrance fee is shown', str_contains($page, 'PHP 20'), true);
 check('the opening hours are shown', str_contains($page, '6:00 AM'), true);
 check('the safety note is shown', str_contains($page, 'slippery after rain'), true);
 check('the reminder is shown', str_contains($page, 'carry your rubbish out'), true);
-check('the heritage text is shown',
-    str_contains($page, 'the heritage text a visitor reads here'), true);
+/* THE DESTINATION'S OWN HERITAGE TEXT IS NO LONGER SHOWN, and that is the
+   change rather than a regression. Cultural Heritage moved to the About section
+   — written once for the whole municipality instead of once per destination —
+   and the sign now carries About the Tourism Office, A Brief History and About
+   Tampakan in its place. The column still exists and still holds this fixture's
+   text, so this asserts it stays off the sign.
+
+   What replaced it has its own suite: tests/qr-about-blocks.php. */
+check('the destination\'s own heritage text is NOT shown',
+    str_contains($page, 'the heritage text a visitor reads here'), false);
 
 echo "\n--- the emergency numbers ---\n";
 

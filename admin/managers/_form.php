@@ -59,6 +59,9 @@ $inSheet = !empty($inSheet);
                         <option value="">Choose...</option>
                         <?php foreach ($destinations as $d): ?>
                             <option value="<?= (int) $d['id'] ?>"
+                                <?php if (!$isEdit && !empty($d['slug'])): ?>
+                                    data-username="manager.<?= e(mb_substr((string) $d['slug'], 0, 48)) ?>"
+                                <?php endif; ?>
                                 <?= (int) ($m['destination_id'] ?? 0) === (int) $d['id'] ? 'selected' : '' ?>>
                                 <?= e($d['name']) ?>
                             </option>
@@ -101,6 +104,54 @@ $inSheet = !empty($inSheet);
                     </div>
                 </div>
 
+                <?php
+                /* THE SIGN-IN, MADE WITH THE ACCOUNT.
+                 *
+                 * Adding a manager used to create a contact card and nothing
+                 * else; the sign-in was a second visit to Access that nobody knew
+                 * to make, and a manager was told "you have an account" and then
+                 * could not sign in. Only the username is asked for. The password
+                 * is generated on save, shown once, and must be replaced by the
+                 * manager at first sign-in.
+                 *
+                 * Officer only, like Access: a sign-in files figures that become
+                 * the municipality's official statistics. */
+                ?>
+                <?php if (!$isEdit && \App\Core\Auth::isOfficer()): ?>
+                <div class="col-12">
+                    <label for="username" class="form-label">Sign-in username</label>
+                    <input type="text" id="username" name="username" maxlength="60"
+                           autocomplete="off" autocapitalize="none" spellcheck="false"
+                           class="form-control <?= has_error('username') ? 'is-invalid' : '' ?>"
+                           value="<?= e((string) ($m['username'] ?? '')) ?>"
+                           placeholder="manager.destination-name" data-username-for="destination_id">
+                    <p class="field-hint">
+                        Left blank, it is made from the destination &mdash; <code>manager.kolondatal</code>.
+                        A temporary password is generated when you save and shown to you once; the
+                        manager replaces it the first time they sign in.
+                    </p>
+                    <?php if (has_error('username')): ?><div class="field-error"><?= e(error_for('username')) ?></div><?php endif; ?>
+                </div>
+
+                <script>
+                /* The placeholder follows the destination, so the blank field says
+                   exactly what it will become. Only the placeholder: a name the
+                   officer typed is never overwritten. */
+                (function () {
+                    var field  = document.querySelector('[data-username-for]');
+                    var select = field && document.getElementById(field.getAttribute('data-username-for'));
+                    if (!select) { return; }
+                    function follow() {
+                        var chosen = select.options[select.selectedIndex];
+                        var name   = chosen && chosen.getAttribute('data-username');
+                        field.placeholder = name || 'manager.destination-name';
+                    }
+                    select.addEventListener('change', follow);
+                    follow();
+                })();
+                </script>
+                <?php endif; ?>
+
                 <?php if ($isEdit): ?>
                 <div class="col-12">
                     <div class="form-check">
@@ -108,7 +159,8 @@ $inSheet = !empty($inSheet);
                             <?= !empty($m['is_active']) ? 'checked' : '' ?>>
                         <label class="form-check-label" for="is_active">Active</label>
                         <p class="field-hint">
-                            Untick when someone leaves the post. Past delivery records keep their name.
+                            Untick when someone leaves the post. They are signed out at once and cannot
+                            sign in again; past reports and delivery records keep their name.
                         </p>
                     </div>
                 </div>

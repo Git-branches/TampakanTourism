@@ -22,7 +22,7 @@ http_response_code(500);
          application — it is what answers when the database or the config is the
          thing that failed, so every helper it might call is exactly what cannot
          be relied on here. */ ?>
-<link rel="icon" href="/TampakanTourism/assets/img/tampakan_logo.png" sizes="any">
+<link rel="icon" href="/TampakanTourism/assets/img/tourism-logo-mark.png" type="image/png">
 <style>
     body {
         margin: 0;

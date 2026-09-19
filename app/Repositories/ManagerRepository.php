@@ -151,6 +151,109 @@ final class ManagerRepository
         );
     }
 
+    /**
+     * What is wrong with a proposed sign-in name, as whole sentences. Empty
+     * means it can be used.
+     *
+     * Shared by account creation and by Access, which used to hold these rules
+     * inline — one column, one set of rules.
+     */
+    public static function usernameProblems(string $username, int $ignoreId = 0): array
+    {
+        if (mb_strlen($username) < 3 || mb_strlen($username) > 60) {
+            return ['A username is 3 to 60 characters long.'];
+        }
+
+        if (preg_match('/^[a-z0-9._-]+$/', $username) !== 1) {
+            return ['Use lowercase letters, numbers, dots, hyphens, or underscores only.'];
+        }
+
+        if (Database::scalar(
+            'SELECT 1 FROM destination_managers WHERE username = ? AND id <> ? LIMIT 1',
+            [$username, $ignoreId]
+        ) !== null) {
+            return ['That username is already in use by another manager.'];
+        }
+
+        /* The two tables are separate, but a manager and an officer sharing a
+           username is a support call waiting to happen — somebody will type one
+           into the other's login page. */
+        if (Database::scalar('SELECT 1 FROM admins WHERE username = ? LIMIT 1', [$username]) !== null) {
+            return ['That username belongs to an administrator account.'];
+        }
+
+        return [];
+    }
+
+    /**
+     * A sign-in name for a new manager, from their destination: the Kolondatal
+     * manager is "manager.kolondatal". Numbered if a second manager of the same
+     * destination needs one.
+     */
+    public static function suggestUsername(int $destinationId): string
+    {
+        $slug = (string) Database::scalar('SELECT slug FROM destinations WHERE id = ?', [$destinationId]);
+        $slug = trim((string) preg_replace('/[^a-z0-9._-]+/', '-', strtolower($slug)), '-.');
+        $base = 'manager.' . mb_substr($slug !== '' ? $slug : 'destination-' . $destinationId, 0, 48);
+
+        $candidate = $base;
+        for ($n = 2; self::usernameProblems($candidate) !== [] && $n < 100; $n++) {
+            $candidate = $base . $n;
+        }
+
+        return $candidate;
+    }
+
+    /**
+     * Everything that records this manager as its author, counted.
+     *
+     * Decides whether a manager can be deleted at all. Every foreign key to
+     * destination_managers is SET NULL or CASCADE, so the database would happily
+     * let the row go — and a report would lose the name of whoever submitted
+     * it, or an announcement its record of who was texted. The database allows
+     * it; the office's records do not.
+     */
+    public static function history(int $id): array
+    {
+        $count = static fn (string $sql): int => (int) Database::scalar($sql, [$id]);
+
+        return array_filter([
+            'arrival reports submitted'  => $count('SELECT COUNT(*) FROM arrival_reports WHERE submitted_by = ?'),
+            'inspection reports'         => $count('SELECT COUNT(*) FROM inspection_reports WHERE submitted_by = ?'),
+            'inspection photographs'     => $count('SELECT COUNT(*) FROM inspection_photos WHERE uploaded_by = ?'),
+            'report documents'           => $count('SELECT COUNT(*) FROM arrival_report_documents WHERE uploaded_by = ?'),
+            'alerts raised'              => $count('SELECT COUNT(*) FROM destination_alerts WHERE raised_by = ?'),
+            'change requests'            => $count('SELECT COUNT(*) FROM destination_change_requests WHERE requested_by = ?'),
+            'SMS delivery records'       => $count('SELECT COUNT(*) FROM notifications WHERE manager_id = ?'),
+            'sign-ins and activity'      => $count('SELECT COUNT(*) FROM activity_logs WHERE manager_id = ?'),
+        ]);
+    }
+
+    /**
+     * Removes a manager who never did anything — an entry made by mistake.
+     *
+     * Refuses (returns false) if there is any history at all; the caller offers
+     * Deactivate instead. Checked again here rather than trusted from the page,
+     * because the page was drawn before somebody may have signed in.
+     */
+    public static function deleteIfUnused(int $id): bool
+    {
+        return Database::transaction(static function () use ($id): bool {
+            $row = Database::first(
+                'SELECT id, last_login_at FROM destination_managers WHERE id = ? FOR UPDATE',
+                [$id]
+            );
+
+            if ($row === null || $row['last_login_at'] !== null || self::history($id) !== []) {
+                return false;
+            }
+
+            Database::run('DELETE FROM destination_managers WHERE id = ?', [$id]);
+
+            return true;
+        });
+    }
+
     /** Is this number already on record? Stops one person being texted twice. */
     public static function numberExists(string $number, ?int $ignoreId = null): bool
     {

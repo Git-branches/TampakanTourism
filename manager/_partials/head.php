@@ -104,6 +104,10 @@ $bellUnread = 0;
 $bellItems  = [];
 $bellTotal  = 0;
 
+/* Once a day, shared with the office's shell: old notifications everyone has
+   read are cleared. See App\Core\Housekeeping. */
+\App\Core\Housekeeping::runDaily();
+
 try {
     $mgrId   = (int) ManagerAuth::id();
     $mgrDest = (int) ManagerAuth::destinationId();
@@ -127,7 +131,7 @@ try {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title><?= e($pageTitle ?? 'Destination Manager') ?> — TourSync</title>
-<link rel="icon" href="<?= e(asset('img/tampakan_logo.png')) ?>" sizes="any">
+<link rel="icon" href="<?= e(asset('img/tourism-logo-mark.png')) ?>" type="image/png">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
@@ -159,7 +163,7 @@ try {
 
     <aside class="sidebar" id="sidebar">
         <div class="sidebar__brand">
-            <img src="<?= e(asset('img/tampakan_logo.png')) ?>" alt="Seal of the Municipality of Tampakan"
+            <img src="<?= e(asset('img/tourism-logo-mark.png')) ?>" alt="Tampakan Municipal Tourism Office"
                  width="42" height="42">
             <div>
                 <strong>TourSync</strong>

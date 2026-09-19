@@ -67,6 +67,15 @@ $pageSubtitle = $record['month_label'] . ' · ' . $record['municipality'] . ', '
 require __DIR__ . '/../_partials/head.php';
 ?>
 
+<?php /* The way back. This page is reached from a button on Reports and had no
+         way to return except the browser's own Back or the sidebar — the same
+         outline button and wording the other sub-pages of the admin use. */ ?>
+<p class="mb-3">
+    <a href="<?= e(base_url('/admin/reports/index.php')) ?>" class="btn btn-sm btn-outline-secondary">
+        <i class="fa-solid fa-arrow-left" aria-hidden="true"></i> Back to Reports
+    </a>
+</p>
+
 <section class="panel">
     <header class="panel__head">
         <h2><i class="fa-solid fa-sliders"></i> Period and signatories</h2>

@@ -80,46 +80,21 @@ if (is_post()) {
 
     $username = strtolower(trim((string) $v->value('username', '')));
 
-    if ($username !== '' && preg_match('/^[a-z0-9._-]+$/', $username) !== 1) {
-        $v->addError('username', 'Use lowercase letters, numbers, dots, hyphens, or underscores only.');
-    }
-
-    $taken = Database::scalar(
-        'SELECT COUNT(*) FROM destination_managers WHERE username = ? AND id <> ?',
-        [$username, $id]
-    );
-
-    if ((int) $taken > 0) {
-        $v->addError('username', 'That username is already in use by another manager.');
-    }
-
-    /* Admin usernames are checked too. The two tables are separate, but a
-       manager and an officer sharing a username is a support call waiting to
-       happen — somebody will type one into the other's login page. */
-    if ((int) Database::scalar('SELECT COUNT(*) FROM admins WHERE username = ?', [$username]) > 0) {
-        $v->addError('username', 'That username belongs to an administrator account.');
+    /* The same rules account creation applies — format, and not already taken
+       by another manager or by an officer. */
+    if ($username !== '') {
+        foreach (ManagerRepository::usernameProblems($username, $id) as $problem) {
+            $v->addError('username', $problem);
+        }
     }
 
     if ($v->fails()) {
         flash_back($v->errors(), $_POST, 'access.php?id=' . $id);
     }
 
-    /* 12 characters from a 32-symbol alphabet — roughly 60 bits. The alphabet
-       omits the pairs that get misread off a screen and mistyped on a phone:
-       0/O, 1/l/I. */
-    $alphabet = '23456789abcdefghjkmnpqrstuvwxyz';
-    $password = '';
-    for ($i = 0; $i < 12; $i++) {
-        $password .= $alphabet[random_int(0, strlen($alphabet) - 1)];
-    }
-
-    Database::run(
-        'UPDATE destination_managers
-            SET username = ?, password_hash = ?, password_changed_at = NOW(),
-                failed_attempts = 0, locked_until = NULL
-          WHERE id = ?',
-        [$username, ManagerAuth::hash($password), $id]
-    );
+    /* The same issuer account creation uses: a different password every time,
+       hashed, and flagged so the manager replaces it at first sign-in. */
+    $password = ManagerAuth::issueTemporaryPassword($id, $username);
 
     ActivityLog::record(
         'manager.access_issued', 'manager', $id,
@@ -152,6 +127,7 @@ if (!is_modal_request()) { require __DIR__ . '/../_partials/head.php'; }
                 <strong>Write this down now.</strong>
                 The password is stored only as a hash and cannot be shown again. If it is lost,
                 come back here and reset it &mdash; there is no way to recover the old one.
+                It is temporary: the manager is asked to replace it the first time they sign in.
             </div>
 
             <dl class="detail-grid">

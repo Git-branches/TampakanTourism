@@ -13,7 +13,7 @@ declare(strict_types=1);
  *
  *      emergency hotlines   who to ring, from a waterfall, on one bar
  *      spot information     hours, fee, facilities, how to get out
- *      cultural heritage    what the place is, which is why they came
+ *      about Tampakan       the Office, the history, the municipality
  *
  *  ORDER IS A SAFETY DECISION. Emergency comes first and is one tap from the
  *  top of the page. A visitor reading this is standing at the site; on the day
@@ -158,7 +158,7 @@ $hasDirections = $d['latitude'] !== null && $d['longitude'] !== null;
 <meta name="robots" content="noindex">
 <title><?= e($d['name']) ?> — Tampakan Tourism</title>
 <meta name="theme-color" content="#2E7D32">
-<link rel="icon" href="<?= e(asset('img/tampakan_logo.png')) ?>" sizes="any">
+<link rel="icon" href="<?= e(asset('img/tourism-logo-mark.png')) ?>" type="image/png">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
 <link rel="stylesheet" href="<?= e(asset('css/logbook.css')) ?>">
@@ -169,6 +169,7 @@ $hasDirections = $d['latitude'] !== null && $d['longitude'] !== null;
      that they landed on the municipality's own page and not a copy. -->
 <header class="lb-gov">
     <img src="<?= e(asset('img/tampakan_logo.png')) ?>" alt="Seal of the Municipality of Tampakan" width="34" height="34">
+    <img src="<?= e(asset('img/tourism-logo-mark.png')) ?>" alt="Logo of the Tampakan Municipal Tourism Office" width="34" height="34">
     <div>
         <strong>Municipal Tourism Office</strong>
         <span>Municipality of Tampakan, South Cotabato</span>
@@ -301,64 +302,58 @@ $hasDirections = $d['latitude'] !== null && $d['longitude'] !== null;
         <?php endif; ?>
     </section>
 
-    <!-- ===================== 3. CULTURAL HERITAGE ===================== -->
     <?php
-    $heritage = trim((string) ($d['cultural_heritage'] ?? ''));
-    $history  = trim((string) ($d['history'] ?? ''));
+    /* ===================== 3. ABOUT THE MUNICIPALITY =====================
+     * WHAT REPLACED THE CULTURAL HERITAGE BLOCK HERE.
+     *
+     * This sign used to carry a per-destination heritage block, and the office
+     * was maintaining that material twice — once per destination and once in the
+     * About section of the website. It is now written once, for the whole
+     * municipality, on the About page. What a visitor standing at a sign gets
+     * instead is the three blocks the office asked for, in the order they asked
+     * for them: the Office, the history, and the municipality.
+     *
+     * READ FROM THE SAME SETTINGS ROWS AS THE HOMEPAGE, so the office writes
+     * each of these once and it appears in both places. Nothing here is a
+     * literal and nothing renders when its field is empty — a heading over
+     * nothing is worse on a phone at a trailhead than anywhere else.
+     *
+     * A PHP COMMENT, NOT AN HTML ONE. An HTML comment is sent to every visitor,
+     * and this page is the one screen in the system that is read on one bar of
+     * signal at a waterfall — a developer's note has no business in that
+     * download. (It also meant the words "Cultural Heritage" were still being
+     * served from the sign that no longer has it, which is exactly what the
+     * suite is checking for.)
+     * ================================================================= */
+    $qrAbout = [];
 
-    /* THE PICTURES BEHIND THE WORDS.
-     *
-     * This section used to be prose alone: a visitor standing in front of the
-     * weaving read about the weaving and had nothing to look at. Each item is a
-     * photograph, a heading and a paragraph, curated per destination in
-     * admin/destinations/heritage.php.
-     *
-     * publicFor() drops any item with no words — a picture with nothing said
-     * about it is a photograph in the wrong section. */
-    $heritageItems = \App\Repositories\HeritageRepository::publicFor((int) $d['id']);
+    foreach ([
+        ['about_office_text',  'fa-people-roof',       'About the Tourism Office'],
+        ['about_history',      'fa-clock-rotate-left', 'A Brief History'],
+        ['about_lead',         'fa-landmark',          'About Tampakan'],
+    ] as [$key, $icon, $fallbackTitle]) {
+        $body = trim((string) (setting($key, '') ?? ''));
+
+        if ($body !== '') {
+            $qrAbout[] = ['icon' => $icon, 'title' => $fallbackTitle, 'body' => $body];
+        }
+    }
     ?>
-    <?php if ($heritage !== '' || $history !== '' || $heritageItems !== []): ?>
-        <section class="lb-card lb-card--heritage">
-            <h2 class="lb-h2"><i class="fa-solid fa-landmark-dome"></i> Cultural Heritage</h2>
+    <?php if ($qrAbout !== []): ?>
+        <?php foreach ($qrAbout as $block): ?>
+            <section class="lb-card">
+                <h2 class="lb-h2">
+                    <i class="fa-solid <?= e($block['icon']) ?>"></i> <?= e($block['title']) ?>
+                </h2>
+                <p><?= nl2br(e($block['body'])) ?></p>
+            </section>
+        <?php endforeach; ?>
 
-            <?php if ($heritage !== ''): ?>
-                <p><?= nl2br(e($heritage)) ?></p>
-            <?php endif; ?>
-
-            <?php if ($history !== ''): ?>
-                <h3 class="lb-h3">History</h3>
-                <p><?= nl2br(e($history)) ?></p>
-            <?php endif; ?>
-
-            <?php if ($heritageItems !== []): ?>
-                <ul class="lb-heritage">
-                    <?php foreach ($heritageItems as $item): ?>
-                        <?php $photo = uploaded_url((string) $item['image_path']); ?>
-                        <li class="lb-heritage__item">
-                            <?php if ($photo !== null): ?>
-                                <?php /* alt is the heading, not "heritage photo": a
-                                         screen reader should hear what the picture is
-                                         of, and the heading is the only description
-                                         the office actually wrote for it. */ ?>
-                                <img class="lb-heritage__img" src="<?= e($photo) ?>"
-                                     alt="<?= e((string) $item['title']) ?>" loading="lazy">
-                            <?php endif; ?>
-
-                            <div class="lb-heritage__text">
-                                <?php if (trim((string) $item['title']) !== ''): ?>
-                                    <h3 class="lb-h3"><?= e((string) $item['title']) ?></h3>
-                                <?php endif; ?>
-
-                                <?php if (trim((string) $item['body']) !== ''): ?>
-                                    <p><?= nl2br(e((string) $item['body'])) ?></p>
-                                <?php endif; ?>
-                            </div>
-                        </li>
-                    <?php endforeach; ?>
-                </ul>
-            <?php endif; ?>
-
-            <p class="lb-muted lb-heritage__note">
+        <?php /* The line that used to close the Cultural Heritage block. It is
+                 about conduct at the site rather than about heritage, so it
+                 belongs on the sign whatever the section above it is called. */ ?>
+        <section class="lb-card lb-card--quiet">
+            <p class="lb-muted">
                 <i class="fa-solid fa-hands-holding-circle"></i>
                 This site belongs to the people of Tampakan. Please treat it, and the community
                 around it, with respect.
@@ -472,7 +467,7 @@ $hasDirections = $d['latitude'] !== null && $d['longitude'] !== null;
 
     <!-- A LOCAL GUIDE was here, and is deliberately gone.
          The office decided the sign is for information, not for transactions:
-         where you are, who to call in an emergency, the heritage, the way out
+         where you are, who to call in an emergency, about the town, the way out
          and what is nearby — plus the one thing it does ask of the visitor,
          which is a rating. Booking a guide is arranged on the website, where
          somebody planning a trip is already looking.

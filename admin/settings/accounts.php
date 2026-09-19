@@ -97,7 +97,7 @@ if (is_post()) {
 
         ActivityLog::record('account.create', 'admin', $id,
             'Created account "' . $username . '"');
-        Session::flash('success', 'Account created. Ask them to change the password at their first sign-in.');
+        Session::flash('success', 'Account created. Give them the password privately — they will be asked to replace it the first time they sign in.');
         redirect(base_url('/admin/settings/accounts.php'));
     }
 
@@ -156,13 +156,21 @@ if (is_post()) {
             redirect(base_url('/admin/settings/accounts.php'));
         }
 
-        AdminRepository::changePassword($target, $new);
+        /* Somebody else's account: the password is now known to two people, so
+           it is temporary and its owner replaces it at their next sign-in. Your
+           own account through this screen is simply a change. */
+        if ($target === (int) Auth::id()) {
+            AdminRepository::changePassword($target, $new);
+            Auth::refreshCredentials();
+        } else {
+            AdminRepository::resetPassword($target, $new);
+        }
 
         // Stamped as changed by an officer, not by the account holder — worth
         // distinguishing if the log is ever read after an incident.
         ActivityLog::record('account.reset', 'admin', $target,
             'Password reset for ' . $account['username'] . ' by an officer');
-        Session::flash('success', 'Password reset. Give it to ' . $account['full_name'] . ' privately and ask them to change it.');
+        Session::flash('success', 'Password reset. Give it to ' . $account['full_name'] . ' privately — they will be asked to replace it at their next sign-in.');
     }
 
     redirect(base_url('/admin/settings/accounts.php'));

@@ -135,6 +135,11 @@ try {
         'email'       => (string) $v->value('email'),
         'phone'       => (string) $v->value('phone', ''),
         'subject'     => (string) $v->value('subject'),
+        /* Which door of the Contact Us modal this came through. The repository
+           accepts only the categories it knows and stores NULL otherwise, so a
+           post that predates the modal — or one made straight to this endpoint
+           — is not stamped with a category nobody offered its sender. */
+        'category'    => (string) ($_POST['category'] ?? ''),
         'message'     => (string) $v->value('message'),
         'device_hash' => RateLimiter::deviceHash(),
     ]);

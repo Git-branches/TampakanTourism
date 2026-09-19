@@ -354,7 +354,7 @@ final class AnnouncementRepository
 
         $title = mb_substr($a['title'] . ' (copy)', 0, 200);
 
-        return Database::insert(
+        $copy = Database::insert(
             'INSERT INTO announcements
                 (title, slug, body, summary, type, audience, status, destination_id,
                  event_date, event_location, banner_path, expires_at, created_by)
@@ -374,6 +374,19 @@ final class AnnouncementRepository
                 $adminId,
             ]
         );
+
+        /* The gallery comes with it, sharing paths the way the banner does —
+           bannerInUse() looks in the gallery table too, so neither copy can
+           delete a file the other still shows. */
+        foreach (self::photos($id) as $photo) {
+            Database::run(
+                'INSERT INTO announcement_photos (announcement_id, file_path, sort_order)
+                 SELECT ?, file_path, sort_order FROM announcement_photos WHERE id = ?',
+                [$copy, $photo['id']]
+            );
+        }
+
+        return $copy;
     }
 
     /**
@@ -393,10 +406,16 @@ final class AnnouncementRepository
         $banner = trim((string) (Database::scalar(
             'SELECT banner_path FROM announcements WHERE id = ?', [$id]) ?? ''));
 
+        /* Read before the row goes: the gallery rows cascade with it, and after
+           that there is nothing left that says which files were this event's. */
+        $gallery = array_column(self::photos($id), 'file_path');
+
         Database::run('DELETE FROM announcements WHERE id = ?', [$id]);
 
-        if ($banner !== '' && !self::bannerInUse($banner)) {
-            \App\Core\Uploader::delete($banner);
+        foreach (array_unique(array_merge($banner !== '' ? [$banner] : [], $gallery)) as $path) {
+            if (!self::bannerInUse((string) $path)) {
+                \App\Core\Uploader::delete((string) $path);
+            }
         }
     }
 
@@ -438,14 +457,190 @@ final class AnnouncementRepository
         }
     }
 
-    /** Is this file still referenced by an announcement or a hero slide? */
+    /**
+     * Is this file still referenced by an announcement, an event's gallery, or
+     * a hero slide? A duplicated event shares its photographs' paths with the
+     * original, so a file is only removed when the last reference to it goes.
+     */
     private static function bannerInUse(string $path): bool
     {
         if (Database::scalar('SELECT 1 FROM announcements WHERE banner_path = ? LIMIT 1', [$path]) !== null) {
             return true;
         }
 
+        if (Database::scalar('SELECT 1 FROM announcement_photos WHERE file_path = ? LIMIT 1', [$path]) !== null) {
+            return true;
+        }
+
         return Database::scalar('SELECT 1 FROM hero_slides WHERE image_path = ? LIMIT 1', [$path]) !== null;
+    }
+
+    // -------------------------------------------------------------------------
+    // An event's photographs
+    // -------------------------------------------------------------------------
+
+    /**
+     * How many photographs one event may hold, the featured one included.
+     * Generous for a festival, and a ceiling so a runaway upload cannot fill
+     * the disk one event at a time.
+     */
+    public const MAX_PHOTOS = 30;
+
+    /** The photographs after the featured one, in the order they were added. */
+    public static function photos(int $id): array
+    {
+        return Database::all(
+            'SELECT id, file_path FROM announcement_photos
+              WHERE announcement_id = ?
+              ORDER BY sort_order, id',
+            [$id]
+        );
+    }
+
+    /**
+     * Every photograph of an event, featured first — what the public gallery
+     * draws. An event with only banner_path (every event made before galleries
+     * existed) returns that one picture, so it renders exactly as it did.
+     *
+     * @return string[] web-relative paths
+     */
+    public static function gallery(array $a): array
+    {
+        $paths  = [];
+        $banner = trim((string) ($a['banner_path'] ?? ''));
+
+        if ($banner !== '') {
+            $paths[] = $banner;
+        }
+
+        foreach (self::photos((int) $a['id']) as $photo) {
+            $paths[] = (string) $photo['file_path'];
+        }
+
+        return $paths;
+    }
+
+    public static function photoCount(int $id): int
+    {
+        $banner = trim((string) (Database::scalar('SELECT banner_path FROM announcements WHERE id = ?', [$id]) ?? ''));
+
+        return ($banner !== '' ? 1 : 0)
+            + (int) Database::scalar('SELECT COUNT(*) FROM announcement_photos WHERE announcement_id = ?', [$id]);
+    }
+
+    /**
+     * Adds stored photographs to an event. The first becomes the featured
+     * picture when the event has none, so an event created with six photos has
+     * a card picture without anyone having to choose one.
+     */
+    public static function addPhotos(int $id, array $paths): void
+    {
+        $paths = array_values(array_filter($paths, static fn ($p): bool => is_string($p) && $p !== ''));
+
+        if ($paths === []) {
+            return;
+        }
+
+        $banner = trim((string) (Database::scalar('SELECT banner_path FROM announcements WHERE id = ?', [$id]) ?? ''));
+
+        if ($banner === '') {
+            Database::run('UPDATE announcements SET banner_path = ? WHERE id = ?', [array_shift($paths), $id]);
+        }
+
+        $next = (int) Database::scalar(
+            'SELECT COALESCE(MAX(sort_order), -1) + 1 FROM announcement_photos WHERE announcement_id = ?', [$id]
+        );
+
+        foreach ($paths as $path) {
+            Database::run(
+                'INSERT INTO announcement_photos (announcement_id, file_path, sort_order) VALUES (?, ?, ?)',
+                [$id, $path, $next++]
+            );
+        }
+    }
+
+    /**
+     * Removes some of an event's gallery photographs, by id. Scoped to the
+     * event in the WHERE clause, so an id belonging to another event — from an
+     * edited form — removes nothing.
+     */
+    public static function removePhotos(int $id, array $photoIds): int
+    {
+        $photoIds = array_values(array_unique(array_filter(array_map('intval', $photoIds))));
+
+        if ($photoIds === []) {
+            return 0;
+        }
+
+        $marks = implode(',', array_fill(0, count($photoIds), '?'));
+        $rows  = Database::all(
+            "SELECT id, file_path FROM announcement_photos WHERE announcement_id = ? AND id IN ({$marks})",
+            array_merge([$id], $photoIds)
+        );
+
+        foreach ($rows as $row) {
+            Database::run('DELETE FROM announcement_photos WHERE id = ?', [$row['id']]);
+
+            if (!self::bannerInUse((string) $row['file_path'])) {
+                \App\Core\Uploader::delete((string) $row['file_path']);
+            }
+        }
+
+        return count($rows);
+    }
+
+    /**
+     * Makes one of the gallery photographs the featured one. The two swap
+     * places: the chosen picture moves to banner_path, and the previous featured
+     * picture joins the gallery where the chosen one was — nothing is lost by
+     * changing which picture leads.
+     */
+    public static function makeFeatured(int $id, int $photoId): bool
+    {
+        $photo = Database::first(
+            'SELECT id, file_path FROM announcement_photos WHERE id = ? AND announcement_id = ?',
+            [$photoId, $id]
+        );
+
+        if ($photo === null) {
+            return false;
+        }
+
+        $banner = trim((string) (Database::scalar('SELECT banner_path FROM announcements WHERE id = ?', [$id]) ?? ''));
+
+        Database::transaction(static function () use ($id, $photo, $banner): void {
+            Database::run('UPDATE announcements SET banner_path = ? WHERE id = ?', [$photo['file_path'], $id]);
+
+            if ($banner !== '') {
+                Database::run('UPDATE announcement_photos SET file_path = ? WHERE id = ?', [$banner, $photo['id']]);
+            } else {
+                Database::run('DELETE FROM announcement_photos WHERE id = ?', [$photo['id']]);
+            }
+        });
+
+        return true;
+    }
+
+    /**
+     * Removes the featured picture of an event and promotes the next one in
+     * the gallery, so an event with photographs never falls back to the stock
+     * picture just because its lead photo was taken down.
+     */
+    public static function removeFeatured(int $id): void
+    {
+        self::clearBanner($id);
+
+        $next = Database::first(
+            'SELECT id, file_path FROM announcement_photos WHERE announcement_id = ? ORDER BY sort_order, id LIMIT 1',
+            [$id]
+        );
+
+        if ($next !== null) {
+            Database::transaction(static function () use ($id, $next): void {
+                Database::run('UPDATE announcements SET banner_path = ? WHERE id = ?', [$next['file_path'], $id]);
+                Database::run('DELETE FROM announcement_photos WHERE id = ?', [$next['id']]);
+            });
+        }
     }
 
     public static function statusCounts(): array

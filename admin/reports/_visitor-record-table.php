@@ -19,7 +19,7 @@ if (!defined('TOURSYNC')) {
 $cell = static fn (int $v): string => $v > 0 ? number_format($v) : '-';
 ?>
 
-<table class="visitor-record">
+<table class="visitor-record report-print-table">
     <thead>
         <tr>
             <th colspan="2" class="vr-band">Visitor Attraction</th>
@@ -118,7 +118,7 @@ $unspecified = $record['totals']['grand']['unspecified'];
          it explains the headings, which are always there. */ ?>
 <p class="vr-note"><?= e(App\Core\VisitorRecord::FORM_NOTE) ?></p>
 
-<div class="vr-signatures">
+<div class="vr-signatures report-print-footer">
     <div>
         <span class="vr-signatures__label">Prepared by:</span>
         <span class="vr-signatures__name"><?= e($signatories['prepared_by']) ?></span>

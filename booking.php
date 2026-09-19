@@ -111,7 +111,7 @@ $state = match ((string) ($booking['status'] ?? '')) {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
 <title><?= $booking === null ? 'Receipt not found' : 'Booking ' . e($reference) ?> — Tampakan Tourism</title>
-<link rel="icon" href="<?= e(asset('img/tampakan_logo.png')) ?>" sizes="any">
+<link rel="icon" href="<?= e(asset('img/tourism-logo-mark.png')) ?>" type="image/png">
 
 <?php /* Self-contained, like directions.php. A receipt is saved and reopened
          later, often somewhere without a connection, and a stylesheet fetched
@@ -256,6 +256,8 @@ $state = match ((string) ($booking['status'] ?? '')) {
         <header>
             <img class="seal" src="<?= e(asset('img/tampakan_logo.png')) ?>"
                  alt="Official Seal of the Municipality of Tampakan" width="56" height="56">
+            <img class="seal" src="<?= e(asset('img/tourism-logo-mark.png')) ?>"
+                 alt="Logo of the Tampakan Municipal Tourism Office" width="56" height="56">
             <div>
                 <p class="office">Municipality of Tampakan &middot; South Cotabato</p>
                 <h1>Tour Guide Request</h1>

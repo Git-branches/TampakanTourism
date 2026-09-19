@@ -43,7 +43,7 @@ if (is_post()) {
     $data = collect_announcement_input($v);
     AnnouncementRepository::update($id, $data);
 
-    store_announcement_banner($id);
+    store_announcement_media($id, $data['type']);
 
     ActivityLog::record('announcement.update', 'announcement', $id, 'Updated "' . $data['title'] . '"');
     Session::flash('success', 'Changes saved.');

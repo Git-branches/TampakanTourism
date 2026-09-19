@@ -19,6 +19,7 @@ use App\Core\Csrf;
 use App\Core\Database;
 use App\Core\Session;
 use App\Repositories\FeedbackRepository;
+use App\Repositories\GuideReviewRepository as GuideReviews;
 
 Auth::require();
 
@@ -86,7 +87,16 @@ $average = $totalPublished > 0
     ? round(array_sum(array_map(static fn($k, $v) => $k * $v, array_keys($distribution), $distribution)) / $totalPublished, 1)
     : 0;
 
+/* The strip above the policy notice, added when tour guide ratings joined this
+   screen. Both counts are what is WAITING on each queue. */
+$activeTab = 'destinations';
+$tabCounts = [
+    'destinations' => FeedbackRepository::countPending(),
+    'guides'       => GuideReviews::countPending(),
+];
+
 require __DIR__ . '/../_partials/head.php';
+require __DIR__ . '/_tabs.php';
 ?>
 
 <div class="panel panel--notice">

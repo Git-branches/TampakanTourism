@@ -222,12 +222,23 @@ final class Auth
         Session::regenerate();
         Csrf::rotate();
 
+        /* Read back rather than taken from $admin: attempt() may have just
+           re-hashed the password, and a fingerprint of the old hash would sign
+           this session out on its very next request. */
+        $stored = Database::first(
+            'SELECT password_hash, must_change_password FROM admins WHERE id = ?',
+            [(int) $admin['id']]
+        );
+
         $_SESSION[self::KEY] = [
-            'id'        => (int) $admin['id'],
-            'full_name' => $admin['full_name'],
-            'username'  => $admin['username'],
-            'role'      => $admin['role'],
+            'id'          => (int) $admin['id'],
+            'full_name'   => $admin['full_name'],
+            'username'    => $admin['username'],
+            'role'        => $admin['role'],
+            'pw'          => Password::fingerprint($stored['password_hash'] ?? null),
+            'must_change' => (int) ($stored['must_change_password'] ?? 0) === 1,
         ];
+        self::$verified = true;
 
         Database::run(
             'UPDATE admins SET failed_attempts = 0, locked_until = NULL, last_login_at = NOW() WHERE id = ?',
@@ -250,9 +261,101 @@ final class Auth
         Session::destroy();
     }
 
+    /**
+     * Signed in — and still allowed to be.
+     *
+     * A session used to be trusted for its whole life once it existed. An
+     * officer deactivated in Settings → Accounts kept working until they
+     * happened to sign out, and changing a password left every other browser
+     * signed in with the old one. So the account is re-read once per request:
+     * it must still exist, still be active, and still have the password the
+     * session was opened with.
+     */
     public static function check(): bool
     {
-        return isset($_SESSION[self::KEY]['id']);
+        if (!isset($_SESSION[self::KEY]['id'])) {
+            return false;
+        }
+
+        return self::$verified ??= self::stillValid();
+    }
+
+    /** Once per request; every check() after the first reads this. */
+    private static ?bool $verified = null;
+
+    /** Why a session was just ended, for the sign-in page to say. */
+    private static ?string $ended = null;
+
+    private static function stillValid(): bool
+    {
+        $row = Database::first(
+            'SELECT is_active, password_hash, must_change_password FROM admins WHERE id = ?',
+            [(int) $_SESSION[self::KEY]['id']]
+        );
+
+        $held = $_SESSION[self::KEY]['pw'] ?? null;
+        $now  = $row !== null ? Password::fingerprint($row['password_hash']) : '';
+
+        if ($row === null || (int) $row['is_active'] !== 1) {
+            self::$ended = 'This account has been deactivated. Contact the Tourism Officer if you think that is a mistake.';
+        } elseif ($held !== null && !hash_equals((string) $held, $now)) {
+            self::$ended = 'The password for this account was changed, so you were signed out here. Sign in with the new one.';
+        }
+
+        if (self::$ended !== null) {
+            /* The key only, not the whole session: the flash telling them why
+               lives in the session too, and has to survive to the next page. */
+            unset($_SESSION[self::KEY]);
+            Session::regenerate();
+
+            return false;
+        }
+
+        /* A session opened before this check existed carries no fingerprint.
+           It adopts the current one rather than being thrown out — otherwise
+           deploying this signs everybody out at once, mid-task. */
+        if ($held === null) {
+            $_SESSION[self::KEY]['pw'] = $now;
+        }
+
+        $_SESSION[self::KEY]['must_change'] = (int) $row['must_change_password'] === 1;
+
+        return true;
+    }
+
+    /**
+     * After the signed-in officer changes their own password: this session
+     * carries the new fingerprint, so it continues while every other one ends.
+     * A new session id as well — the privilege is the same but the secret is
+     * not, and an id that existed before the change should not outlive it.
+     */
+    public static function refreshCredentials(): void
+    {
+        if (!isset($_SESSION[self::KEY]['id'])) {
+            return;
+        }
+
+        $row = Database::first(
+            'SELECT password_hash, must_change_password FROM admins WHERE id = ?',
+            [(int) $_SESSION[self::KEY]['id']]
+        );
+
+        if ($row === null) {
+            return;
+        }
+
+        Session::regenerate();
+        Csrf::rotate();
+
+        $_SESSION[self::KEY]['pw']          = Password::fingerprint($row['password_hash']);
+        $_SESSION[self::KEY]['must_change'] = (int) $row['must_change_password'] === 1;
+        self::$verified = true;
+    }
+
+    /** True while the account is still on a password somebody else set. */
+    public static function mustChangePassword(): bool
+    {
+        return self::check() && !empty($_SESSION[self::KEY]['must_change']);
     }
 
     public static function user(): ?array
@@ -279,13 +382,22 @@ final class Auth
      * The actual access control. Every admin page calls this on its first
      * line. Hiding a menu item is presentation; this is the gate.
      */
-    public static function require(?string $role = null): void
+    public static function require(?string $role = null, bool $passwordPage = false): void
     {
         if (!self::check()) {
             $target = $_SERVER['REQUEST_URI'] ?? '/admin/dashboard.php';
             Session::put('_intended', $target);
-            Session::flash('warning', 'Please sign in to continue.');
+            Session::flash('warning', self::$ended ?? 'Please sign in to continue.');
             redirect(base_url('/admin/login.php'));
+        }
+
+        /* A password another officer set — at account creation or a reset — is
+           replaced before anything else is reached. Only the page that replaces
+           it is exempt ($passwordPage), and signing out never calls this. */
+        if (!$passwordPage && self::mustChangePassword()) {
+            Session::flash('warning', 'Your password was set by another officer. '
+                . 'Choose your own below before continuing.');
+            redirect(base_url('/admin/account/index.php#password'));
         }
 
         if ($role === 'officer' && !self::isOfficer()) {

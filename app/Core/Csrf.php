@@ -53,9 +53,70 @@ final class Csrf
             // and PHP/Apache surface it as a 500 — making a correctly rejected
             // request look like a server fault in the logs.
             http_response_code(403);
-            header('Content-Type: text/plain; charset=utf-8');
-            exit('Your session expired or the form was submitted from an untrusted page. Please reload and try again.');
+            self::refuse();
         }
+    }
+
+    /**
+     * The reply to a refused request.
+     *
+     * THE REFUSAL IS UNCHANGED. The request is still rejected, still 403, and
+     * nothing is written. Only what the person sees is different.
+     *
+     * It used to be one line of plain text — black serif on white, no heading,
+     * no seal, no way forward. The ordinary way to meet it is to leave the
+     * sign-in page open over a break and then type a password, and what came
+     * back read like a page that had escaped from a developer's machine rather
+     * than part of a municipal system.
+     *
+     * The view is self-contained for the same reason 500.php is: the session is
+     * the thing that has just gone, so a reply that needs one cannot report
+     * that it went. If the view is missing for any reason, the plain sentence
+     * is still sent — a guard that cannot answer is worse than an ugly answer.
+     */
+    private static function refuse(): never
+    {
+        /* WHERE "SIGN IN AGAIN" SHOULD GO, from the path of the request that was
+           refused. An officer sent to the public homepage from the admin login
+           has to find their way back; a destination manager sent to the
+           officers' door cannot get in at all. */
+        $path = (string) ($_SERVER['REQUEST_URI'] ?? '');
+        $base = function_exists('base_url') ? base_url('/') : '/';
+
+        $root = rtrim($base, '/');
+
+        /* Both ways out are plain GET links — see the note in the view. */
+        if (str_contains($path, '/manager/')) {
+            $csrfReturnUrl   = $root . '/manager/login.php';
+            $csrfReturnLabel = 'Sign in again';
+            $csrfAltUrl      = $base;
+            $csrfAltLabel    = 'Back to the public site';
+        } elseif (str_contains($path, '/admin/')) {
+            $csrfReturnUrl   = $root . '/admin/login.php';
+            $csrfReturnLabel = 'Sign in again';
+            $csrfAltUrl      = $base;
+            $csrfAltLabel    = 'Back to the public site';
+        } else {
+            /* A visitor, not staff — the contact form or the logbook. They have
+               no sign-in to return to, and a second button to the same place is
+               a choice that is not one. */
+            $csrfReturnUrl   = $base;
+            $csrfReturnLabel = 'Back to the site';
+            $csrfAltUrl      = '';
+            $csrfAltLabel    = '';
+        }
+
+        $csrfLogo = function_exists('asset') ? asset('img/tourism-logo-mark.png') : '';
+        $view     = APP_PATH . '/views/errors/session-expired.php';
+
+        if (is_file($view)) {
+            header('Content-Type: text/html; charset=utf-8');
+            require $view;
+            exit;
+        }
+
+        header('Content-Type: text/plain; charset=utf-8');
+        exit('Your session expired or the form was submitted from an untrusted page. Please reload and try again.');
     }
 
     /** Called after login, since the session ID changes. */

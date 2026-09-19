@@ -404,6 +404,32 @@ final class AlertRepository
         );
     }
 
+    /**
+     * Permanently removes an alert — only one the office has already DISMISSED.
+     *
+     * Dismissed is the office's own verdict that it was not a real incident: a
+     * test text, a duplicate, spam from an unknown number. Those are what clutter
+     * the inbox. An open alert is somebody's unanswered report, and a resolved
+     * one is the record that a hazard was dealt with; neither is deletable, and
+     * the WHERE clause is what enforces it, not the button.
+     *
+     * The inbound SMS log keeps its line (alert_id is SET NULL), so the office
+     * can still see a text arrived.
+     */
+    public static function deleteDismissed(int $id): bool
+    {
+        $gone = Database::run(
+            "DELETE FROM destination_alerts WHERE id = ? AND status = 'dismissed'",
+            [$id]
+        )->rowCount() > 0;
+
+        if ($gone) {
+            NotificationRepository::forgetEntity('destination_alert', $id);
+        }
+
+        return $gone;
+    }
+
     /** The office reclassifying what the parser guessed. */
     public static function reclassify(int $id, string $category, string $severity): void
     {

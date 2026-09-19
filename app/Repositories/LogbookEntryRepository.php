@@ -41,6 +41,81 @@ final class LogbookEntryRepository
 
     private const TYPES = ['local', 'domestic', 'foreign', 'overseas_filipino'];
 
+    /**
+     * Things typed into an address box that mean "I did not fill this in".
+     *
+     * An empty check alone lets a dash through, and a dash reaching the
+     * classifier produces a visitor from nowhere who is then counted as
+     * domestic-unplaced in the municipality's figures. Compared after trimming
+     * and lowercasing; punctuation-only input is caught by the pattern below
+     * rather than listed here.
+     */
+    private const ADDRESS_PLACEHOLDERS = [
+        'n/a', 'na', 'n.a.', 'none', 'nil', 'null', 'unknown', 'unspecified',
+        'x', 'xx', 'xxx', 'test', 'tbd', 'wala', 'walang', 'ne', 'no',
+    ];
+
+    /**
+     * WHAT A LINE MUST CARRY BEFORE IT CAN BE SAVED.                 2026-09-18
+     *
+     * Sex and address were optional here, and the note that made them optional
+     * said the paper page had no sex column. It does: the office's Tourism
+     * Attraction Visitor Record has a Gender column under each of its three
+     * residence groups, and the residence grouping IS the address. So the form
+     * was accepting less than the sheet it exists to transcribe, and a record
+     * was reaching the municipality's figures with neither.
+     *
+     * Only lines that carry a NAME are checked. A paper page has ruled lines
+     * below the last visitor and the form shows blank rows for them; validating
+     * those would make an ordinary half-full page unsaveable.
+     *
+     * Returns errors keyed by the line number the manager sees, so the page can
+     * mark the row rather than saying "something is wrong somewhere".
+     *
+     * @param  array<int, array<string, string|null>> $rows
+     * @return array<int, array<string, string>>
+     */
+    public static function validate(array $rows): array
+    {
+        $errors = [];
+        $lineNo = 0;
+
+        foreach ($rows as $row) {
+            if (trim((string) ($row['full_name'] ?? '')) === '') {
+                continue;
+            }
+
+            if (++$lineNo > self::MAX_ROWS_PER_PAGE) {
+                break;
+            }
+
+            $line = [];
+
+            if (!in_array(trim((string) ($row['sex'] ?? '')), ['male', 'female'], true)) {
+                $line['sex'] = "Please select the visitor's gender.";
+            }
+
+            $address = trim((string) ($row['address_text'] ?? ''));
+
+            if ($address === '') {
+                $line['address_text'] = "Please enter the visitor's address or place of residence.";
+            } elseif (
+                in_array(mb_strtolower($address), self::ADDRESS_PLACEHOLDERS, true)
+                /* Punctuation, digits and spaces only — "---", "...", "123". */
+                || preg_match('/^[\p{P}\p{S}\p{Z}\d]+$/u', $address) === 1
+                || mb_strlen($address) < 3
+            ) {
+                $line['address_text'] = 'Enter a real place of residence, not a placeholder.';
+            }
+
+            if ($line !== []) {
+                $errors[$lineNo] = $line;
+            }
+        }
+
+        return $errors;
+    }
+
     // -------------------------------------------------------------------------
     // Reads
     // -------------------------------------------------------------------------
@@ -163,6 +238,22 @@ final class LogbookEntryRepository
      */
     public static function replaceForDate(int $reportId, string $date, array $rows): void
     {
+        /* THE LAST GATE BEFORE THE INSERT, and deliberately not the only one.
+           The screen validates so the manager is told which line is wrong while
+           they are looking at it; this refuses so that a second caller, a
+           replayed POST or a future API cannot write a line the screen would
+           have rejected. A caller reaching here with invalid rows is a
+           programming error, which is why it throws rather than filtering them
+           out — silently dropping a visitor is how a total goes wrong. */
+        $invalid = self::validate($rows);
+
+        if ($invalid !== []) {
+            throw new \InvalidArgumentException(
+                'Refusing to save logbook lines that are missing a gender or an address: line(s) '
+                . implode(', ', array_keys($invalid)) . '.'
+            );
+        }
+
         Database::transaction(static function () use ($reportId, $date, $rows): void {
             Database::run(
                 'DELETE FROM arrival_report_entries WHERE report_id = ? AND visit_date = ?',

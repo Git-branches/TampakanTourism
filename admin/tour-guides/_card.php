@@ -68,6 +68,15 @@ $tgidAsset = static fn(string $rel): bool => is_file(dirname(APP_PATH) . DIRECTO
 $tgidSeal      = $tgidAsset('tampakan-seal.png') ? asset('img/tampakan-seal.png') : asset('img/tampakan_logo.png');
 $tgidWatermark = $tgidAsset('tourism-logo.png')  ? asset('img/tourism-logo.png')  : null;
 
+/* The Tourism Office mark that stands BESIDE the seal at the top of the card.
+   tourism-logo-mark.png is the office's upload with its blank margin cropped
+   off and a real transparent background; the upload itself is JPEG data behind
+   a .png name, and inside a 18mm medallion its baked-in margin drew the mark a
+   third smaller than the seal next to it. Falls back to the upload, then to
+   nothing — an empty medallion is worse than one mark. */
+$tgidCrestMark = $tgidAsset('tourism-logo-mark.png') ? asset('img/tourism-logo-mark.png')
+    : ($tgidAsset('tourism-logo.png') ? asset('img/tourism-logo.png') : null);
+
 $tgidOfficeName    = trim((string) (setting('office_name', '') ?? '')) ?: 'Municipal Tourism Office';
 $tgidOfficeAddress = trim((string) (setting('office_address', '') ?? ''));
 $tgidOfficePhone   = trim((string) (setting('office_phone', '') ?? ''));
@@ -75,6 +84,24 @@ $tgidOfficeEmail   = trim((string) (setting('office_email', '') ?? ''));
 $tgidOfficeFb      = trim((string) (setting('office_facebook', '') ?? ''));
 $tgidMunicipality  = trim((string) (setting('office_municipality', '') ?? '')) ?: 'Tampakan';
 $tgidProvince      = trim((string) (setting('office_province', '') ?? '')) ?: 'South Cotabato';
+
+/* WHO ISSUED THE CARD, read from the same settings rows the About page uses.
+   Not hard-coded: the office was explicit that the Mayor and the Tourism
+   Coordinator are edited from Admin > Settings and nowhere else, and an ID that
+   still names last term's mayor is worse than one that names nobody.
+
+   Each block is drawn only when its name is filled, so a half-configured
+   office gets one signatory rather than a blank line over a printed title. */
+$tgidOfficials = array_values(array_filter([
+    [
+        'name'     => trim((string) (setting('about_coordinator_name', '') ?? '')),
+        'position' => trim((string) (setting('about_coordinator_position', '') ?? '')) ?: 'Municipal Tourism Coordinator',
+    ],
+    [
+        'name'     => trim((string) (setting('about_mayor_name', '') ?? '')),
+        'position' => trim((string) (setting('about_mayor_position', '') ?? '')) ?: 'Municipal Mayor',
+    ],
+], static fn(array $o): bool => $o['name'] !== ''));
 
 /* office_municipality holds "Municipality of Tampakan", which is right on a
    letterhead and wrong twice here: the masthead already says MUNICIPAL TOURISM
@@ -96,12 +123,28 @@ $tgidIcons = [
     'mail'     => '<path d="M4 5h16a1 1 0 011 1v12a1 1 0 01-1 1H4a1 1 0 01-1-1V6a1 1 0 011-1z"/><path d="M3.6 6.4l8.4 5.6 8.4-5.6" fill="none" stroke="#fff"/>',
 ];
 
+/**
+ * $size is given the same way every other dimension on this card is — in
+ * millimetres, as a string like "2.4 mm" — but it is emitted through the STYLE
+ * attribute rather than SVG's own width/height.
+ *
+ * The reason is that the card's geometry is one variable: every length in the
+ * stylesheet is a multiple of --tgid-u, so the whole card resizes by changing
+ * that one number. SVG presentation attributes do not accept calc(), so an icon
+ * sized through a plain width attribute would be the only thing on the card
+ * NOT following --tgid-u, and it would quietly stay small the next time the office
+ * asks for a bigger card. Inline CSS does accept calc(), so it goes there.
+ */
 $tgidIcon = static function (string $name, string $size, bool $filled = false) use ($tgidIcons): string {
     if (!isset($tgidIcons[$name])) {
         return '';
     }
 
-    return '<svg viewBox="0 0 24 24" width="' . $size . '" height="' . $size . '" aria-hidden="true" '
+    $mm = (float) rtrim(trim($size), 'm');
+    $px = 'calc(' . $mm . ' * var(--tgid-u))';
+
+    return '<svg viewBox="0 0 24 24" aria-hidden="true" '
+        . 'style="width:' . $px . ';height:' . $px . ';flex-shrink:0" '
         . 'fill="' . ($filled ? 'currentColor' : 'none') . '" stroke="currentColor" stroke-width="1.5" '
         . 'stroke-linecap="round" stroke-linejoin="round">' . $tgidIcons[$name] . '</svg>';
 };
@@ -110,7 +153,44 @@ $tgidIcon = static function (string $name, string $size, bool $filled = false) u
 <style>
     .tgid-root {
         --tgid-forest:#123D1E; --tgid-forest-deep:#0C2E15; --tgid-gold:#C0912F;
-        --tgid-ink:#16211A; --tgid-muted:#5A6B60; --tgid-line:#DCE4DE; --tgid-paper:#FBFAF7;
+
+        /* GOLD FOR RULES, A DARKER GOLD FOR WORDS.
+           #C0912F is the card's accent and it is right for the hairlines and the
+           borders on the dark bands. As TEXT on the cream paper it measures
+           2.74:1 — "TOUR GUIDE", the guide's role, sat below AA on the one line
+           an inspector reads after the name. This is the same colour at the same
+           hue, dark enough to pass: 4.64:1 against #FBFAF7.
+
+           Long-standing, not introduced by the A6 rework — found by measuring
+           the card rather than looking at it. */
+        --tgid-gold-ink:#96691A;
+
+        --tgid-ink:#16211A;
+
+        /* ============ THE CARD'S SIZE, IN ONE PLACE ============
+           A6, 105 x 148mm, which is what the office asked for after printing
+           the old 2.63 x 3.88in card and finding it no bigger than a school ID
+           (measured: 1.43x a school ID's area, against A6's 3.4x).
+
+           --tgid-u is the unit every dimension in this stylesheet is a multiple
+           of, so the card scales as one piece. To resize the card, change these
+           three and nothing else; keep --tgid-u-base near height / 98.5, the
+           height the layout was originally drawn against.
+
+           Stated in millimetres because that is what the office types into a
+           card printer. */
+        --tgid-w: 105mm;
+        --tgid-h: 148mm;
+        --tgid-u-base: 1.5mm;
+
+        /* Everything reads --tgid-u; only the back face overrides it, through
+           the multiplier below, so a change to --tgid-u-base still moves the
+           whole card together. A custom property cannot be defined in terms of
+           itself, which is why the base is a separate name. */
+        --tgid-u: var(--tgid-u-base);
+        --tgid-back-k: 1;
+
+        --tgid-muted:#5A6B60; --tgid-line:#DCE4DE; --tgid-paper:#FBFAF7;
     }
     * { box-sizing: border-box; }
 
@@ -118,23 +198,29 @@ $tgidIcon = static function (string $name, string $size, bool $filled = false) u
 
 
     /* ==================== THE PREVIEW SCALE ====================
-       A browser draws an inch as 96 px, so a 2.63 in card is 252 px across on
-       screen — genuinely too small to read, while printing at exactly the right
-       size. Those are two different problems and this solves only the first:
-       --s magnifies the PREVIEW and is forced back to 1 for print, so what
-       comes out of the printer is untouched. */
-    .tgid-root { --tgid-s: 1.7; }
+       ONE TO ONE, and that is the point.
+
+       This used to magnify the preview 1.7x, because the old 2.63in card was
+       only 252px across and hard to read on screen. It also meant the office
+       approved a card shown at 113 x 167mm and then printed one at 67 x 99mm,
+       which is why the printed card came as a shock. A preview that lies about
+       size is worse than a preview that is small.
+
+       At A6 there is no longer a reason to lie: 105mm is 397px, perfectly
+       readable. The scale only comes DOWN now, and only to fit a narrow screen.
+       It is still forced to 1 for print, so nothing here can reach the paper. */
+    .tgid-root { --tgid-s: 1; }
 
     .tgid-stage-outer {
-        width: calc(2.63in * var(--tgid-s));
-        height: calc(3.88in * var(--tgid-s));
+        width: calc(var(--tgid-w) * var(--tgid-s));
+        height: calc(var(--tgid-h) * var(--tgid-s));
         margin: 0 auto;
     }
 
     /* The scale lives here, on the perspective container, so the flip inside is
        a clean rotateY with nothing else mixed into its transform. */
     .tgid-stage {
-        width: 2.63in; height: 3.88in;
+        width: var(--tgid-w); height: var(--tgid-h);
         perspective: 1600px;
         transform: scale(var(--tgid-s));
         transform-origin: top left;
@@ -211,19 +297,21 @@ $tgidIcon = static function (string $name, string $size, bool $filled = false) u
     /* ---------- smaller screens ---------- */
     /* The card keeps its proportions and simply gets a smaller --s; nothing is
        reflowed, because a card that reflows is not a card. */
-    @media (max-width: 900px) { .tgid-root { --tgid-s: 1.4; } }
-    @media (max-width: 640px) { .tgid-root { --tgid-s: 1.15; } }
-    @media (max-width: 420px) { .tgid-root { --tgid-s: .95; } }
+    /* A6 is 397px wide at 1:1, so these only shrink it enough to clear the
+       viewport — never above 1, which would put the preview back to overstating
+       the card the office is about to print. */
+    @media (max-width: 640px) { .tgid-root { --tgid-s: .88; } }
+    @media (max-width: 480px) { .tgid-root { --tgid-s: .72; } }
+    @media (max-width: 380px) { .tgid-root { --tgid-s: .6;  } }
 
     /* ============================ THE CARD ============================
-       2.63 x 3.88 in. Stated in inches because that is the number the office
-       types into a card printer, and a rounded millimetre equivalent is how a
-       batch comes back a hair short. */
+       Its size is --tgid-w x --tgid-h, declared once at the top of this
+       stylesheet. Nothing here should state a dimension of its own. */
     .tgid-card {
         position: relative;
-        width: 2.63in; height: 3.88in;
+        width: var(--tgid-w); height: var(--tgid-h);
         background: var(--tgid-paper);
-        border-radius: 4mm;
+        border-radius: calc(4 * var(--tgid-u));
         overflow: hidden;
         display: flex; flex-direction: column;
         box-shadow: 0 3px 14px rgba(0,0,0,.13);
@@ -234,21 +322,21 @@ $tgidIcon = static function (string $name, string $size, bool $filled = false) u
        altogether when the file is missing — see the note in the PHP above. */
     .tgid-watermark {
         position: absolute; left: 50%; bottom: 9%;
-        width: 48mm; height: 48mm; transform: translateX(-50%);
+        width: calc(48 * var(--tgid-u)); height: calc(48 * var(--tgid-u)); transform: translateX(-50%);
         object-fit: contain; opacity: .06; pointer-events: none; z-index: 0;
     }
 
     /* ---------- crest band, curved ---------- */
     .tgid-band {
-        position: relative; flex-shrink: 0; height: 11mm;
+        position: relative; flex-shrink: 0; height: calc(11 * var(--tgid-u));
         background: linear-gradient(160deg, var(--tgid-forest) 0%, var(--tgid-forest-deep) 100%);
     }
     /* The paper rises into the band as a wide ellipse, and its gold border
        follows the curve because a border on a rounded box always does. */
     .tgid-band::after {
-        content: ''; position: absolute; left: -14%; right: -14%; bottom: -6mm;
-        height: 9.5mm; background: var(--tgid-paper);
-        border-top: .5mm solid var(--tgid-gold);
+        content: ''; position: absolute; left: -14%; right: -14%; bottom: calc(-6 * var(--tgid-u));
+        height: calc(9.5 * var(--tgid-u)); background: var(--tgid-paper);
+        border-top: calc(.5 * var(--tgid-u)) solid var(--tgid-gold);
         border-radius: 50% 50% 0 0 / 100% 100% 0 0;
     }
     /* A WHITE DISC UNDER THE SEAL.
@@ -256,46 +344,75 @@ $tgidIcon = static function (string $name, string $size, bool $filled = false) u
        band and the whole mark read as a smudge. The disc is what makes it a
        medallion: it separates the seal from the green above and the paper
        below, and it is the treatment the office's own artwork uses. */
-    .tgid-crest {
-        position: absolute; left: 50%; top: 1.6mm; transform: translateX(-50%);
-        width: 14mm; height: 14mm; z-index: 2;
-        padding: 1.1mm; background: #fff; border-radius: 50%;
-        object-fit: contain;
-        box-shadow: 0 .25mm .9mm rgba(0,0,0,.28);
+    /* TWO MEDALLIONS, SIDE BY SIDE AT THE TOP CENTRE — not one in each corner.
+       The office left the choice open. A corner-to-corner pair is the letterhead
+       convention and it belongs on a wide format; on a 105mm portrait card the
+       two marks end up 70mm apart with a hole between them, and each one sits
+       against the card's own corner radius. Centred, they read as a single
+       masthead and the office name below stays the width of the card.
+
+       Slightly smaller than the single crest was (12u against 14u) so the pair
+       plus its gap is 39.6mm — under 40% of the card's width, which is the point
+       past which a masthead starts competing with the photograph. */
+    .tgid-crests {
+        position: absolute; left: 50%; top: calc(1.6 * var(--tgid-u));
+        transform: translateX(-50%); z-index: 2;
+        display: flex; align-items: center; gap: calc(2.4 * var(--tgid-u));
     }
+    .tgid-crest {
+        width: calc(12 * var(--tgid-u)); height: calc(12 * var(--tgid-u));
+        padding: calc(1.1 * var(--tgid-u)); background: #fff; border-radius: 50%;
+        object-fit: contain;
+        box-shadow: 0 calc(.25 * var(--tgid-u)) calc(.9 * var(--tgid-u)) rgba(0,0,0,.28);
+    }
+    /* MATCHED BY WHAT IS INKED, not by the box.
+       In identical discs the two marks did not look identical: measured, the
+       municipal seal inks 96% of its canvas and the Tourism Office mark 85%
+       across and 66% down, so the same padding drew the tourism mark visibly
+       smaller and the pair read as a mistake. Less padding for the one with more
+       margin baked in brings the drawn artwork to the same width — 9.6u against
+       the seal's 9.4u. Still inside the disc: that asset is generated so its ink
+       fits the inscribed circle of its own canvas. */
+    .tgid-crest--mark { padding: calc(.35 * var(--tgid-u)); }
 
     /* ---------- the printed content ---------- */
     .tgid-body {
         position: relative; z-index: 1; flex: 1; min-height: 0;
-        padding: 5.2mm 5mm 0; text-align: center;
+        /* 3.8u of top padding, not 5.2u. That figure cleared a single 14u crest
+           hanging from the band; the masthead is now a pair of 12u medallions,
+           whose bottom edge sits at 13.6u against the band's 11u, so 2.6u is
+           what has to be cleared and 3.8u clears it with room. The 1.4u this
+           gives back is what lets the QR stay at 24mm — see the note on
+           .tgid-qrbox canvas for why that size is not negotiable downward. */
+        padding: calc(3.8 * var(--tgid-u)) calc(5 * var(--tgid-u)) 0; text-align: center;
         display: flex; flex-direction: column; align-items: center;
     }
 
     .tgid-office {
-        margin: 0; font-size: 3.1mm; font-weight: 800; line-height: 1.1;
+        margin: 0; font-size: calc(3.1 * var(--tgid-u)); font-weight: 800; line-height: 1.1;
         color: var(--tgid-forest); text-transform: uppercase;
     }
     .tgid-place {
-        margin: .5mm 0 0; font-size: 1.8mm; font-weight: 600; letter-spacing: .18em;
+        margin: calc(.5 * var(--tgid-u)) 0 0; font-size: calc(1.8 * var(--tgid-u)); font-weight: 600; letter-spacing: .18em;
         color: var(--tgid-ink); text-transform: uppercase;
     }
 
     /* Gold rule broken by a diamond, the way an official masthead divides. */
-    .tgid-rule { display: flex; align-items: center; gap: 1.2mm; width: 74%; margin: .8mm 0 0; }
-    .tgid-rule::before, .tgid-rule::after { content: ''; flex: 1; height: .3mm; background: var(--tgid-gold); }
-    .tgid-rule span { color: var(--tgid-gold); font-size: 2mm; line-height: 1; }
+    .tgid-rule { display: flex; align-items: center; gap: calc(1.2 * var(--tgid-u)); width: 74%; margin: calc(.8 * var(--tgid-u)) 0 0; }
+    .tgid-rule::before, .tgid-rule::after { content: ''; flex: 1; height: calc(.3 * var(--tgid-u)); background: var(--tgid-gold); }
+    .tgid-rule span { color: var(--tgid-gold-ink); font-size: calc(2 * var(--tgid-u)); line-height: 1; }
 
     .tgid-portrait {
-        width: 17mm; height: 20.5mm; margin-top: .8mm; flex-shrink: 0; object-fit: cover;
-        border: .7mm solid var(--tgid-forest); border-radius: 1.4mm; background: #EFF2F0;
+        width: calc(17 * var(--tgid-u)); height: calc(20.5 * var(--tgid-u)); margin-top: calc(.8 * var(--tgid-u)); flex-shrink: 0; object-fit: cover;
+        border: calc(.7 * var(--tgid-u)) solid var(--tgid-forest); border-radius: calc(1.4 * var(--tgid-u)); background: #EFF2F0;
     }
     .tgid-portrait--empty {
         display: flex; align-items: center; justify-content: center;
-        font-size: 2.1mm; color: var(--tgid-muted); text-align: center; padding: 2mm;
+        font-size: calc(2.1 * var(--tgid-u)); color: var(--tgid-muted); text-align: center; padding: calc(2 * var(--tgid-u));
     }
 
     .tgid-name {
-        margin: 1mm 0 0; font-size: 4.2mm; font-weight: 800; line-height: 1.08;
+        margin: calc(1 * var(--tgid-u)) 0 0; font-size: calc(4.2 * var(--tgid-u)); font-weight: 800; line-height: 1.08;
         color: var(--tgid-forest); text-transform: uppercase; word-break: break-word;
     }
     /* A LONG NAME SHRINKS RATHER THAN PUSHING THE CODE OFF THE CARD.
@@ -303,14 +420,14 @@ $tgidIcon = static function (string $name, string $size, bool $filled = false) u
        length in PHP rather than by script, because this page is printed and a
        layout that depends on JavaScript having run is one that sometimes has
        not. */
-    .tgid-name--long  { font-size: 3.6mm; }
-    .tgid-name--xlong { font-size: 3mm; }
+    .tgid-name--long  { font-size: calc(3.6 * var(--tgid-u)); }
+    .tgid-name--xlong { font-size: calc(3 * var(--tgid-u)); }
 
-    .tgid-role { display: flex; align-items: center; gap: 1.4mm; width: 72%; margin: .6mm 0 0; }
-    .tgid-role::before, .tgid-role::after { content: ''; flex: 1; height: .3mm; background: var(--tgid-gold); }
+    .tgid-role { display: flex; align-items: center; gap: calc(1.4 * var(--tgid-u)); width: 72%; margin: calc(.6 * var(--tgid-u)) 0 0; }
+    .tgid-role::before, .tgid-role::after { content: ''; flex: 1; height: calc(.3 * var(--tgid-u)); background: var(--tgid-gold); }
     .tgid-role span {
-        font-size: 2.3mm; font-weight: 700; letter-spacing: .22em;
-        color: var(--tgid-gold); text-transform: uppercase;
+        font-size: calc(2.3 * var(--tgid-u)); font-weight: 700; letter-spacing: .22em;
+        color: var(--tgid-gold-ink); text-transform: uppercase;
     }
 
     /* ---------- the two facts ---------- */
@@ -321,31 +438,39 @@ $tgidIcon = static function (string $name, string $size, bool $filled = false) u
        goes straight into the code. The icon boxes went with them: they were
        decoration, the code is the mechanism. */
     .tgid-facts {
-        width: 100%; margin-top: 1.4mm; display: flex; gap: 2mm;
-        border-top: .25mm solid var(--tgid-line); border-bottom: .25mm solid var(--tgid-line);
-        padding: 1.1mm 0;
+        width: 100%; margin-top: calc(1.4 * var(--tgid-u)); display: flex; gap: calc(2 * var(--tgid-u));
+        border-top: calc(.25 * var(--tgid-u)) solid var(--tgid-line); border-bottom: calc(.25 * var(--tgid-u)) solid var(--tgid-line);
+        padding: calc(1.1 * var(--tgid-u)) 0;
     }
     .tgid-fact { flex: 1; min-width: 0; text-align: center; }
-    .tgid-fact + .tgid-fact { border-left: .25mm solid var(--tgid-line); }
+    .tgid-fact + .tgid-fact { border-left: calc(.25 * var(--tgid-u)) solid var(--tgid-line); }
     .tgid-fact b {
-        display: flex; align-items: center; justify-content: center; gap: .8mm;
-        font-size: 1.85mm; font-weight: 700; letter-spacing: .06em;
+        display: flex; align-items: center; justify-content: center; gap: calc(.8 * var(--tgid-u));
+        font-size: calc(1.85 * var(--tgid-u)); font-weight: 700; letter-spacing: .06em;
         text-transform: uppercase; color: var(--tgid-forest); line-height: 1.2;
     }
     .tgid-fact b svg { flex-shrink: 0; }
     .tgid-fact span {
-        display: block; margin-top: .3mm; font-size: 2.5mm; font-weight: 800;
+        display: block; margin-top: calc(.3 * var(--tgid-u)); font-size: calc(2.5 * var(--tgid-u)); font-weight: 800;
         color: var(--tgid-ink); line-height: 1.2;
     }
 
     /* ---------- the code ---------- */
-    .tgid-qrwrap { margin-top: auto; padding-bottom: .7mm; display: flex; flex-direction: column; align-items: center; }
-    .tgid-qrbox { padding: .8mm; background: #fff; border: .4mm solid var(--tgid-gold); border-radius: 1.2mm; }
-    .tgid-qrbox canvas, .tgid-qrbox img { width: 18mm !important; height: 18mm !important; display: block; }
+    .tgid-qrwrap { margin-top: auto; padding-bottom: calc(.7 * var(--tgid-u)); display: flex; flex-direction: column; align-items: center; }
+    .tgid-qrbox { padding: calc(.8 * var(--tgid-u)); background: #fff; border: calc(.4 * var(--tgid-u)) solid var(--tgid-gold); border-radius: calc(1.2 * var(--tgid-u)); }
+    /* 16u — 24mm at A6, down from 18u (27mm). Those 3mm are what the signatory
+       band below is built from.
+
+       NOT a free choice. The verify URL comes out as a 50-module code, so at
+       24mm each module is 0.48mm. 0.4mm is the floor below which a phone camera
+       starts failing on paper, and 22.5mm left only 0.45mm — measured, not
+       assumed, in scratchpad/id-quality.cjs. Shrink this again and re-measure,
+       or the card's verification stops working in the one place it is used. */
+    .tgid-qrbox canvas, .tgid-qrbox img { width: calc(16 * var(--tgid-u)) !important; height: calc(16 * var(--tgid-u)) !important; display: block; }
     .tgid-qrlabel {
-        margin-top: .6mm; padding: .5mm 1.8mm; border-radius: .7mm;
+        margin-top: calc(.6 * var(--tgid-u)); padding: calc(.5 * var(--tgid-u)) calc(1.8 * var(--tgid-u)); border-radius: calc(.7 * var(--tgid-u));
         background: var(--tgid-forest-deep); color: #fff;
-        font-size: 1.6mm; font-weight: 700; letter-spacing: .11em;
+        font-size: calc(1.6 * var(--tgid-u)); font-weight: 700; letter-spacing: .11em;
     }
 
     /* ---------- tagline band, curved ---------- */
@@ -356,112 +481,227 @@ $tgidIcon = static function (string $name, string $size, bool $filled = false) u
        and the text is pinned to the bottom — so the curve finishes well above
        where the words begin. */
     .tgid-tag {
-        position: relative; flex-shrink: 0; height: 8.5mm;
+        position: relative; flex-shrink: 0; height: calc(8.5 * var(--tgid-u));
         background: linear-gradient(20deg, var(--tgid-forest) 0%, var(--tgid-forest-deep) 100%);
-        display: flex; align-items: flex-end; justify-content: center; gap: 1.2mm;
-        padding-bottom: 1.3mm; padding-left: 2mm; padding-right: 2mm;
+        display: flex; align-items: flex-end; justify-content: center; gap: calc(1.2 * var(--tgid-u));
+        padding-bottom: calc(1.3 * var(--tgid-u)); padding-left: calc(2 * var(--tgid-u)); padding-right: calc(2 * var(--tgid-u));
     }
     .tgid-tag::before {
-        content: ''; position: absolute; left: -14%; right: -14%; top: -6mm;
-        height: 8.4mm; background: var(--tgid-paper);
-        border-bottom: .5mm solid var(--tgid-gold);
+        content: ''; position: absolute; left: -14%; right: -14%; top: calc(-6 * var(--tgid-u));
+        height: calc(8.4 * var(--tgid-u)); background: var(--tgid-paper);
+        border-bottom: calc(.5 * var(--tgid-u)) solid var(--tgid-gold);
         border-radius: 0 0 50% 50% / 0 0 100% 100%;
     }
     .tgid-tag i, .tgid-tag span { position: relative; z-index: 1; }
-    .tgid-tag i { color: var(--tgid-gold); font-style: normal; font-size: 1.7mm; flex-shrink: 0; }
-    .tgid-tag span {
-        font-family: 'Segoe Script', 'Brush Script MT', 'Snell Roundhand', cursive;
-        /* Larger and near-white. A thin script at 2.3 mm in cream on dark
-           green is decoration that fails at the only size it is ever printed. */
-        /* 2.35 mm, which leaves ~3 mm of margin inside a 66.8 mm band. The
-           tagline was never unreadable because of its size — it was unreadable
-           because the gold arc crossed it at the midline. That is fixed above;
-           this only has to fit. */
-        font-size: 2.35mm; color: #FFFDF4;
-        /* NEVER two lines. The band is a fixed 7.5 mm and a wrapped tagline
-           grows upward over the QR code — which is the one thing on the front
-           that has to stay scannable. */
-        white-space: nowrap;
+    .tgid-tag i { color: var(--tgid-gold); font-style: normal; font-size: calc(1.7 * var(--tgid-u)); flex-shrink: 0; }
+
+    /* ---------- the signatory band ---------- */
+    /* THE LAST BAND NAMES THE AUTHORITY, not a slogan.
+
+       Two blocks, Coordinator then Mayor, reading left to right in the order the
+       card is approved. Each is a name over a title; there is no signature rule,
+       because nobody signs 19 cards by hand and a printed line nobody signs on
+       is a lie about how the card is issued.
+
+       Straight sans, not the cursive the slogan used. Both lines are near-white
+       on the dark green gradient, which measures better than 12:1 — the script
+       it replaces failed at the same colour purely on letterform. */
+    .tgid-sign {
+        position: relative; flex-shrink: 0;
+        background: linear-gradient(20deg, var(--tgid-forest) 0%, var(--tgid-forest-deep) 100%);
+        border-top: calc(.5 * var(--tgid-u)) solid var(--tgid-gold);
+        /* STRETCH, so the two blocks are the same height whatever their names
+           do. "HON. LEONARD T. ESCOBILLO, RN" takes two lines in half a 105mm
+           card and "ROSELILY T. JOYNO, MDMG" takes one; left to size themselves
+           the two titles sat at different heights and the band read as crooked.
+           Stretched, with the title pushed to the bottom of its block, the two
+           titles line up however the names fall. */
+        display: flex; align-items: stretch; justify-content: center;
+        gap: calc(3 * var(--tgid-u));
+        padding: calc(2 * var(--tgid-u)) calc(3 * var(--tgid-u)) calc(2.2 * var(--tgid-u));
+    }
+    .tgid-sign__who {
+        flex: 1 1 0; min-width: 0; text-align: center;
+        display: flex; flex-direction: column;
+    }
+    .tgid-sign__who + .tgid-sign__who {
+        border-left: calc(.2 * var(--tgid-u)) solid rgba(255, 255, 255, .22);
+    }
+    .tgid-sign__who b {
+        display: block; font-size: calc(2.05 * var(--tgid-u)); font-weight: 800;
+        line-height: 1.15; color: #FFFDF4; text-transform: uppercase;
+        letter-spacing: .01em;
+        /* The names are the office's own and can be long — "HON. LEONARD T.
+           ESCOBILLO, RN" is 29 characters in half a 105mm card. It wraps rather
+           than being cut: an ID that abbreviates an official's name is the same
+           fault as one that abbreviates the guide's. */
+        overflow-wrap: anywhere;
+    }
+    .tgid-sign__who span {
+        /* margin-top: auto pins the title to the bottom of a stretched block,
+           which is what keeps the two titles on one line across the band. */
+        display: block; margin-top: auto; padding-top: calc(.5 * var(--tgid-u));
+        font-size: calc(1.6 * var(--tgid-u)); line-height: 1.2;
+        color: #CBDCCB; letter-spacing: .04em;
     }
 
     /* ============================ BACK ============================ */
+    /* ============ THE BACK FACE IS THE DENSE ONE ============
+       It carries a certification paragraph, two headed sections, the guide's
+       address and phone, up to five credentials and the conditions line, all in
+       the space the front gives to a photograph and a QR code. It has ALWAYS
+       been slightly too tall — measured at the old size it overran its region by
+       4.5mm and the conditions ran under the address band; enlarging the card to
+       A6 scaled that to 6.3mm and made it obvious.
+
+       So the back takes a slightly smaller unit, and takes a smaller one again
+       when the credential list is long. The step is a multiplier rather than a
+       millimetre value so that resizing the card still moves this with it.
+
+       The numbers are measured, not judged — millimetres of spare room below the
+       conditions line, by credential count:
+
+           credentials      1     2     3     4     5
+           k = 1    (1.50) 11.5   6.6   1.7  over  over
+           k = .88  (1.32) 21.6  17.3  13.0   8.6   4.3
+
+       Five is the most that can appear: the list is capped there and the
+       verification page carries the rest. 17 of the 19 guides on the roster
+       carry one or two, so the common card keeps the full A6 scale. */
+    .tgid-back__body { --tgid-u: calc(var(--tgid-u-base) * var(--tgid-back-k)); }
+    .tgid-back__body--tight { --tgid-back-k: .88; }
+
     .tgid-back__body {
         position: relative; z-index: 1; flex: 1; min-height: 0;
-        padding: 5.2mm 5mm 1.2mm; display: flex; flex-direction: column;
+        padding: calc(5.2 * var(--tgid-u)) calc(5 * var(--tgid-u)) calc(1.2 * var(--tgid-u)); display: flex; flex-direction: column;
     }
     .tgid-back__office {
-        margin: 0; text-align: center; font-size: 3mm; font-weight: 800;
+        margin: 0; text-align: center; font-size: calc(3 * var(--tgid-u)); font-weight: 800;
         color: var(--tgid-forest); text-transform: uppercase;
     }
+    /* The slogan the front could not carry. Italic rather than cursive: it still
+       reads as a motto, and it survives a printer at 2mm where a script face
+       does not. */
+    .tgid-slogan {
+        margin: calc(.8 * var(--tgid-u)) 0 0; text-align: center;
+        font-size: calc(2 * var(--tgid-u)); font-style: italic;
+        color: var(--tgid-forest); line-height: 1.2;
+    }
     .tgid-ribbon {
-        margin: 1.2mm 0 0; padding: .9mm; text-align: center;
-        background: var(--tgid-forest); color: #fff; border-radius: 1mm;
-        font-size: 2.1mm; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+        margin: calc(1.2 * var(--tgid-u)) 0 0; padding: calc(.9 * var(--tgid-u)); text-align: center;
+        background: var(--tgid-forest); color: #fff; border-radius: calc(1 * var(--tgid-u));
+        font-size: calc(2.1 * var(--tgid-u)); font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
     }
     .tgid-certify {
-        margin: 1.1mm 0 0; text-align: center; font-size: 2.05mm; line-height: 1.36; color: var(--tgid-ink);
+        margin: calc(1.1 * var(--tgid-u)) 0 0; text-align: center; font-size: calc(2.05 * var(--tgid-u)); line-height: 1.36; color: var(--tgid-ink);
     }
 
-    .tgid-sec { margin-top: 1.5mm; }
-    .tgid-sec__head { display: flex; align-items: center; gap: 1.6mm; }
+    .tgid-sec { margin-top: calc(1.5 * var(--tgid-u)); }
+    .tgid-sec__head { display: flex; align-items: center; gap: calc(1.6 * var(--tgid-u)); }
     .tgid-sec__dot {
-        flex-shrink: 0; width: 4.8mm; height: 4.8mm; border-radius: 50%;
+        flex-shrink: 0; width: calc(4.8 * var(--tgid-u)); height: calc(4.8 * var(--tgid-u)); border-radius: 50%;
         background: var(--tgid-forest); color: #fff;
         display: flex; align-items: center; justify-content: center;
     }
     .tgid-sec__head h4 {
-        flex: 1; margin: 0; font-size: 2.3mm; font-weight: 800; letter-spacing: .05em;
+        flex: 1; margin: 0; font-size: calc(2.3 * var(--tgid-u)); font-weight: 800; letter-spacing: .05em;
         color: var(--tgid-forest); text-transform: uppercase;
-        border-bottom: .3mm solid var(--tgid-gold); padding-bottom: .6mm;
+        border-bottom: calc(.3 * var(--tgid-u)) solid var(--tgid-gold); padding-bottom: calc(.6 * var(--tgid-u));
     }
-    .tgid-sec__rows { margin: .9mm 0 0; padding-left: 6.4mm; font-size: 2.1mm; line-height: 1.35; }
-    .tgid-sec__row { display: flex; align-items: flex-start; gap: 1.5mm; margin-bottom: .7mm; }
-    .tgid-sec__row svg { flex-shrink: 0; margin-top: .3mm; color: var(--tgid-forest); }
-    .tgid-sec__rows ul { margin: 0; padding-left: 3.2mm; }
-    .tgid-sec__rows li { margin-bottom: .45mm; }
+    .tgid-sec__rows { margin: calc(.9 * var(--tgid-u)) 0 0; padding-left: calc(6.4 * var(--tgid-u)); font-size: calc(2.1 * var(--tgid-u)); line-height: 1.35; }
+    .tgid-sec__row { display: flex; align-items: flex-start; gap: calc(1.5 * var(--tgid-u)); margin-bottom: calc(.7 * var(--tgid-u)); }
+    .tgid-sec__row svg { flex-shrink: 0; margin-top: calc(.3 * var(--tgid-u)); color: var(--tgid-forest); }
+    .tgid-sec__rows ul { margin: 0; padding-left: calc(3.2 * var(--tgid-u)); }
+    .tgid-sec__rows li { margin-bottom: calc(.45 * var(--tgid-u)); }
 
     .tgid-conditions {
-        margin: auto 0 0; padding-top: 1mm; text-align: center;
-        font-size: 1.8mm; line-height: 1.35; color: var(--tgid-muted);
+        margin: auto 0 0; padding-top: calc(1 * var(--tgid-u)); text-align: center;
+        font-size: calc(1.8 * var(--tgid-u)); line-height: 1.35; color: var(--tgid-muted);
     }
 
     /* The back's foot is a band rather than a curve — it carries three lines of
        address and a curve would eat the first of them. */
     .tgid-foot {
-        position: relative; flex-shrink: 0; padding: 1.8mm 4.2mm;
+        position: relative; flex-shrink: 0; padding: calc(1.8 * var(--tgid-u)) calc(4.2 * var(--tgid-u));
         background: linear-gradient(20deg, var(--tgid-forest) 0%, var(--tgid-forest-deep) 100%);
         /* 2.1 mm = 6 pt, the floor below which fine print stops being print.
            It was 1.85 mm (5.2 pt) and the office could not read its own address
            on the card. */
-        color: #EAF1EA; font-size: 2.1mm; line-height: 1.35; text-align: center;
+        color: #EAF1EA; font-size: calc(2.1 * var(--tgid-u)); line-height: 1.35; text-align: center;
     }
     /* NO CURVE HERE, and the comment above is why — I added one anyway on the
        first pass and it swallowed the first line of the address, because the
        ellipse reaches 4 mm down into the band. A straight gold rule does the
        same separating job and costs no height. */
-    .tgid-foot { border-top: .5mm solid var(--tgid-gold); }
+    .tgid-foot { border-top: calc(.5 * var(--tgid-u)) solid var(--tgid-gold); }
     /* Centred, because the band is a plaque rather than a list — everything
        else on this side is centred and a left-ragged block under it read as a
        mistake. */
     .tgid-foot__row { position: relative; z-index: 1; display: flex; align-items: flex-start;
-                 justify-content: center; gap: 1.5mm; text-align: left; }
-    .tgid-foot__row + .tgid-foot__row { margin-top: 1.1mm; padding-top: 1.1mm; border-top: .2mm solid rgba(255,255,255,.22); }
-    .tgid-foot__row svg { flex-shrink: 0; margin-top: .25mm; color: var(--tgid-gold); }
-    .tgid-foot__row span + svg { margin-left: 2mm; }
+                 justify-content: center; gap: calc(1.5 * var(--tgid-u)); text-align: left; }
+    .tgid-foot__row + .tgid-foot__row { margin-top: calc(1.1 * var(--tgid-u)); padding-top: calc(1.1 * var(--tgid-u)); border-top: calc(.2 * var(--tgid-u)) solid rgba(255,255,255,.22); }
+    .tgid-foot__row svg { flex-shrink: 0; margin-top: calc(.25 * var(--tgid-u)); color: var(--tgid-gold); }
+    .tgid-foot__row span + svg { margin-left: calc(2 * var(--tgid-u)); }
+
+    /* ==================== THE SHEET THE CARD PRINTS ON ====================
+       A4 LANDSCAPE, and it has to be said out loud.
+
+       This was the one printable page in the project with no @page rule, and
+       the omission is what the office felt. Two A6 cards side by side need
+       218mm; A4 PORTRAIT offers about 190mm of printable width, so the faces
+       wrapped, the pair then needed 308mm of height against A4's ~277mm, and
+       the browser's "fit to printable area" shrank the whole thing to make it
+       fit. A card that is printed at 88% is not an A6 card, and no amount of
+       care over the millimetres inside it survives that.
+
+       A4 landscape is 297 x 210mm. Two A6 side by side with their gap are
+       222 x 148mm.
+
+       THE PAGE MARGINS ARE WHAT CENTRE THE PAIR ON THE PAPER.
+       This used to be a flat 10mm, which keeps the printer's grippers off the
+       artwork and says nothing about where the content sits inside what is
+       left — and a block-level flex row starts at the top-left of it. The
+       office's preview showed both cards jammed into the corner of an otherwise
+       empty sheet, with no room to cut them out by hand.
+
+       The obvious fix, a full-height flex container, was tried and MEASURED, and
+       Chrome emits a second, blank sheet for every version of it: height 100%,
+       calc(100% - 2px), and 100% with overflow hidden all paginated. A block
+       that fills the page's content box is a rounding error away from spilling,
+       and the office would simply find a blank page in the tray.
+
+       So the page box is sized to the content instead. 31mm top and bottom
+       leaves exactly 148mm — the card's own height — and the horizontal centring
+       is done by flex inside the remaining 277mm. One sheet, centred.
+
+       31mm IS DERIVED FROM THE CARD: (210 - 148) / 2. @page cannot read a custom
+       property, so resizing the card means recomputing this by hand. It is not
+       left to memory: scratchpad/id-sheet.cjs asserts the margins on the paper
+       and fails if they drift. */
+    @page { size: A4 landscape; margin: 31mm 10mm; }
 
     @media print {
         .tgid-controls, .tgid-hint, .no-print { display: none !important; }
+
+        html, body { margin: 0; }
+
+        .tgid-root { --tgid-s: 1; }
+        .tgid-stage-outer, .tgid-stage { width: auto; height: auto; transform: none; perspective: none; margin: 0; }
 
         /* THE FLIP IS A SCREEN AFFORDANCE, NOT A DOCUMENT.
            Paper has no back to turn to, so everything 3D is undone and the two
            faces are laid out side by side at exactly 100%. Without this the
            printer would emit one face and a blank rectangle. */
-        .tgid-root { --tgid-s: 1; }
-        .tgid-stage-outer, .tgid-stage { width: auto; height: auto; transform: none; perspective: none; margin: 0; }
         .tgid-flip {
             position: static; width: auto; height: auto;
             transform: none !important; transform-style: flat; transition: none;
-            display: flex; gap: 8mm; flex-wrap: wrap;
+            display: flex; justify-content: center; align-items: center;
+            gap: calc(8 * var(--tgid-u));
+            /* NOT flex-wrap: wrap. Wrapping is what silently turned one
+               landscape sheet into two stacked cards taller than the paper. If
+               the pair no longer fits, that should be found here rather than
+               absorbed by the printer shrinking the card. */
+            flex-wrap: nowrap;
         }
         .tgid-face {
             position: static; inset: auto; transform: none !important;
@@ -512,10 +752,22 @@ $tgidIcon = static function (string $name, string $size, bool $filled = false) u
         html.tgid-printing .tgid-stage-outer,
         html.tgid-printing .tgid-stage-outer * { visibility: visible; }
 
-        /* Lifted to the page origin, because its ancestors are still laid out
-           where the dialog put them — centred, and possibly scrolled. */
+        /* Lifted off its ancestors, which are still laid out where the dialog
+           put them — centred in a scrolled sheet. `inset: 0` hands it the whole
+           page area instead of just the origin, and the flex centring then puts
+           the pair in the middle of the paper, matching what the standalone page
+           prints. Pinning it to top/left alone is what jammed both cards into
+           the corner of the sheet. */
         html.tgid-printing .tgid-stage-outer {
-            position: absolute; top: 0; left: 0; margin: 0;
+            /* FIXED, NOT ABSOLUTE. An absolutely positioned box is placed
+               against its nearest positioned ancestor, and measured here that
+               ancestor is the <dialog> itself — 33mm tall and offset inside a
+               scrolled admin shell, so `inset: 0` sized the stage to the dialog
+               and the pair landed 30mm off the left edge of the paper and 57mm
+               above its top. In paged media a fixed box is placed against the
+               PAGE, which is the frame this actually wants. */
+            position: fixed; inset: 0; margin: 0;
+            display: flex; align-items: center; justify-content: center;
         }
 
         /* Nothing between the card and the page may clip or scroll it. */
@@ -544,7 +796,20 @@ $tgidIcon = static function (string $name, string $size, bool $filled = false) u
             <!-- ============================ FRONT ============================ -->
             <div class="tgid-face tgid-face--front">
                 <div class="tgid-card">
-                <div class="tgid-band"><img class="tgid-crest" src="<?= e($tgidSeal) ?>" alt=""></div>
+                <div class="tgid-band">
+                    <?php /* BOTH MARKS, as the office asked on 2026-09-18: the
+                             Municipality is the authority the card is issued under,
+                             the Tourism Office is the office that issued it. The
+                             tourism mark is omitted rather than substituted when its
+                             file is missing — a wrong mark on an ID is worse than
+                             one mark. */ ?>
+                    <span class="tgid-crests">
+                        <img class="tgid-crest" src="<?= e($tgidSeal) ?>" alt="">
+                        <?php if ($tgidCrestMark !== null): ?>
+                            <img class="tgid-crest tgid-crest--mark" src="<?= e($tgidCrestMark) ?>" alt="">
+                        <?php endif; ?>
+                    </span>
+                </div>
                 <?php if ($tgidWatermark !== null): ?><img class="tgid-watermark" src="<?= e($tgidWatermark) ?>" alt=""><?php endif; ?>
 
                 <div class="tgid-body">
@@ -559,10 +824,14 @@ $tgidIcon = static function (string $name, string $size, bool $filled = false) u
                     <?php endif; ?>
 
                     <?php
-                    /* Measured at 2.63 in wide: past 22 characters a name needs a second
-                       line, past 30 a third. Two steps down keep every real name inside
-                       the card without ever truncating one — an ID that abbreviates a
-                       legal name is not an ID. */
+                    /* Past 22 characters a name needs a second line, past 30 a third.
+                       Two steps down keep every real name inside the card without ever
+                       truncating one — an ID that abbreviates a legal name is not an ID.
+
+                       The thresholds survived the move to A6: the card grew 1.57x wider
+                       while the type grew 1.5x with --tgid-u, so the characters that fit
+                       on a line changed by about 5% — not enough to move either step. If
+                       --tgid-w and --tgid-u ever stop scaling together, re-measure these. */
                     $tgidLen    = mb_strlen((string) $guide['full_name']);
                     /* PREFIXED HERE TOO. A class attribute built in PHP is invisible to any
                        search-and-replace that reads the markup, which is exactly how the
@@ -597,11 +866,28 @@ $tgidIcon = static function (string $name, string $size, bool $filled = false) u
                     </div>
                 </div>
 
-                <div class="tgid-tag">
-                    <i>&#10022;</i>
-                    <span>Promoting <?= e($tgidTown) ?>, Welcoming the World.</span>
-                    <i>&#10022;</i>
-                </div>
+                <?php /* WHO ISSUED IT, where a decorative slogan used to sit.
+                         The band carried "Promoting Tampakan, Welcoming the World."
+                         in a cursive face at 3.5mm on dark green. It had been
+                         reworked twice for legibility and the office still could not
+                         read it on the printed card — a thin script at that size on
+                         that ground does not survive a printer, whatever the arc
+                         above it does.
+
+                         What belongs in the last band of an official ID is the
+                         authority that issued it, which is also the thing the office
+                         asked for. The slogan moved to the back, where it is dark
+                         text on cream and can actually be read. */ ?>
+                <?php if ($tgidOfficials !== []): ?>
+                    <div class="tgid-sign">
+                        <?php foreach ($tgidOfficials as $o): ?>
+                            <div class="tgid-sign__who">
+                                <b><?= e($o['name']) ?></b>
+                                <span><?= e($o['position']) ?></span>
+                            </div>
+                        <?php endforeach; ?>
+                    </div>
+                <?php endif; ?>
                 </div>
             </div>
 
@@ -609,12 +895,38 @@ $tgidIcon = static function (string $name, string $size, bool $filled = false) u
             <?php /* No QR here. Deliberately — see the note at the top of this file. */ ?>
             <div class="tgid-face tgid-face--back">
                 <div class="tgid-card">
-                <div class="tgid-band"><img class="tgid-crest" src="<?= e($tgidSeal) ?>" alt=""></div>
+                <div class="tgid-band">
+                    <?php /* BOTH MARKS, as the office asked on 2026-09-18: the
+                             Municipality is the authority the card is issued under,
+                             the Tourism Office is the office that issued it. The
+                             tourism mark is omitted rather than substituted when its
+                             file is missing — a wrong mark on an ID is worse than
+                             one mark. */ ?>
+                    <span class="tgid-crests">
+                        <img class="tgid-crest" src="<?= e($tgidSeal) ?>" alt="">
+                        <?php if ($tgidCrestMark !== null): ?>
+                            <img class="tgid-crest tgid-crest--mark" src="<?= e($tgidCrestMark) ?>" alt="">
+                        <?php endif; ?>
+                    </span>
+                </div>
                 <?php if ($tgidWatermark !== null): ?><img class="tgid-watermark" src="<?= e($tgidWatermark) ?>" alt=""><?php endif; ?>
 
-                <div class="tgid-back__body">
+                <?php /* Three or more credentials and the back tightens a step — see
+                         the measured table beside .tgid-back__body in the stylesheet.
+                         Counted from what is RENDERED, not from what the guide holds:
+                         the list is capped at five below, and a guide with eight
+                         credentials shows the same five as a guide with five. */
+                    $tgidShown = min(count($tgidCreds), 5);
+                ?>
+                <div class="tgid-back__body<?= $tgidShown >= 3 ? ' tgid-back__body--tight' : '' ?>">
                     <h2 class="tgid-back__office"><?= e($tgidOfficeName) ?></h2>
-                    <div class="tgid-rule" style="width:60%; margin:1.4mm auto 0"><span>&#10022;</span></div>
+                    <?php /* The office's slogan, moved here off the front's last band.
+                             On the front it was near-white cursive on dark green and
+                             unreadable on paper at every size it was tried. Here it is
+                             dark green on cream — the same words, at a contrast the
+                             printer cannot lose. */ ?>
+                    <p class="tgid-slogan">Promoting <?= e($tgidTown) ?>, Welcoming the World.</p>
+                    <div class="tgid-rule" style="width:60%; margin:calc(1.4 * var(--tgid-u)) auto 0"><span>&#10022;</span></div>
 
                     <p class="tgid-ribbon">Tour Guide Identification</p>
 
