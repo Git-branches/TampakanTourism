@@ -817,14 +817,22 @@ $currentYear = date('Y');
      ====================================================================== -->
 <?php /* JOURNEY -> DESTINATION -> DISCOVERY, in about four seconds from click to
          homepage, on every opening.
-         The seal holds still and everything moves around it: the rings turn
-         slowly, a dashed route runs three-quarters of the way round, a small
-         aeroplane travels it once and arrives at a pin, and the ridgeline
-         beneath rises into view. Nothing bounces and nothing glows.
 
-         The route, the aeroplane and the pin are one inline SVG so the arc the
-         plane flies and the arc drawn on screen are the same numbers — a path
-         described twice is a path that drifts apart. */ ?>
+         THE OFFICE'S LOGO IS THE LOADER. It arrives once — a short fade and a
+         small rise to full size — and then holds perfectly still. Everything
+         else is quieter than it: one thin dashed route crossing the screen
+         above it, a small aeroplane flying that route once, a pin where the
+         route ends, and the ridgeline rising behind. Nothing spins, nothing
+         pulses, nothing glows.
+
+         WHAT THIS REPLACED: three coloured rings turning at three speeds
+         around the logo. They read as a template spinner that happened to have
+         a logo in the middle of it, and they competed with the one thing on
+         screen that carries the municipality's identity.
+
+         The route, the aeroplane and the pin share one set of numbers: the
+         path below is drawn by the SVG and flown by the plane's offset-path in
+         style.css. A path described twice is a path that drifts apart. */ ?>
 <div id="preloader" class="preloader" aria-hidden="true">
 
     <!-- Behind everything: the ridgeline, revealed upward. -->
@@ -836,40 +844,39 @@ $currentYear = date('Y');
     </svg>
 
     <div class="preloader__inner">
+        <?php /* TWO BOXES, ONE SCALE. The outer one is the size the layout
+                 sees — 460 x 300 multiplied by the scale for this screen — and
+                 the inner one keeps the true coordinates the route, the motion
+                 path and the pin are written in, scaled from its top-left
+                 corner. Scaling the single box did both jobs at once and did
+                 them twice: the width shrank by the scale and then the paint
+                 shrank again, leaving the logo 46px left of centre on a phone. */ ?>
         <div class="preloader__stage">
-            <?php /* THREE RINGS, ONE COLOUR EACH.
-                     Two of these used to be pseudo-elements carrying two border
-                     colours apiece, which read as one bi-coloured spinner. Real
-                     elements instead: each is a single colour, its own size, its
-                     own speed and its own direction, so they drift past one
-                     another rather than turning as a set. */ ?>
-            <div class="preloader__ring">
-                <i class="preloader__arc preloader__arc--blue"></i>
-                <i class="preloader__arc preloader__arc--green"></i>
-                <i class="preloader__arc preloader__arc--gold"></i>
-                <img src="<?= e(asset('img/tourism-logo-mark.png')) ?>" alt="" class="preloader__logo">
-            </div>
+          <div class="preloader__frame">
 
-            <svg class="preloader__route" viewBox="0 0 200 200" aria-hidden="true">
-                <?php /* Half a circle, over the top: away at the lower left and
-                         arriving at the upper right. Centred on the seal at
-                         100,100 with radius 72, the two ends sit at 45 degrees
-                         either side — 49.1,150.9 and 150.9,49.1 — which are ends
-                         of a diameter, so the sweep is exactly 180 degrees and
-                         the renderer has no radius to correct.
-                         The gap matters: a closed loop is an orbit, an open one
-                         is a trip. */ ?>
-                <?php /* pathLength normalises the arc to 100 units so the dash
-                         numbers in the CSS are readable ones rather than
-                         whatever 226.19 happens to be. It has to live here:
-                         it is an SVG attribute, not a CSS property. */ ?>
+            <?php /* ONE ROUTE, ACROSS THE SCREEN RATHER THAN AROUND THE LOGO.
+                     A ring around the logo is an orbit; a line that starts at
+                     one side and ends somewhere else is a journey. It passes
+                     ABOVE the logo, so the logo is never drawn over.
+
+                     360 x 220, and those numbers matter: the SVG viewBox, the
+                     offset-path coordinates in style.css and the stage box are
+                     all the same, so the route the plane flies is the route on
+                     screen with no scaling in between. Smaller screens scale
+                     the whole stage, which keeps every one of those in step.
+
+                     pathLength="100" normalises the curve to 100 units so the
+                     dash numbers in the CSS are readable ones. It is an SVG
+                     attribute, not a CSS property, so it lives here. */ ?>
+            <svg class="preloader__route" viewBox="0 0 460 300" aria-hidden="true">
                 <path class="preloader__path"
-                      d="M 49.1 150.9 A 72 72 0 1 1 150.9 49.1"
+                      d="M 18 214 C 110 206 176 160 246 118 C 318 74 386 50 440 46"
                       pathLength="100"
                       fill="none" stroke-linecap="round"/>
             </svg>
 
-            <?php /* The pin sits exactly where the arc ends: 150.9, 49.1. */ ?>
+            <?php /* Where the route ends: 440, 46. A pin points with its tip,
+                     so it is offset up by its own height. */ ?>
             <span class="preloader__pin" aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="none">
                     <path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11Z"
@@ -879,23 +886,36 @@ $currentYear = date('Y');
                 </svg>
             </span>
 
-            <?php /* Travels the same arc through CSS offset-path, so it banks
-                     into the turn on its own — offset-rotate does the pointing. */ ?>
+            <?php /* Flies the same curve through CSS offset-path, so it banks
+                     into the turn on its own — offset-rotate does the pointing,
+                     with no keyframe about rotation anywhere. */ ?>
             <span class="preloader__plane" aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="currentColor">
                     <path d="M21.6 11.1 14 9.3 9.9 2.6a.9.9 0 0 0-1.6.1l-1 2.2a.9.9 0 0 0 .1.9l2.9 4.1-3.7-.9-1.5-1.9a.7.7 0 0 0-.7-.2l-1.1.3a.7.7 0 0 0-.4 1l1.2 2.4-1.2 2.4a.7.7 0 0 0 .4 1l1.1.3a.7.7 0 0 0 .7-.2l1.5-1.9 3.7-.9-2.9 4.1a.9.9 0 0 0-.1.9l1 2.2a.9.9 0 0 0 1.6.1L14 14.7l7.6-1.8a.9.9 0 0 0 0-1.8Z"/>
                 </svg>
             </span>
+
+            <?php /* Last in the stage, so it sits above the route: the office's
+                     own logo, exactly as they drew it. */ ?>
+            <img src="<?= e(asset('img/tourism-logo-mark.png')) ?>"
+                 alt="Tampakan Municipal Tourism Office" class="preloader__logo"
+                 width="210" height="210">
+          </div>
         </div>
 
         <p class="preloader__text">Tampakan Tourism</p>
 
-        <?php /* The three words the whole animation is acting out, said plainly
+        <?php /* The three words the animation is acting out, said plainly
                  underneath it. The arrows are real characters rather than
                  images so they inherit the colour and scale with the type. */ ?>
-        <p class="preloader__tagline">Journey <span>&rarr;</span> Destination <span>&rarr;</span> Discovery</p>
+        <p class="preloader__tagline">
+            <span class="preloader__tagline-words">
+                Journey <span>&rarr;</span> Destination <span>&rarr;</span> Discovery
+            </span>
+        </p>
 
         <span class="preloader__bar"><i></i></span>
+        <p class="preloader__status">Loading<span aria-hidden="true">...</span></p>
     </div>
 </div>
 

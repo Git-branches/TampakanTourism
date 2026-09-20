@@ -1,0 +1,17 @@
+# The test suite is not part of the website.
+#
+# MEASURED, NOT ASSUMED. Before this file existed, a browser could request
+# /tests/run.php and the whole suite RAN on the server: rows created and
+# deleted in the live database, officer sessions minted, maintenance mode
+# toggled on and off. Anyone who could reach the site could do it.
+#
+# Denied here, and tests/bootstrap.php refuses to run unless PHP is on the
+# command line — two locks, because this one is a file somebody can forget to
+# copy and that one is a file somebody can forget to configure.
+<IfModule mod_authz_core.c>
+    Require all denied
+</IfModule>
+<IfModule !mod_authz_core.c>
+    Order allow,deny
+    Deny from all
+</IfModule>

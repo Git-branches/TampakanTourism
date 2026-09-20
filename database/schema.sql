@@ -3,7 +3,7 @@
 --  Tourism Municipal Office Information Management System
 --  Municipal Tourism Office, Tampakan, South Cotabato
 -- -----------------------------------------------------------------------------
---  Generated 2026-09-19 from the running database, so a fresh install gets
+--  Generated 2026-09-20 from the running database, so a fresh install gets
 --  exactly the structure the system uses: 42 tables, InnoDB, utf8mb4_unicode_ci.
 --  Target  : MySQL 8.0+ / MariaDB 10.4+
 --
@@ -92,6 +92,7 @@ CREATE TABLE `activity_logs` (
   KEY `idx_log_entity` (`entity_type`,`entity_id`),
   KEY `idx_log_action` (`action`),
   KEY `idx_log_manager` (`manager_id`,`created_at`),
+  KEY `idx_activity_when` (`created_at`),
   CONSTRAINT `fk_log_admin` FOREIGN KEY (`admin_id`) REFERENCES `admins` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_log_manager` FOREIGN KEY (`manager_id`) REFERENCES `destination_managers` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -545,7 +546,6 @@ CREATE TABLE `destinations` (
   `short_description` varchar(300) DEFAULT NULL,
   `description` text DEFAULT NULL,
   `history` text DEFAULT NULL,
-  `cultural_heritage` text DEFAULT NULL,
   `operating_hours` varchar(160) DEFAULT NULL,
   `entrance_fee` varchar(120) DEFAULT NULL,
   `facilities` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`facilities`)),
@@ -871,6 +871,7 @@ CREATE TABLE `sms_inbox` (
   UNIQUE KEY `uniq_inbox_ref` (`provider_ref`),
   KEY `idx_inbox_outcome` (`outcome`,`created_at`),
   KEY `fk_inbox_alert` (`alert_id`),
+  KEY `idx_inbox_when` (`created_at`),
   CONSTRAINT `fk_inbox_alert` FOREIGN KEY (`alert_id`) REFERENCES `destination_alerts` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

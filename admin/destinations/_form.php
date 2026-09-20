@@ -99,16 +99,15 @@ $grpBody = $inSheet ? 'sheet__fields' : 'panel__body';
                     <p class="field-hint">Appears on the QR information page — the screen a tourist reads while standing there.</p>
                 </div>
 
-                <div class="col-12">
-                    <label for="cultural_heritage" class="form-label">Cultural heritage</label>
-                    <textarea id="cultural_heritage" name="cultural_heritage" rows="4" class="form-control"
-                              placeholder="What this place means to the community — traditions, beliefs, indigenous significance, how it should be treated"><?= e((string) ($d['cultural_heritage'] ?? '')) ?></textarea>
-                    <p class="field-hint">
-                        One of the three things the QR sign carries. Written for a visitor standing at the
-                        site, not for a brochure.
-                    </p>
-                </div>
-
+                <?php /* THE "CULTURAL HERITAGE" FIELD WAS HERE, and it was a trap:
+                         it saved to destinations.cultural_heritage and no page
+                         ever read that column back. An officer could write about
+                         a place, press Save, and the words would exist only in a
+                         table. Cultural Heritage is written once for the whole
+                         municipality now, in Settings → Public site → About, and
+                         the column was dropped on 2026-09-20 (no row had ever
+                         held anything). Historical background above is still
+                         per-destination and still on the QR page. */ ?>
                 <div class="col-12">
                     <div class="form-check">
                         <input type="checkbox" class="form-check-input" id="is_featured" name="is_featured" value="1"

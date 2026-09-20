@@ -339,8 +339,11 @@
       "Bash(php -l manager/_partials/head.php)",
       "Bash(php tests/notification-housekeeping.php)",
       "Bash(/c/xampp/mysql/bin/mysql.exe -u root -N toursync -e \"SELECT COUNT\\(*\\) FROM admin_notifications WHERE title LIKE 'ZZQA%'; SELECT COUNT\\(*\\) FROM admins; SELECT COUNT\\(*\\) FROM destinations WHERE name LIKE 'ZZQA%'; SELECT COUNT\\(*\\) FROM admin_notifications; SELECT COUNT\\(*\\) FROM manager_notifications;\")",
-      "Bash(sed -i 's/^\\\\*\\\\*NOT DONE:\\\\*\\\\* the ERD, database design and data dictionary docs \\(planned for$/**NOT DONE:** the ERD, database design and data dictionary docs \\(planned for/; s/^`docs\\\\/database\\\\/`\\), and the full test suite has not been re-run since the file move\\\\.$/`docs\\\\/database\\\\/`\\). Tests re-run after the move: 28\\\\/28 passing./; s/^The last run was 27\\\\/27, just before the move\\\\.$/Notification housekeeping \\(App\\\\\\\\Core\\\\\\\\Housekeeping, daily, read-by-all + 180 days\\) added the same day./' final-structure-2026-09-19.md)",
-      "Bash(sed -i 's/48 files moved out; ERD\\\\/dictionary docs and a post-move test run still pending\\\\./48 files moved out, 28\\\\/28 tests pass; ERD\\\\/dictionary docs still pending./' MEMORY.md)"
+      "Bash(sed -i 's/48 files moved out; ERD\\\\/dictionary docs and a post-move test run still pending\\\\./48 files moved out, 28\\\\/28 tests pass; ERD\\\\/dictionary docs still pending./' MEMORY.md)",
+      "Bash(php -l api/contact/data-request.php)",
+      "Bash(php -l api/contact/guide-review.php)",
+      "Bash(timeout 300 php tests/contact-inquiry.php)",
+      "Bash(php -l app/helpers.php)"
     ],
     "additionalDirectories": [
       "C:\\xampp\\htdocs\\TampakanTourism\\storage\\ratelimit",

@@ -1,6 +1,22 @@
 <?php
 declare(strict_types=1);
 
+/* THE COMMAND LINE ONLY, AND THIS IS LOAD-BEARING.
+ *
+ * The suites live inside the document root, so before this check a browser
+ * could request /tests/run.php and the server RAN it: rows written to and
+ * deleted from the live database, officer sessions minted, maintenance mode
+ * switched on and off — by anyone who could reach the site. Measured on this
+ * server; /tests/archive-section.php answered 200 and printed its results.
+ *
+ * tests/.htaccess denies the folder as well. This is the half that travels
+ * with the file: a server without AllowOverride, or a host that ignores
+ * .htaccess, still cannot run the suite through a browser. */
+if (PHP_SAPI !== 'cli') {
+    http_response_code(403);
+    exit('The TourSync test suite runs from the command line only: php tests/run.php');
+}
+
 /**
  * TourSync — shared scaffolding for the test suites.
  *
@@ -109,6 +125,57 @@ function test_sign_in_officer(): array
 }
 
 /**
+ * A throwaway destination manager, for a system that has none.
+ *
+ * Attached to the first active destination, named so it is obvious in the
+ * registry, and purged on the way IN as well as out — an interrupted run must
+ * not leave a sign-in behind on a system about to go live. The password hash is
+ * random and nobody is told it, so the account cannot be signed into by hand.
+ *
+ * @return array<string, mixed>|null the row, or null if there is no destination
+ */
+function test_make_qa_manager(): ?array
+{
+    $db = \App\Core\Database::class;
+
+    /* Anything left by a killed run, before anything else. */
+    foreach ($db::all("SELECT id FROM destination_managers WHERE full_name = '_qa_ Harness Manager'") as $old) {
+        $db::run('DELETE FROM activity_logs WHERE manager_id = ?', [$old['id']]);
+        $db::run('DELETE FROM destination_managers WHERE id = ?', [$old['id']]);
+    }
+
+    $destination = $db::first("SELECT id, name FROM destinations WHERE status = 'active' ORDER BY id LIMIT 1");
+
+    if ($destination === null) {
+        return null;
+    }
+
+    $id = $db::insert(
+        "INSERT INTO destination_managers
+            (destination_id, full_name, mobile_number, username, password_hash, is_active)
+         VALUES (?, '_qa_ Harness Manager', ?, ?, ?, 1)",
+        [
+            (int) $destination['id'],
+            '0992' . random_int(1000000, 9999999),
+            'qa.harness.' . bin2hex(random_bytes(2)),
+            \App\Core\ManagerAuth::hash(bin2hex(random_bytes(16))),
+        ]
+    );
+
+    register_shutdown_function(static function () use ($db, $id): void {
+        $db::run('DELETE FROM activity_logs WHERE manager_id = ?', [$id]);
+        $db::run('DELETE FROM destination_managers WHERE id = ?', [$id]);
+    });
+
+    return $db::first(
+        'SELECT m.*, d.name AS destination_name
+           FROM destination_managers m JOIN destinations d ON d.id = m.destination_id
+          WHERE m.id = ?',
+        [$id]
+    );
+}
+
+/**
  * Writes a signed-in DESTINATION MANAGER session and returns [session id, csrf].
  *
  * The arrival workflow spans two roles: a manager submits the month's figures
@@ -126,8 +193,18 @@ function test_sign_in_manager(): array
           ORDER BY m.id LIMIT 1'
     );
 
+    /* NONE ON THE SYSTEM — which is the normal state of a system prepared for
+       launch, and exactly when the suite is worth running. It used to return
+       ['', '', 0] here: every manager test then ran with an empty session and
+       either passed over nothing or handed 0 to a foreign key and died on a
+       fatal. One is created instead, and removed on the way out. */
     if ($m === null) {
-        return ['', '', 0];
+        $m = test_make_qa_manager();
+    }
+
+    if ($m === null) {
+        fwrite(STDERR, "  no active destination to attach a test manager to\n");
+        exit(1);
     }
 
     $sid   = bin2hex(random_bytes(16));

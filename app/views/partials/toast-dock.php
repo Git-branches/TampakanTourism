@@ -76,3 +76,40 @@ $flashes = isset($flashes) && is_array($flashes) ? $flashes : [];
         </div>
     <?php endforeach; ?>
 </div>
+
+<?php if ($flashes !== []): ?>
+<script>
+/* HIDDEN THE MOMENT IT IS PARSED, so the same message is not shown twice.
+ *
+ * The dock renders at the top of the page; notify.js turns each message into a
+ * toast on the right and removes the dock — but it runs from the foot, after
+ * the whole page. Between the two, the office saw the message appear on the
+ * LEFT, sit there while the page drew, and then appear AGAIN on the right. It
+ * reads as the system announcing itself twice.
+ *
+ * Hidden here rather than in CSS: a stylesheet cannot tell whether scripts run,
+ * and hiding the dock for a browser with JavaScript off would lose the message
+ * altogether. This line only executes where the redraw is going to happen.
+ * notify.js puts the dock back if SweetAlert never loaded. */
+(function () {
+    var dock = document.getElementById('toastDock');
+    if (!dock) { return; }
+
+    dock.hidden = true;
+
+    /* THE PROMISE HAS A DEADLINE. Hiding the dock is a bet that notify.js will
+       redraw these as toasts. If it does not — the file fails to load, a
+       browser extension blocks it, the vendor bundle 404s after a bad deploy —
+       the office would be told nothing at all, which is worse than being told
+       twice. So: if the dock is still here and still full after a moment, the
+       bet is off and the message is shown as the server wrote it.
+       notify.js removes the dock when it has drawn the toasts, so the usual
+       case finds nothing here to reveal. */
+    window.setTimeout(function () {
+        if (document.body.contains(dock) && dock.children.length > 0) {
+            dock.hidden = false;
+        }
+    }, 1500);
+})();
+</script>
+<?php endif; ?>

@@ -45,7 +45,7 @@ $categories = CategoryRepository::all();
    rejected input would come back as somebody else's record. */
 $sheetDestination = array_fill_keys([
     'id', 'name', 'slug', 'category_id', 'short_description', 'description', 'history',
-    'cultural_heritage', 'operating_hours', 'entrance_fee', 'facilities', 'reminders',
+    'operating_hours', 'entrance_fee', 'facilities', 'reminders',
     'safety_notes', 'barangay', 'address',
     'latitude', 'longitude', 'contact_person', 'contact_phone', 'local_hotline',
     'contact_email', 'is_featured',

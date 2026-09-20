@@ -206,17 +206,31 @@ check('and still holds the earlier line',
 
 echo "\n-- historical records are not touched --\n";
 
-/* Every entry on file predates this rule and has no gender. Nothing in this
-   change may delete or rewrite them. */
-$before = (int) Database::scalar(
-    'SELECT COUNT(*) FROM arrival_report_entries WHERE report_id <> ?', [$reportId]
+/* A LINE FROM BEFORE THE RULE, WRITTEN BY THIS SUITE.
+ *
+ * Entries typed before gender was required have none, and nothing in this
+ * change may delete or rewrite them. That used to be checked against whatever
+ * the office happened to have on file — which read as a pass while 138 legacy
+ * rows existed and as a failure the moment the system was cleared for launch,
+ * neither of which says anything about the rule. One is made here instead, with
+ * no gender, and it must still be there afterwards. */
+$legacyDate = '2019-03-04';
+$legacyId   = Database::insert(
+    'INSERT INTO arrival_report_entries (report_id, visit_date, row_no, full_name, address_text, sex)
+     VALUES (?, ?, 1, ?, ?, NULL)',
+    [$reportId, $legacyDate, '_qa_ Legacy Line', 'Brgy. Danlag, Tampakan']
 );
-check('older entries are still there', $before > 0, true);
-check('and still include ones with no gender',
-    (int) Database::scalar(
-        'SELECT COUNT(*) FROM arrival_report_entries WHERE report_id <> ? AND sex IS NULL',
-        [$reportId]
-    ) > 0,
-    true);
+
+/* The page being written is a different DATE, so saving cannot touch it —
+   replaceForDate() only clears the day it is given. */
+test_post($url, $sid, $flatten([
+    1 => ['full_name' => 'Another Good One', 'address_text' => 'Brgy. Lampitak, Tampakan', 'sex' => 'male'],
+]));
+
+$legacy = Database::first('SELECT full_name, sex FROM arrival_report_entries WHERE id = ?', [$legacyId]);
+
+check('an entry from before the rule is still there', $legacy !== null, true);
+check('and still has no gender, unrewritten',
+    $legacy !== null && $legacy['sex'] === null && $legacy['full_name'] === '_qa_ Legacy Line', true);
 
 test_finish();

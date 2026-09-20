@@ -2582,10 +2582,15 @@ a { text-decoration: none; }
    role=alert on errors, role=status on the rest.
    -------------------------------------------------------------------------- */
 
+/* TOP RIGHT, WITH THE TOASTS, at the office's instruction: every message this
+   system shows appears in one corner, whether it is drawn by SweetAlert or by
+   this dock. It used to sit top-LEFT to keep the account block clear, and the
+   result was two different corners for the same kind of message depending on
+   whether a script had run yet. One place is worth more than the clearance. */
 .toast-dock {
     position: fixed;
     top: calc(var(--topbar-h) + .75rem);
-    left: calc(var(--sidebar-w) + 1rem);
+    right: 1rem;
     z-index: 1080;               /* above the sticky topbar and the form bar */
     display: flex;
     flex-direction: column;
@@ -2595,6 +2600,12 @@ a { text-decoration: none; }
 }
 
 .toast-dock:empty { display: none; }
+
+/* The dock hides ITSELF as it is parsed when notify.js is going to redraw it
+   as a toast (see app/views/partials/toast-dock.php). `display: flex` above
+   outranks what the hidden attribute does on its own, so it has to be said
+   here or the message is drawn twice — once here, once top-right. */
+.toast-dock[hidden] { display: none !important; }
 
 /* THE DOCK MUST LET GO OF THE SIDEBAR WHEN THE SIDEBAR LETS GO OF THE PAGE.
  *
@@ -2621,9 +2632,13 @@ a { text-decoration: none; }
  * left:274px, which is the only reason I know.
  * ------------------------------------------------------------------------ */
 @media (max-width: 991.98px) {
-    /* right as well as left, so it shrinks with a narrow screen; max-width so a
+    /* Both edges on a narrow screen, so it shrinks rather than being pushed
+       off; max-width so a
        tablet does not get a 705px-wide box holding "Profile updated." */
-    .toast-dock { left: 1rem; right: 1rem; width: auto; max-width: 420px; }
+    /* margin-left: auto keeps it against the RIGHT edge once both sides are
+       pinned — without it the box sits left and the message changes corner
+       between a laptop and a tablet. */
+    .toast-dock { left: 1rem; right: 1rem; width: auto; max-width: 420px; margin-left: auto; }
 }
 
 /* .toast-dock .toast, NOT .toast — Bootstrap owns this class name too.
@@ -3367,6 +3382,12 @@ a { text-decoration: none; }
 /* Without JavaScript the dock in the markup is what shows the message; with it,
    notify.js removes the dock and draws toasts instead. */
 .toast-dock:empty { display: none; }
+
+/* The dock hides ITSELF as it is parsed when notify.js is going to redraw it
+   as a toast (see app/views/partials/toast-dock.php). `display: flex` above
+   outranks what the hidden attribute does on its own, so it has to be said
+   here or the message is drawn twice — once here, once top-right. */
+.toast-dock[hidden] { display: none !important; }
 
 
 /* =============================================================================

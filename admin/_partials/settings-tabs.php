@@ -52,6 +52,11 @@ $settingsTabList = [
     'system'   => ['fa-server',           'System',          null],
     'accounts' => ['fa-users-gear',       'User Accounts',   'accounts.php'],
 
+    /* The office had Archive buttons and nowhere that showed what had been
+       archived: a destination left the list and the only way back was to know
+       it existed and change a filter. */
+    'archive'  => ['fa-box-archive',      'Archive',         'archive.php'],
+
     /* The notifications page existed and nothing led to it but the bell's own
        footer, so it was reachable only while there were more notifications
        than the dropdown could hold. A real page with no route into it is a
@@ -70,6 +75,7 @@ $settingsTabHref = [
     'records'  => base_url('/admin/settings/index.php#records'),
     'system'   => base_url('/admin/settings/index.php#system'),
     'accounts' => base_url('/admin/settings/accounts.php'),
+    'archive'  => base_url('/admin/settings/archive.php'),
     'notifications' => base_url('/admin/notifications/index.php'),
     'me'       => base_url('/admin/account/index.php'),
 ];

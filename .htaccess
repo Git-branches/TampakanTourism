@@ -13,6 +13,16 @@ ServerSignature Off
 # Custom error pages. Without these the visitor sees an Apache default that
 # names the server software and version — free reconnaissance for anyone
 # probing the site.
+#
+# THESE PATHS ARE ABSOLUTE FROM THE SERVER ROOT, which is right when the site
+# IS the server root (tourism.tampakan.gov.ph/) and wrong the moment it is not.
+# On the office's own machine the site lives at /TampakanTourism/, so Apache
+# looked for C:/xampp/htdocs/404.php, did not find it, and fell back to its own
+# page — the default was on screen the whole time, naming Apache, OpenSSL and
+# PHP with their version numbers. Measured in the error log, not guessed.
+#
+# They stay, because they are correct for the deployment that matters. The
+# rewrite below covers the other case, so both are right either way.
 ErrorDocument 404 /404.php
 ErrorDocument 500 /500.php
 ErrorDocument 403 /404.php
@@ -38,6 +48,21 @@ ErrorDocument 403 /404.php
     # character removed from the URL is a coarser, more forgiving code on a card
     # that lives in a pocket and gets rained on.
     RewriteRule ^g/([a-f0-9]{32})/?$ g/index.php?t=$1 [L,QSA]
+
+    # ANYTHING ELSE THAT IS NOT THERE gets this site's own 404 page.
+    #
+    # A rewrite rather than another ErrorDocument, because a rewrite path is
+    # relative to THIS file's directory: it is right whether the site is served
+    # from a domain root or from a folder inside one, which is the case the
+    # ErrorDocument lines above cannot cover. 404.php sends the 404 status
+    # itself, so the answer is a real Not Found and not a 200 wearing its
+    # clothes.
+    #
+    # Last, after the QR rules: those two name files that exist, so they match
+    # and stop before reaching here.
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^ 404.php [L]
 </IfModule>
 
 <IfModule mod_headers.c>
@@ -58,6 +83,26 @@ ErrorDocument 403 /404.php
 <FilesMatch "^(\.git.*|\.env.*|composer\.(json|lock)|package(-lock)?\.json)$">
     <IfModule mod_authz_core.c>
         Require all denied
+    </IfModule>
+</FilesMatch>
+
+# Include-only PHP, by the naming this project already uses: every file whose
+# name begins with an underscore is a fragment another page requires, never a
+# page of its own.
+#
+# MEASURED, NOT ASSUMED. A crawl of every file in /admin, /manager and /api
+# found three of them answering 200 on their own — and because a fragment runs
+# without the bootstrap that defines the helpers, each died on its first e()
+# call and printed "Fatal error … in C:\xampp\htdocs\…" to whoever asked. The
+# files now refuse to run on their own as well (the defined('TOURSYNC') guard);
+# this is the second lock, so a new fragment added later is covered by default.
+<FilesMatch "^_.*\.php$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
     </IfModule>
 </FilesMatch>
 

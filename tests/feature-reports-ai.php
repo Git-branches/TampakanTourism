@@ -88,9 +88,17 @@ Reports::replaceDays($reportId, [
      'children_count' => 0, 'adults_count' => 8, 'seniors_count' => 0],
 ]);
 
-$manager = Database::first('SELECT id FROM destination_managers WHERE destination_id = ? LIMIT 1', [$did]);
+/* SOMEBODY REAL HAS TO HAVE SUBMITTED IT. arrival_reports.submitted_by is a
+   foreign key, so the 0 this used to fall back to was not "no manager" — it was
+   a row that does not exist, and the insert died on a fatal the moment the
+   system had no managers left (which is how a system prepared for launch
+   starts). Any manager will do here: the column records who handed the report
+   over, not which destination it belongs to. */
+$manager = Database::first('SELECT id FROM destination_managers WHERE destination_id = ? LIMIT 1', [$did])
+    ?? Database::first('SELECT id FROM destination_managers ORDER BY id LIMIT 1')
+    ?? test_make_qa_manager();
 
-Reports::submit($reportId, $manager !== null ? (int) $manager['id'] : 0);
+Reports::submit($reportId, (int) $manager['id']);
 
 $officer = (int) Database::scalar("SELECT id FROM admins WHERE role = 'officer' LIMIT 1");
 

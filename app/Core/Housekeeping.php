@@ -50,9 +50,65 @@ final class Housekeeping
             @touch($stamp);
 
             self::pruneNotifications();
+            self::pruneDanglingNotifications();
         } catch (\Throwable) {
             /* Housekeeping is never worth an error page. */
         }
+    }
+
+    /**
+     * Removes bell entries whose record has gone.
+     *
+     * A notification carries entity_type and entity_id, which no foreign key
+     * can police — the id means a different table depending on the type. So a
+     * record removed anywhere (a change request cascading with its destination,
+     * a draft report discarded by its manager) leaves the announcement of it
+     * behind, and the officer clicking it lands on "could not be found". The
+     * audit found 48 of them.
+     *
+     * Cleared here rather than at each of the dozen places that delete
+     * something: one sweep that cannot be forgotten by the next feature.
+     *
+     * @return int how many were cleared
+     */
+    public static function pruneDanglingNotifications(): int
+    {
+        /* entity_type => the table that id belongs to. A type absent from this
+           map is left alone: better a stale row than a guess at its table. */
+        $targets = [
+            'destination_alert'      => 'destination_alerts',
+            'contact_message'        => 'contact_messages',
+            'inspection_report'      => 'inspection_reports',
+            'inspection_requirement' => 'inspection_requirements',
+            'arrival_report'         => 'arrival_reports',
+            'change_request'         => 'destination_change_requests',
+            'data_request'           => 'data_requests',
+            'guide_review'           => 'guide_reviews',
+            'guide_request'          => 'tour_guide_requests',
+            'announcement'           => 'announcements',
+            'destination'            => 'destinations',
+            'feedback'               => 'feedback',
+        ];
+
+        $cleared = 0;
+
+        foreach (['admin_notifications', 'manager_notifications'] as $table) {
+            foreach ($targets as $type => $target) {
+                $cleared += Database::run(
+                    "DELETE n FROM {$table} n
+                      LEFT JOIN {$target} t ON t.id = n.entity_id
+                      WHERE n.entity_type = ? AND n.entity_id IS NOT NULL AND t.id IS NULL",
+                    [$type]
+                )->rowCount();
+            }
+        }
+
+        if ($cleared > 0) {
+            ActivityLog::record('housekeeping.notifications', 'notification', null,
+                'Cleared ' . $cleared . ' notification(s) pointing at records that no longer exist');
+        }
+
+        return $cleared;
     }
 
     /**

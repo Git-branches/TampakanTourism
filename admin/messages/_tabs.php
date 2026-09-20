@@ -1,6 +1,13 @@
 <?php
 declare(strict_types=1);
 
+/* Included by the screens in this folder, never requested directly: without
+   this guard the file runs on its own, dies on the first helper it calls and
+   prints the server's filesystem path into the response. */
+if (!defined('TOURSYNC')) {
+    exit('Direct access is not permitted.');
+}
+
 /**
  * TourSync — the two screens under Communication › Messages.
  *

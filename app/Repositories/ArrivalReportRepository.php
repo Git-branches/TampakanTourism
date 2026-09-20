@@ -389,6 +389,11 @@ final class ArrivalReportRepository
             foreach ($files as $stored) {
                 \App\Core\DocumentUploader::delete((string) $stored);
             }
+
+            /* The bell entries that announced this report would open onto
+               nothing. (Housekeeping sweeps for these daily as well; doing it
+               here means the manager never sees the stale one at all.) */
+            NotificationRepository::forgetEntity('arrival_report', $id);
         }
 
         return $gone;

@@ -323,6 +323,18 @@
         if (!items.length) { return; }
 
         var dock = document.getElementById('toastDock');
+
+        /* NO LIBRARY, NO TOAST: the dock IS the message. It was hidden as it
+           was parsed, on the promise that this script would redraw it — and
+           removing it here used to break that promise, because toast() below
+           falls back to appending into a dock that was no longer there. The
+           office lost the message entirely. Shown again instead, exactly as the
+           server wrote it, and nothing further is drawn. */
+        if (!HAS_SWAL) {
+            if (dock) { dock.hidden = false; }
+            return;
+        }
+
         if (dock) { dock.remove(); }
 
         /* Staggered, or four flashes from one action stack into a wall and the

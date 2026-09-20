@@ -146,7 +146,12 @@ $is('it shows the picture already attached', str_contains($frag, $banner));
 
 echo "\n--- the row's own actions ---\n";
 
-$list = test_get_as($sid, '/admin/announcements/index.php');
+/* THE EVENTS DOOR, because the probe above is an event and News and Events are
+   two lists of the same table. This read the News list and found the probe's
+   menu only because the database happened to hold other announcements; on a
+   system prepared for launch that list is empty and every assertion below
+   failed against a page with no rows on it. */
+$list = test_get_as($sid, '/admin/announcements/index.php?section=events');
 
 $is('the shared dialog is on the list', str_contains($list, 'id="pageModal"'));
 $is('it is declared above the composer sheet',
@@ -423,13 +428,28 @@ $is('and on General Announcement from the other door', (bool) preg_match(
     '/<option value="announcement"[^>]*selected/',
     test_get_as($sid, '/admin/announcements/index.php')));
 
-/* Both doors are the same records. */
-$eventTotal = (int) Database::scalar("SELECT COUNT(*) FROM announcements WHERE type = 'event'");
-$allTotal   = (int) Database::scalar('SELECT COUNT(*) FROM announcements');
+/* ONE TABLE, TWO DOORS — proved with a record of each kind that this suite
+   made itself. It used to compare two counts and require events < everything,
+   which only holds while somebody else's announcements are in the database;
+   on a system prepared for launch both counts were 1 and the filter looked
+   broken when it was working. */
+$newsTitle = 'ZZQA news ' . bin2hex(random_bytes(3));
+$newsId    = Database::insert(
+    "INSERT INTO announcements (title, slug, body, type, audience, status)
+     VALUES (?, ?, 'A probe written by the test suite.', 'advisory', 'public', 'published')",
+    [$newsTitle, 'zzqa-news-' . bin2hex(random_bytes(3))]
+);
+$made[] = $newsId;
 
-printf("    %d event(s) of %d announcement(s), one table\n", $eventTotal, $allTotal);
+$eventsDoor = test_get_as($sid, '/admin/announcements/index.php?section=events');
+$newsDoor   = test_get_as($sid, '/admin/announcements/index.php');
 
-$is('the events door really is filtered', $eventTotal < $allTotal);
+printf("    the probe event and a probe advisory, one table\n");
+
+$is('the events door shows the event',        str_contains($eventsDoor, $title));
+$is('and not the advisory',                  !str_contains($eventsDoor, $newsTitle));
+$is('the announcements door shows the advisory', str_contains($newsDoor, $newsTitle));
+$is('and not the event',                     !str_contains($newsDoor, $title));
 
 /* THE SPLIT ITSELF. A type in both lists would put the same record in both
    sections of the public homepage, which is the fault this exists to fix. */

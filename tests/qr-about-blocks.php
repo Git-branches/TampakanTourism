@@ -106,17 +106,20 @@ echo "\n-- heritage has left the sign --\n";
 check('no Cultural Heritage heading', str_contains($page, 'Cultural Heritage'), false);
 check('no heritage item list', str_contains($page, 'lb-heritage'), false);
 
-/* The destination's own cultural_heritage column may still hold text — the
-   column was not dropped — and it must not find its way back onto the sign. */
-$ownText = trim((string) (Database::scalar(
-    'SELECT cultural_heritage FROM destinations WHERE id = ?', [(int) $dest['id']]) ?? ''));
+/* THE COLUMN ITSELF IS GONE (2026-09-20). It used to be checked for text that
+   must not reach the sign; the honest end of that story is that the destination
+   form saved into a column no page ever read, so the field was a trap and both
+   went. If a migration ever puts it back, this says so. */
+check('the destinations table no longer carries cultural_heritage',
+    (int) Database::scalar(
+        "SELECT COUNT(*) FROM information_schema.COLUMNS
+          WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'destinations'
+            AND COLUMN_NAME = 'cultural_heritage'"
+    ), 0);
 
-if ($ownText !== '') {
-    check("the destination's own heritage text is not drawn",
-        str_contains($page, e(mb_substr($ownText, 0, 40))), false);
-} else {
-    echo "  (this destination has no cultural_heritage text to check)\n";
-}
+check('and the destination form no longer offers the field',
+    str_contains((string) file_get_contents(dirname(__DIR__) . '/admin/destinations/_form.php'),
+        'name="cultural_heritage"'), false);
 
 /* ---------------------------------------------------------------------------
  | And the conduct line survived the move.

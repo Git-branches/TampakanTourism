@@ -552,8 +552,11 @@ $addColumn($pdo, 'arrival_report_entries', 'sex',
 // per spot, so they belong on the destination. contact_person and contact_phone
 // already exist for the caretaker; local_hotline is the extra one a sign needs.
 // -----------------------------------------------------------------------------
-$addColumn($pdo, 'destinations', 'cultural_heritage',
-    'cultural_heritage TEXT NULL AFTER history');
+/* RETIRED 2026-09-20 — dropped in "the final structure" at the end of this
+   file, so it is not added back here. Cultural Heritage is written once for the
+   whole municipality in the About section; this column was saved by the
+   destination form and read by nothing. */
+// $addColumn($pdo, 'destinations', 'cultural_heritage', 'cultural_heritage TEXT NULL AFTER history');
 
 $addColumn($pdo, 'destinations', 'local_hotline',
     'local_hotline VARCHAR(120) NULL AFTER contact_phone');
@@ -2716,6 +2719,62 @@ if ($hasReplyFk === false) {
     echo "  ok    destination_alerts.replied_by now references admins\n";
 } else {
     echo "  skip  destination_alerts.replied_by — already constrained\n";
+}
+
+/* =============================================================================
+ *  2026-09-20 — the two logs that grow without limit get their index.
+ * -----------------------------------------------------------------------------
+ *  activity_logs is the only table in this system with no natural ceiling: one
+ *  row per sign-in, per approval, per edit, for as long as the office uses the
+ *  system (8,300 rows in the first six weeks). Its screen filters by date and
+ *  the dashboard reads the newest — both scans today. sms_inbox is the same
+ *  shape for inbound texts.
+ *
+ *  An index on created_at, added before deployment rather than after the table
+ *  is large enough for the filter to be felt.
+ * ========================================================================== */
+/* -----------------------------------------------------------------------------
+ *  2026-09-20 — destinations.cultural_heritage is dropped.
+ *
+ *  Per-destination Cultural Heritage moved to the About section, where it is
+ *  written once for the municipality. The destination form kept a textarea for
+ *  this column and NOTHING ever read it back: an officer could write about a
+ *  place, save, and the words would exist only in the table. No row ever held
+ *  anything, so nothing is lost by removing it — but the trap is.
+ *
+ *  Guarded on emptiness, not on the calendar: if some installation does hold
+ *  text here, the column stays and says so rather than taking the words away.
+ * -------------------------------------------------------------------------- */
+$hasHeritageColumn = $pdo->query("SHOW COLUMNS FROM destinations LIKE 'cultural_heritage'")->fetch(PDO::FETCH_ASSOC);
+
+if ($hasHeritageColumn !== false) {
+    $written = (int) $pdo->query(
+        "SELECT COUNT(*) FROM destinations WHERE cultural_heritage IS NOT NULL AND cultural_heritage <> ''"
+    )->fetchColumn();
+
+    if ($written === 0) {
+        $pdo->exec('ALTER TABLE destinations DROP COLUMN cultural_heritage');
+        echo "  ok    destinations.cultural_heritage dropped (never read, no rows held it)\n";
+    } else {
+        echo "  KEEP  destinations.cultural_heritage — {$written} row(s) hold text. "
+           . "Move it into the About section, then run this again.\n";
+    }
+} else {
+    echo "  skip  destinations.cultural_heritage — already gone\n";
+}
+
+foreach (['activity_logs' => 'idx_activity_when', 'sms_inbox' => 'idx_inbox_when'] as $logTable => $indexName) {
+    $hasIndex = $pdo->query(
+        "SELECT 1 FROM information_schema.STATISTICS
+          WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '{$logTable}' AND INDEX_NAME = '{$indexName}'"
+    )->fetchColumn();
+
+    if ($hasIndex === false) {
+        $pdo->exec("ALTER TABLE {$logTable} ADD INDEX {$indexName} (created_at)");
+        echo "  ok    {$logTable}.created_at indexed\n";
+    } else {
+        echo "  skip  {$logTable}.created_at already indexed\n";
+    }
 }
 
 echo str_repeat('=', 60) . "\n  Migrations complete.\n\n";

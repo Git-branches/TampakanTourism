@@ -115,11 +115,16 @@ if ($guide === null) {
     $v->addError('guide_id', 'Please choose a tour guide from the list.');
 }
 
-if ($v->fails()) {
+if ($v->fails() || $guide === null) {
     $message = $v->firstError() ?? 'Please check the form and try again.';
     if ($wantsJson) { $json(false, $message, $v->errors()); }
     $bounce($message);
 }
+
+/* Read once, here, where $guide is known to be a row. $bounce() never returns,
+   but a static checker cannot see through a closure, and $guide['full_name']
+   further down read as an offset on something that might be null. */
+$guideName = (string) ($guide['full_name'] ?? '');
 
 $deviceHash = RateLimiter::deviceHash();
 
@@ -163,7 +168,7 @@ try {
    be read in full, moderated, and acted on — not in a notification list. */
 Notifications::record(
     'guide_review',
-    'New guide rating: ' . $guide['full_name'] . ' (' . (int) $v->value('rating') . '/5)',
+    'New guide rating: ' . $guideName . ' (' . (int) $v->value('rating') . '/5)',
     [
         'body'        => 'Awaiting moderation before it can be published.',
         'link'        => base_url('/admin/feedback/guides.php'),

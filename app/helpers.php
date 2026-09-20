@@ -308,7 +308,11 @@ if (!function_exists('uploaded_url')) {
 
 if (!function_exists('redirect')) {
     /** Sends a redirect and stops. Never returns. */
-    function redirect(string $url, int $status = 302): void
+    /* never, not void: it always exits. Declared void, every closure typed
+       `: never` that ends in redirect() — the $bounce helpers in api/contact
+       and api/guides — read to the editor's checker as one that might return,
+       and showed as an error on a line that was never wrong at run time. */
+    function redirect(string $url, int $status = 302): never
     {
         header('Location: ' . $url, true, $status);
         exit;
