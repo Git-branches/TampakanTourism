@@ -7,6 +7,17 @@
  * know which mode it is in.
  */
 
+/* WHAT THE INCLUDING PAGE HANDS IN.
+ *
+ * A fragment cannot declare its own inputs, so an editor reads $d and
+ * $categories as variables that were never assigned and underlines every use of
+ * them in red. These annotations are the contract written down: they tell the
+ * checker where the values come from, and they tell the next person what has to
+ * be set before this file is required. Nothing changes at run time. */
+/** @var array<string, mixed>             $d          current values, or empty strings for a new record */
+/** @var array<int, array<string, mixed>> $categories from CategoryRepository::all() */
+/** @var bool                             $inSheet    true when rendered inside the Add Destination dialog */
+
 use App\Repositories\DestinationRepository;
 
 if (!defined('TOURSYNC')) {
