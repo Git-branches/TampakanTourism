@@ -1272,21 +1272,23 @@ require __DIR__ . '/app/views/partials/public-nav.php';
         $eventShown = count(array_filter($events,
             static fn (array $ev): bool => $eventShows($ev['type'], $eventType)));
         ?>
-        <?php if (count($events) > 1): ?>
-            <div class="chip-row chip-row--center" id="eventChips">
+        <?php /* Every kind, as the news filter does — the office asked for the
+                 whole vocabulary to be visible. A kind with nothing on shows 0,
+                 and choosing it lands on the "Nothing under …" panel below.
+                 Hidden only when there are no events at all: a filter over an
+                 empty section is noise above the "No events scheduled" panel. */ ?>
+        <?php if ($events !== []): ?>
+            <div class="chip-row chip-row--center chip-row--compact" id="eventChips">
                 <a href="<?= e(events_url()) ?>" data-event-filter=""
                    class="chip <?= $eventType === '' ? 'is-active' : '' ?>">All</a>
 
                 <?php foreach (AnnouncementRepository::EVENT_TYPES as $value => $label): ?>
-                    <?php /* Only the kinds actually on the page. A chip that can
-                             only ever say "nothing here" is a dead end. */ ?>
-                    <?php if (!isset($eventCounts[$value])) { continue; } ?>
                     <a href="<?= e(events_url(['event' => $value])) ?>"
                        data-event-filter="<?= e($value) ?>"
                        class="chip <?= $eventType === $value ? 'is-active' : '' ?>">
                         <i class="fa-solid <?= e(AnnouncementRepository::TYPE_STYLE[$value]['icon']) ?>"></i>
                         <?= e($label) ?>
-                        <em><?= n($eventCounts[$value]) ?></em>
+                        <em><?= n($eventCounts[$value] ?? 0) ?></em>
                     </a>
                 <?php endforeach; ?>
             </div>
@@ -1463,7 +1465,7 @@ require __DIR__ . '/app/views/partials/public-nav.php';
 
              Labels and icons come from the AnnouncementRepository constants, so
              a type added there appears here without anyone remembering to. -->
-        <div class="chip-row chip-row--center" id="newsChips">
+        <div class="chip-row chip-row--center chip-row--compact" id="newsChips">
             <a href="<?= e(announcements_url()) ?>" data-news-filter=""
                class="chip <?= $newsType === '' ? 'is-active' : '' ?>">All</a>
 

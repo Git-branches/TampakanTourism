@@ -133,7 +133,10 @@ if (!defined('TOURSYNC_CHAT_MOUNTED')) {
             tokenUrl: <?= json_encode(base_url('/api/arrivals/token.php')) ?>
         };
     </script>
-    <script src="<?= e(asset('js/chat.js')) ?>"></script>
+    <?php /* Not chat.js: InfinityFree answers any file named chat.js with a 404
+             (the file is on the server, the host refuses it by name), and the
+             launcher never appeared. Found on the demo deployment, 2026-09-21. */ ?>
+    <script src="<?= e(asset('js/assistant.js')) ?>"></script>
     <?php
 }
 ?>

@@ -3940,6 +3940,45 @@ body [data-aos="tt-pop"][data-aos] {
 }
 .chip.is-active em { background: rgba(255, 255, 255, .25); color: var(--white); }
 
+/* ---- Compact filter rows: Upcoming Events and Latest News ----------------
+   The same chips, thinner, on one line. These two filters sit above card strips
+   and should read as secondary to them; the Destinations chips are the page's
+   main filter and keep their full size.
+
+   One row that scrolls sideways when it runs out of room, rather than wrapping
+   into a block of pills three rows tall on a phone. The auto margins centre the
+   row while it fits; justify-content: center would instead push the first chip
+   out of reach to the left once it overflows. */
+.chip-row--compact {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: .4rem;
+    margin-bottom: 1.6rem;
+    padding: 2px 2px 6px;              /* room for the focus ring and the hover border */
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+}
+.chip-row--compact.chip-row--center { justify-content: flex-start; }
+.chip-row--compact > :first-child { margin-left: auto; }
+.chip-row--compact > :last-child  { margin-right: auto; }
+.chip-row--compact::-webkit-scrollbar { height: 4px; }
+.chip-row--compact::-webkit-scrollbar-thumb { background: var(--gray-200); border-radius: 4px; }
+
+.chip-row--compact .chip {
+    flex: 0 0 auto;
+    height: 2rem;
+    padding: 0 .85rem;
+    gap: .38rem;
+    font-size: .8rem;
+    line-height: 1;
+    white-space: nowrap;
+    border-width: 1px;
+}
+.chip-row--compact .chip i { font-size: .74rem; }
+.chip-row--compact .chip em { font-size: .68rem; line-height: 1; padding: .18rem .38rem; }
+.chip-row--compact .chip:focus-visible { outline: 2px solid var(--green); outline-offset: 1px; }
+
 /* ---- Empty states -------------------------------------------------------- */
 .empty-public { text-align: center; padding: 3.5rem 1rem; }
 .empty-public i { font-size: 3rem; color: var(--gray-200); margin-bottom: 1rem; display: block; }
@@ -5043,14 +5082,26 @@ body.has-chat-dock .back-to-top {
 .chat-facts {
     margin: .7rem 0 0;
     display: grid;
-    grid-template-columns: auto 1fr;
+    /* fit-content, not auto: auto sized the label column to the longest place
+       name ("BISCHICK Center for Honing Agricultural Techniques Inc.") and
+       squeezed every value into what was left. Long names now wrap at 45%. */
+    grid-template-columns: fit-content(45%) minmax(0, 1fr);
     gap: .3rem .8rem;
     font-size: .85rem;
     padding-top: .7rem;
     border-top: 1px solid var(--gray-200);
 }
 .chat-facts dt { font-weight: 600; color: var(--ink); }
-.chat-facts dd { margin: 0; color: var(--gray-700); }
+.chat-facts dd { margin: 0; color: var(--gray-700); overflow-wrap: break-word; }
+
+/* An answer carrying a list gets the panel's full width: at 85% the rows had
+   too little room to wrap naturally. Plain replies keep the chat-bubble width. */
+.chat-bubble:has(.chat-facts) { max-width: 100%; }
+
+/* Descriptions: name on its own line, the text full width beneath it. */
+.chat-facts--stacked { grid-template-columns: minmax(0, 1fr); gap: 0; }
+.chat-facts--stacked dd { margin-bottom: .6rem; }
+.chat-facts--stacked dd:last-child { margin-bottom: 0; }
 
 .chat-links { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: .75rem; }
 .chat-links a {
@@ -5224,8 +5275,8 @@ body.has-chat-dock .back-to-top {
        pastes in — wraps inside the bubble instead of widening the panel. */
     .chat-bubble { max-width: 88%; overflow-wrap: break-word; }
     .chat-log { min-height: 9rem; }
-    .chat-facts { grid-template-columns: minmax(0, auto) minmax(0, 1fr); }
-    .chat-facts dd { overflow-wrap: break-word; }
+    .chat-facts { grid-template-columns: fit-content(45%) minmax(0, 1fr); }
+    .chat-facts.chat-facts--stacked { grid-template-columns: minmax(0, 1fr); }
 }
 
 @media (prefers-reduced-motion: reduce) {

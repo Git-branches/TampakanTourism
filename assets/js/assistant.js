@@ -160,6 +160,17 @@
                 var dl = document.createElement('dl');
                 dl.className = 'chat-facts';
 
+                /* Two columns suit a fee list ("Jadas Farm · ₱50"). A list of
+                   descriptions in two columns left the sentence a one-word-wide
+                   strip beside the longest place name, so long values stack
+                   the name above its text instead. */
+                var longest = data.facts.reduce(function (n, fact) {
+                    return Math.max(n, String(fact.value || '').length);
+                }, 0);
+                if (longest > 60) {
+                    dl.className += ' chat-facts--stacked';
+                }
+
                 data.facts.forEach(function (fact) {
                     var dt = document.createElement('dt');
                     dt.textContent = fact.label;
