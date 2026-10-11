@@ -89,7 +89,10 @@ if (is_post()) {
     }
 
     if ($v->fails()) {
-        flash_back($v->errors(), $_POST, 'access.php?id=' . $id);
+        /* Back to the same kind of page it came from: a rejection inside the
+           dialog must come back as the dialog's fragment, or the errors are
+           spent on a full page the officer never sees. */
+        flash_back($v->errors(), $_POST, 'access.php?id=' . $id . (is_modal_request() ? '&modal=1' : ''));
     }
 
     /* The same issuer account creation uses: a different password every time,
@@ -193,7 +196,10 @@ if (!is_modal_request()) { require __DIR__ . '/../_partials/head.php'; }
             </div>
         <?php endif; ?>
 
-        <form method="post" novalidate>
+        <?php /* data-modal-keep-response: inside the dialog, the password panel
+                 above is the answer to THIS post and exists nowhere else, so the
+                 dialog shows the response instead of reloading the page. */ ?>
+        <form method="post" novalidate data-modal-keep-response>
             <?= csrf_field() ?>
             <input type="hidden" name="action" value="issue">
 

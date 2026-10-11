@@ -1372,7 +1372,18 @@
                 b.disabled = true;
             });
 
-            fetch(action, {
+            /* OPT-IN: show the answer to the POST itself.
+               Everything else here refills the dialog with a fresh GET, which
+               is right when the server redirects and the result lives in the
+               database. It is wrong for a result that exists ONLY in the
+               response: a reset password is shown once and deliberately kept
+               out of the session, so refilling with a GET threw it away and
+               the officer saw the form again with nothing to write down.
+               The post goes as a fragment request (?modal=1) so what comes
+               back is the page body, ready to put in the dialog. */
+            var keep = form.getAttribute('data-modal-keep-response') !== null;
+
+            fetch(keep ? fragmentUrl(action) : action, {
                 method: 'POST',
                 body: data,
                 credentials: 'same-origin',
@@ -1382,6 +1393,21 @@
 
                 return response.text();
             }).then(function (html) {
+                if (keep) {
+                    var mine = ++turn;
+
+                    body.innerHTML = html;
+                    pointFormsAt(showing);
+                    modal.scrollTop = 0;
+                    body.scrollTop  = 0;
+
+                    runScripts(Array.prototype.slice.call(body.querySelectorAll('script')), function () {
+                        if (mine !== turn) { return; }
+                        modal.dispatchEvent(new CustomEvent('sheet:open', { bubbles: true }));
+                    });
+                    return;
+                }
+
                 /* The response is the page the server redirected to, so it
                    carries the flash the application decided on. */
                 var said = new DOMParser().parseFromString(html, 'text/html');
