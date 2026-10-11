@@ -106,6 +106,35 @@ require __DIR__ . '/app/views/partials/page-head.php';
                  data-colours='<?= e(json_encode(map_category_colours(), JSON_UNESCAPED_SLASHES)) ?>'
                  data-center-lat="6.4333" data-center-lng="124.9167"></div>
 
+            <?php
+            /* Legend: one row per active category + one row for the visitor's own
+               location dot. Uses the same colour table that colours the markers,
+               so the legend and the pins can never disagree. */
+            $colours = map_category_colours();
+            ?>
+            <ul class="map-legend--page" aria-label="Map legend">
+                <li class="legend-heading" aria-hidden="true">Map Legend</li>
+
+                <?php foreach ($categories as $c):
+                    $colour = $colours[$c['slug']] ?? $colours['other'];
+                ?>
+                <li>
+                    <span class="legend-dot" style="background:<?= e($colour) ?>"></span>
+                    <?php if ($c['icon']): ?>
+                        <span class="legend-icon"><i class="fa-solid <?= e($c['icon']) ?>"></i></span>
+                    <?php endif; ?>
+                    <span><?= e($c['name']) ?></span>
+                    <span class="legend-count"><?= n((int)$c['destination_count']) ?></span>
+                </li>
+                <?php endforeach; ?>
+
+                <li>
+                    <span class="legend-you"></span>
+                    <span class="legend-icon"><i class="fa-solid fa-location-crosshairs"></i></span>
+                    <span>You are here</span>
+                </li>
+            </ul>
+
             <p class="map-note">
                 <i class="fa-solid fa-circle-info"></i>
                 Map data &copy; OpenStreetMap contributors. Coordinates are maintained by the

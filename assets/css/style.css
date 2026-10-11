@@ -4361,6 +4361,66 @@ body [data-aos="tt-pop"][data-aos] {
 .map-note { font-size: .8rem; color: var(--gray-500); margin-top: .9rem; }
 .map-note i { color: var(--blue); margin-right: .3rem; }
 
+/* Legend below the full map — light-background variant of .map-legend.
+   The homepage uses .map-legend on a dark panel; this one lives on .section--light
+   so the text must be dark and the dot shadow must read on white. */
+.map-legend--page {
+    list-style: none;
+    padding: 0;
+    margin: 1.2rem 0 .5rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: .55rem .9rem;
+}
+.map-legend--page li {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    font-size: .83rem;
+    color: var(--gray-700);
+}
+.map-legend--page .legend-dot {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    border: 2px solid rgba(0, 0, 0, .12);
+}
+.map-legend--page .legend-icon {
+    width: 14px;
+    text-align: center;
+    font-size: .78rem;
+    flex-shrink: 0;
+    color: var(--gray-500);
+}
+.map-legend--page .legend-count {
+    color: var(--gray-400);
+    font-size: .78rem;
+    margin-left: auto;
+    padding-left: .25rem;
+}
+.map-legend--page .legend-you {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: #0288D1;
+    border: 2px solid rgba(255, 255, 255, .9);
+    box-shadow: 0 0 0 2px #0288D1;
+}
+.map-legend--page .legend-heading {
+    grid-column: 1 / -1;
+    font-size: .72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    color: var(--gray-400);
+    margin-bottom: .1rem;
+}
+@media (max-width: 575.98px) {
+    .map-legend--page { grid-template-columns: repeat(2, 1fr); }
+}
+
 .map-error {
     position: absolute;
     inset: 50% 0 auto;
