@@ -4730,6 +4730,11 @@ details[open] > .tgq-more .tgq-more__chev { transform: rotate(90deg); }
     border: 1px solid var(--line);
     margin-top: .7rem;
 }
+.hero-sheet__thumb--portrait {
+    height: auto;
+    aspect-ratio: 4 / 5;
+    object-fit: cover;
+}
 
 /* On a phone the grip and the number are noise — dragging a list inside a
    scrolling page fights the scroll, which is why the arrows exist — so the row

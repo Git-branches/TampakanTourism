@@ -1135,7 +1135,7 @@ require __DIR__ . '/../_partials/head.php';
                 </p>
 
                 <?php if ($current !== null): ?>
-                    <img class="hero-sheet__thumb" src="<?= e($current) ?>"
+                    <img class="hero-sheet__thumb hero-sheet__thumb--portrait" src="<?= e($current) ?>"
                          alt="Current <?= e(strtolower(strip_tags($label))) ?>">
                     <div class="form-check mt-2">
                         <input class="form-check-input" type="checkbox" value="1"
