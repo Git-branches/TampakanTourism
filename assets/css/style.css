@@ -5550,6 +5550,10 @@ body.has-chat-dock .back-to-top {
 .route-card__meta {
     margin: 0 0 .7rem;
     font-size: .86rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .25rem .5rem;
     font-weight: 600;
     color: var(--gray-600);
 }
@@ -5595,6 +5599,22 @@ body.has-chat-dock .back-to-top {
 }
 
 /* Step editor styles live in admin.css — this file is the public site. */
+
+.route-card__meta-item {
+    display: inline-flex;
+    align-items: center;
+    gap: .28rem;
+}
+.route-card__meta-icon {
+    font-size: .78rem;
+    color: var(--green);
+    flex-shrink: 0;
+}
+.route-card__sep {
+    color: var(--gray-300);
+    font-size: .8rem;
+    line-height: 1;
+}
 
 .route-card__fare {
     margin: .7rem 0 0;

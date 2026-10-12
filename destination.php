@@ -687,14 +687,24 @@ require __DIR__ . '/app/views/partials/public-nav.php';
                                     </h3>
 
                                     <?php
-                                    $meta = array_filter([
-                                        (string) ($route['travel_time'] ?? ''),
-                                        (string) ($route['distance'] ?? ''),
-                                        (string) ($route['transport'] ?? ''),
-                                    ], static fn(string $v): bool => trim($v) !== '');
+                                    $routeMeta = [
+                                        ['fa-regular fa-clock',      (string) ($route['travel_time'] ?? '')],
+                                        ['fa-solid fa-location-dot', (string) ($route['distance']    ?? '')],
+                                        ['fa-solid fa-motorcycle',   (string) ($route['transport']   ?? '')],
+                                    ];
+                                    $routeMeta = array_filter($routeMeta,
+                                        static fn(array $m): bool => trim($m[1]) !== '');
                                     ?>
-                                    <?php if ($meta !== []): ?>
-                                        <p class="route-card__meta"><?= e(implode(' · ', $meta)) ?></p>
+                                    <?php if ($routeMeta !== []): ?>
+                                        <p class="route-card__meta">
+                                            <?php foreach ($routeMeta as $i => [$icon, $val]): ?>
+                                                <?= $i > 0 ? '<span class="route-card__sep">·</span>' : '' ?>
+                                                <span class="route-card__meta-item">
+                                                    <i class="<?= e($icon) ?> route-card__meta-icon"></i>
+                                                    <?= e($val) ?>
+                                                </span>
+                                            <?php endforeach; ?>
+                                        </p>
                                     <?php endif; ?>
 
                                     <?php
