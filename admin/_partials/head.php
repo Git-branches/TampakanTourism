@@ -213,8 +213,29 @@ $nav = [
 
     /* The fragment is readable here and never reaches the server, which is why
        the tab cannot simply be rendered server-side. Anchored and letters-only:
-       this string is about to be written into a selector. */
-    var tab = (window.location.hash || '').replace('#', '');
+       this string is about to be written into a selector.
+
+       After an About-panel save, PHP redirects to #aboutXxxPanel (the element
+       ID) so the browser scrolls straight back to where the officer was. Those
+       IDs contain uppercase letters and fail the tab-name test below, causing
+       the pre-paint script to fall back to "office" and hide all Public content
+       on every refresh from that URL.
+
+       The map below converts any known panel anchor to its parent tab BEFORE
+       the test, so the correct tab is shown AND the browser still scrolls to
+       the panel for free (the element ID is still in the URL). Add a new entry
+       here whenever a panel with its own id="" is added to a non-office tab. */
+    var panelToTab = {
+        'aboutHistoryPanel':  'public',
+        'aboutTampakanPanel': 'public',
+        'aboutOfficePanel':   'public',
+        'aboutHeritagePanel': 'public',
+        'aboutMvPanel':       'public',
+        'heroPanel':          'public'
+    };
+
+    var hash = (window.location.hash || '').replace('#', '');
+    var tab  = panelToTab[hash] || hash;
 
     if (!/^[a-z]+$/.test(tab)) {
         tab = 'office';
