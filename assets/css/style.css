@@ -6670,7 +6670,9 @@ textarea.tgr-input {
 .also-card__media {
     position: relative;
     display: block;
-    aspect-ratio: 16 / 10;
+    /* Square: covers arrive as wide landscapes and as tall posters, and this is
+       the frame that crops the least from both. */
+    aspect-ratio: 1 / 1;
     overflow: hidden;
     background: var(--gray-100);
 }
