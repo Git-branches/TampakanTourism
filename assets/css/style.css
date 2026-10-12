@@ -6671,9 +6671,20 @@ textarea.tgr-input {
     position: relative;
     display: block;
     aspect-ratio: 16 / 10;
+    overflow: hidden;
     background: var(--gray-100);
 }
-.also-card__media img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* Out of flow. As a flex item the frame's aspect-ratio is only a preference: a
+   portrait photo in normal flow pushed it to the photo's own height, so every
+   card came out a different size. */
+.also-card__media img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
 
 /* Only rendered where a distance was actually measured — see the markup. */
 .also-card__km {
