@@ -4731,6 +4731,7 @@ details[open] > .tgq-more .tgq-more__chev { transform: rotate(90deg); }
     margin-top: .7rem;
 }
 .hero-sheet__thumb--portrait {
+    width: 120px;
     height: auto;
     aspect-ratio: 4 / 5;
     object-fit: cover;
@@ -8156,7 +8157,7 @@ button.topbar__signout {
    ========================================================================== */
 .about-shots {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(80px, 90px));
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
     gap: .75rem;
 }
 
