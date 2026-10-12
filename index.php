@@ -2425,6 +2425,7 @@ $profileCard = static function (array $person, string $fallbackRole = ''): void 
                     <div class="footer__brand">
                         <img src="assets/img/tampakan_logo.png" alt="Official Seal of the Municipality of Tampakan, Province of South Cotabato" width="70" height="70">
                         <img src="assets/img/tourism-logo-mark.png" alt="Logo of the Tampakan Municipal Tourism Office" width="70" height="70">
+                        <img src="assets/img/seait.png" alt="South East Asian Institute of Technology" width="70" height="70">
                     </div>
                     <h4 class="footer__title"><?= e($site['municipality']) ?></h4>
                     <p class="footer__text">

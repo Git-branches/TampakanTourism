@@ -23,6 +23,8 @@ if (!defined('TOURSYNC')) {
                              alt="Official Seal of the Municipality of Tampakan" width="70" height="70">
                         <img src="<?= e(base_url('assets/img/tourism-logo-mark.png')) ?>"
                              alt="Logo of the Tampakan Municipal Tourism Office" width="70" height="70">
+                        <img src="<?= e(base_url('assets/img/seait.png')) ?>"
+                             alt="South East Asian Institute of Technology" width="70" height="70">
                     </div>
                     <h4 class="footer__title">Municipality of Tampakan</h4>
                     <p class="footer__text">
