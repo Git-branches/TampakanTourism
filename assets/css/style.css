@@ -5594,33 +5594,7 @@ body.has-chat-dock .back-to-top {
     margin-top: .07rem;
 }
 
-/* Admin step editor */
-.step-editor { display: flex; flex-direction: column; gap: .45rem; }
-.step-row {
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    gap: .4rem;
-    align-items: center;
-}
-.step-row__num {
-    width: 1.8rem;
-    height: 1.8rem;
-    border-radius: 50%;
-    background: var(--green);
-    color: #fff;
-    font-size: .72rem;
-    font-weight: 700;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-}
-.step-row__actions { display: flex; gap: .2rem; }
-.step-row__actions .btn { padding: .2rem .4rem; }
-@media (max-width: 575.98px) {
-    .step-row { grid-template-columns: auto 1fr; }
-    .step-row__actions { grid-column: 1 / -1; justify-content: flex-end; }
-}
+/* Step editor styles live in admin.css — this file is the public site. */
 
 .route-card__fare {
     margin: .7rem 0 0;

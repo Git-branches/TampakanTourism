@@ -8318,3 +8318,127 @@ button.topbar__signout {
     transition: transform .2s ease;
 }
 .requirement-removed[open] > summary::after { transform: rotate(180deg); }
+
+/* =============================================================================
+   STEP EDITOR — admin/destinations/routes.php
+   Numbered step list editor for directions: gradient header card, draggable
+   rows, icon-prefixed travel-info fields.
+   ========================================================================== */
+
+/* Card wrapper */
+.step-section {
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius);
+    overflow: hidden;
+    margin-bottom: 0;
+}
+
+/* Gradient header */
+.step-section__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: .85rem 1.15rem;
+    background: linear-gradient(135deg, var(--green) 0%, var(--blue) 100%);
+    color: #fff;
+    flex-wrap: wrap;
+}
+.step-section__info {
+    display: flex;
+    align-items: center;
+    gap: .8rem;
+}
+.step-section__icon { font-size: 1.3rem; opacity: .88; flex-shrink: 0; }
+.step-section__title { font-weight: 600; font-size: .94rem; line-height: 1.3; }
+.step-section__sub   { font-size: .76rem; opacity: .72; margin-top: .1rem; }
+
+/* Ghost "Add Step" button on the dark header */
+.step-section__add {
+    background: rgba(255, 255, 255, .15);
+    border: 1px solid rgba(255, 255, 255, .42);
+    color: #fff;
+    white-space: nowrap;
+    font-size: .82rem;
+    padding: .3rem .8rem;
+}
+.step-section__add:hover,
+.step-section__add:focus { background: rgba(255, 255, 255, .28); color: #fff; }
+
+/* Step row list */
+.step-editor { display: flex; flex-direction: column; }
+
+.step-row {
+    display: grid;
+    grid-template-columns: auto auto 1fr auto;
+    gap: .5rem;
+    align-items: center;
+    padding: .6rem .9rem;
+    border-bottom: 1px solid var(--line-soft);
+    background: #fff;
+    transition: background .12s;
+}
+.step-row:last-child { border-bottom: none; }
+.step-row.is-dragging { opacity: .38; background: var(--green-pale); }
+.step-row.drag-over   { border-top: 2.5px solid var(--green); }
+
+/* Grip handle */
+.step-row__grip {
+    cursor: grab;
+    color: var(--ink-3);
+    padding: .18rem .32rem;
+    font-size: .9rem;
+    line-height: 1;
+    user-select: none;
+    transition: color .13s;
+}
+.step-row__grip:hover  { color: var(--ink-2); }
+.step-row:active .step-row__grip { cursor: grabbing; }
+
+/* Numbered circle */
+.step-row__num {
+    width: 1.7rem;
+    height: 1.7rem;
+    border-radius: 50%;
+    background: var(--green);
+    color: #fff;
+    font-size: .7rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+/* Action buttons */
+.step-row__actions             { display: flex; gap: .2rem; }
+.step-row__actions .btn        { padding: .22rem .44rem; font-size: .78rem; }
+
+/* Info-strip fields */
+.info-field .form-label {
+    font-size: .84rem;
+    font-weight: 600;
+    color: var(--ink-2);
+    display: flex;
+    align-items: center;
+    gap: .35rem;
+    margin-bottom: .3rem;
+}
+.info-field .form-label i           { color: var(--green); font-size: .78rem; }
+.info-field .input-group-text {
+    background: var(--green-pale);
+    border-color: var(--line-soft);
+    color: var(--green-dark);
+    font-size: .85rem;
+}
+.info-field .form-control            { border-left: 0; }
+.info-field .form-control:focus {
+    border-color: var(--green-light);
+    box-shadow: 0 0 0 .2rem rgba(76, 175, 80, .15);
+}
+
+@media (max-width: 575.98px) {
+    .step-section__head               { gap: .65rem; }
+    .step-row { grid-template-columns: auto auto 1fr; }
+    .step-row__actions { grid-column: 3; justify-content: flex-end; }
+}

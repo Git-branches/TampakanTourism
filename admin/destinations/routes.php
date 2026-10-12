@@ -207,111 +207,125 @@ if (!is_modal_request()) { require __DIR__ . '/../_partials/head.php'; }
                 </div>
 
                 <div class="col-12" id="stepsField">
-                    <label class="form-label">
-                        Steps <span class="text-danger">*</span>
-                    </label>
                     <?php
-                    /* Pre-populate steps. Existing plain-text routes land in step 1 so the
-                       admin can review and split them by hand — splitting blindly would break
-                       sentences that run across what look like step boundaries. */
-                    $existingDirs = (string) ($edit['directions'] ?? '');
+                    $existingDirs  = (string) ($edit['directions'] ?? '');
                     $existingSteps = route_steps($existingDirs);
                     if ($existingSteps === null && $existingDirs !== '') {
-                        $existingSteps = [$existingDirs];   // old plain-text → one editable step
+                        $existingSteps = [$existingDirs]; // plain-text → one editable step
                     }
-                    $existingSteps ??= [];
+                    $existingSteps ??= [''];   // start with one empty row
                     ?>
-                    <div class="step-editor" id="stepEditor">
-                        <?php foreach ($existingSteps as $i => $step): ?>
-                        <div class="step-row">
-                            <span class="step-row__num"><?= $i + 1 ?></span>
-                            <input type="text" class="form-control step-input"
-                                   placeholder="Describe this part of the journey…"
-                                   value="<?= e($step) ?>">
-                            <div class="step-row__actions">
-                                <button type="button" class="btn btn-sm btn-outline-secondary step-up"
-                                        title="Move up" aria-label="Move step up">
-                                    <i class="fa-solid fa-chevron-up"></i>
-                                </button>
-                                <button type="button" class="btn btn-sm btn-outline-secondary step-down"
-                                        title="Move down" aria-label="Move step down">
-                                    <i class="fa-solid fa-chevron-down"></i>
-                                </button>
-                                <button type="button" class="btn btn-sm btn-outline-danger step-remove"
-                                        title="Remove step" aria-label="Remove this step">
-                                    <i class="fa-solid fa-xmark"></i>
-                                </button>
+
+                    <?php /* ── Step-by-step directions card ───────────────────────────────
+                             Styled like the mockup: gradient header with the Add Step button
+                             on the right, then a bordered list of draggable rows.
+                             The hidden #directionsJson field carries the JSON to the server. */ ?>
+                    <div class="step-section">
+                        <div class="step-section__head">
+                            <div class="step-section__info">
+                                <i class="fa-solid fa-diamond-turn-right step-section__icon"></i>
+                                <div>
+                                    <div class="step-section__title">
+                                        Directions <span class="text-danger" style="opacity:.8">*</span>
+                                    </div>
+                                    <div class="step-section__sub">
+                                        Add one step at a time. Drag ⠿, or use ↑↓ to reorder.
+                                    </div>
+                                </div>
                             </div>
+                            <button type="button" id="addStep" class="btn btn-sm step-section__add">
+                                <i class="fa-solid fa-plus"></i> Add Step
+                            </button>
                         </div>
-                        <?php endforeach; ?>
-                        <?php if ($existingSteps === []): ?>
-                        <div class="step-row">
-                            <span class="step-row__num">1</span>
-                            <input type="text" class="form-control step-input"
-                                   placeholder="Describe this part of the journey…" value="">
-                            <div class="step-row__actions">
-                                <button type="button" class="btn btn-sm btn-outline-secondary step-up"
-                                        title="Move up" aria-label="Move step up">
-                                    <i class="fa-solid fa-chevron-up"></i>
-                                </button>
-                                <button type="button" class="btn btn-sm btn-outline-secondary step-down"
-                                        title="Move down" aria-label="Move step down">
-                                    <i class="fa-solid fa-chevron-down"></i>
-                                </button>
-                                <button type="button" class="btn btn-sm btn-outline-danger step-remove"
-                                        title="Remove step" aria-label="Remove this step">
-                                    <i class="fa-solid fa-xmark"></i>
-                                </button>
+
+                        <div class="step-editor" id="stepEditor">
+                            <?php foreach ($existingSteps as $i => $step): ?>
+                            <div class="step-row" draggable="true">
+                                <span class="step-row__grip" aria-hidden="true">
+                                    <i class="fa-solid fa-grip-vertical"></i>
+                                </span>
+                                <span class="step-row__num"><?= $i + 1 ?></span>
+                                <input type="text" class="form-control step-input"
+                                       placeholder="Describe this part of the journey…"
+                                       value="<?= e($step) ?>">
+                                <div class="step-row__actions">
+                                    <button type="button"
+                                            class="btn btn-sm btn-outline-secondary step-up"
+                                            title="Move up" aria-label="Move step up">
+                                        <i class="fa-solid fa-chevron-up"></i>
+                                    </button>
+                                    <button type="button"
+                                            class="btn btn-sm btn-outline-secondary step-down"
+                                            title="Move down" aria-label="Move step down">
+                                        <i class="fa-solid fa-chevron-down"></i>
+                                    </button>
+                                    <button type="button"
+                                            class="btn btn-sm btn-outline-danger step-remove"
+                                            title="Remove step" aria-label="Remove this step">
+                                        <i class="fa-solid fa-trash-can"></i>
+                                    </button>
+                                </div>
                             </div>
+                            <?php endforeach; ?>
                         </div>
-                        <?php endif; ?>
                     </div>
 
-                    <div class="mt-2 d-flex align-items-center gap-3">
-                        <button type="button" class="btn btn-sm btn-outline-secondary" id="addStep">
-                            <i class="fa-solid fa-plus"></i> Add step
-                        </button>
-                        <span class="text-muted small">
-                            Each step = one landmark, one turn, or one stretch of road.
-                            A visitor reads this with no signal.
-                        </span>
-                    </div>
-
-                    <?php /* The hidden field that the form actually submits. JS writes the
-                             JSON array here before submit. The name is kept as 'directions'
-                             so the existing POST handler and RouteRepository are unchanged. */ ?>
                     <input type="hidden" name="directions" id="directionsJson">
-                    <div id="stepsError" class="invalid-feedback" style="display:none">
-                        Add at least one direction step.
+                    <div id="stepsError" class="text-danger small mt-1" style="display:none">
+                        <i class="fa-solid fa-circle-exclamation"></i>
+                        Add at least one direction step before saving.
                     </div>
                 </div>
 
-                <div class="col-md-3">
-                    <label class="form-label" for="travel_time">Travel time</label>
-                    <input type="text" class="form-control" id="travel_time" name="travel_time"
-                           maxlength="60" placeholder="25-30 minutes"
-                           value="<?= e((string) ($edit['travel_time'] ?? '')) ?>">
+                <?php /* ── Info strip: time · distance · transport · fare ──────────────
+                         Bootstrap input-group with a coloured icon prefix, matching the
+                         mockup's visual weight without adding a new dependency. */ ?>
+                <div class="col-md-4 info-field">
+                    <label class="form-label" for="travel_time">
+                        <i class="fa-regular fa-clock"></i> Travel time
+                    </label>
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="fa-regular fa-clock"></i></span>
+                        <input type="text" class="form-control" id="travel_time" name="travel_time"
+                               maxlength="60" placeholder="25–30 minutes"
+                               value="<?= e((string) ($edit['travel_time'] ?? '')) ?>">
+                    </div>
                 </div>
 
-                <div class="col-md-3">
-                    <label class="form-label" for="distance">Distance</label>
-                    <input type="text" class="form-control" id="distance" name="distance"
-                           maxlength="60" placeholder="about 8 km"
-                           value="<?= e((string) ($edit['distance'] ?? '')) ?>">
+                <div class="col-md-4 info-field">
+                    <label class="form-label" for="distance">
+                        <i class="fa-solid fa-location-dot"></i> Distance
+                    </label>
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="fa-solid fa-location-dot"></i></span>
+                        <input type="text" class="form-control" id="distance" name="distance"
+                               maxlength="60" placeholder="about 8 km"
+                               value="<?= e((string) ($edit['distance'] ?? '')) ?>">
+                    </div>
                 </div>
 
-                <div class="col-md-6">
-                    <label class="form-label" for="transport">How to travel</label>
-                    <input type="text" class="form-control" id="transport" name="transport"
-                           maxlength="160" placeholder="Tricycle, habal-habal, or private vehicle"
-                           value="<?= e((string) ($edit['transport'] ?? '')) ?>">
+                <div class="col-md-4 info-field">
+                    <label class="form-label" for="transport">
+                        <i class="fa-solid fa-motorcycle"></i> How to travel
+                    </label>
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="fa-solid fa-motorcycle"></i></span>
+                        <input type="text" class="form-control" id="transport" name="transport"
+                               maxlength="160" placeholder="Tricycle, habal-habal, or private vehicle"
+                               value="<?= e((string) ($edit['transport'] ?? '')) ?>">
+                    </div>
                 </div>
 
-                <div class="col-12">
-                    <label class="form-label" for="fare_note">Fare</label>
-                    <input type="text" class="form-control" id="fare_note" name="fare_note"
-                           maxlength="160" placeholder="Around P50 per person by habal-habal (2026 rate)"
-                           value="<?= e((string) ($edit['fare_note'] ?? '')) ?>">
+                <div class="col-12 info-field">
+                    <label class="form-label" for="fare_note">
+                        <i class="fa-solid fa-coins"></i> Fare
+                    </label>
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="fa-solid fa-coins"></i></span>
+                        <input type="text" class="form-control" id="fare_note" name="fare_note"
+                               maxlength="160" placeholder="Around ₱50 per person by habal-habal (2026 rate)"
+                               value="<?= e((string) ($edit['fare_note'] ?? '')) ?>">
+                    </div>
                 </div>
             </div>
 
@@ -438,15 +452,17 @@ if (!is_modal_request()) { require __DIR__ . '/../_partials/head.php'; }
 
     if (!editor || !addBtn || !hidden || !form) return;
 
-    /* ---------- row factory ---------- */
+    /* ── row factory ────────────────────────────────────────────────────── */
     function makeRow(value) {
         var row = document.createElement('div');
         row.className = 'step-row';
+        row.draggable = true;
         row.innerHTML =
+            '<span class="step-row__grip" aria-hidden="true">' +
+            '  <i class="fa-solid fa-grip-vertical"></i></span>' +
             '<span class="step-row__num"></span>' +
-            '<input type="text" class="form-control step-input" ' +
-            '       placeholder="Describe this part of the journey…"' +
-            '       value="">' +
+            '<input type="text" class="form-control step-input"' +
+            '       placeholder="Describe this part of the journey…" value="">' +
             '<div class="step-row__actions">' +
             '  <button type="button" class="btn btn-sm btn-outline-secondary step-up"' +
             '          title="Move up" aria-label="Move step up">' +
@@ -456,25 +472,23 @@ if (!is_modal_request()) { require __DIR__ . '/../_partials/head.php'; }
             '    <i class="fa-solid fa-chevron-down"></i></button>' +
             '  <button type="button" class="btn btn-sm btn-outline-danger step-remove"' +
             '          title="Remove step" aria-label="Remove this step">' +
-            '    <i class="fa-solid fa-xmark"></i></button>' +
+            '    <i class="fa-solid fa-trash-can"></i></button>' +
             '</div>';
         row.querySelector('.step-input').value = value || '';
         return row;
     }
 
-    /* ---------- renumber ---------- */
+    /* ── renumber ───────────────────────────────────────────────────────── */
     function renumber() {
-        var rows = editor.querySelectorAll('.step-row');
-        rows.forEach(function (row, i) {
+        editor.querySelectorAll('.step-row').forEach(function (row, i) {
             row.querySelector('.step-row__num').textContent = i + 1;
         });
     }
     renumber();
 
-    /* ---------- move ---------- */
+    /* ── swap (up/down buttons) ─────────────────────────────────────────── */
     function swap(row, sibling) {
         if (!sibling) return;
-        /* insertBefore the non-adjacent sibling to avoid a flicker. */
         var parent = row.parentNode;
         if (sibling === row.nextElementSibling) {
             parent.insertBefore(sibling, row);
@@ -484,7 +498,7 @@ if (!is_modal_request()) { require __DIR__ . '/../_partials/head.php'; }
         renumber();
     }
 
-    /* ---------- delegation ---------- */
+    /* ── click delegation (up / down / remove) ──────────────────────────── */
     editor.addEventListener('click', function (e) {
         var btn = e.target.closest('button');
         if (!btn) return;
@@ -492,7 +506,6 @@ if (!is_modal_request()) { require __DIR__ . '/../_partials/head.php'; }
         if (!row) return;
 
         if (btn.classList.contains('step-remove')) {
-            /* Keep at least one row so the editor does not vanish. */
             if (editor.querySelectorAll('.step-row').length > 1) {
                 row.remove();
                 renumber();
@@ -506,14 +519,65 @@ if (!is_modal_request()) { require __DIR__ . '/../_partials/head.php'; }
         }
     });
 
-    /* ---------- add step ---------- */
+    /* ── drag-and-drop reorder ──────────────────────────────────────────── */
+    var dragged = null;
+
+    editor.addEventListener('dragstart', function (e) {
+        dragged = e.target.closest('.step-row');
+        if (!dragged) return;
+        dragged.classList.add('is-dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        /* Drag the whole row, not just the grip, for a forgiving hit area. */
+        e.dataTransfer.setData('text/plain', '');
+    });
+
+    editor.addEventListener('dragend', function () {
+        if (dragged) { dragged.classList.remove('is-dragging'); dragged = null; }
+        editor.querySelectorAll('.drag-over').forEach(function (r) {
+            r.classList.remove('drag-over');
+        });
+    });
+
+    editor.addEventListener('dragover', function (e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        var target = e.target.closest('.step-row');
+        if (!target || target === dragged) return;
+        editor.querySelectorAll('.drag-over').forEach(function (r) {
+            if (r !== target) r.classList.remove('drag-over');
+        });
+        target.classList.add('drag-over');
+    });
+
+    editor.addEventListener('dragleave', function (e) {
+        var target = e.target.closest('.step-row');
+        if (target) target.classList.remove('drag-over');
+    });
+
+    editor.addEventListener('drop', function (e) {
+        e.preventDefault();
+        var target = e.target.closest('.step-row');
+        if (!target || !dragged || target === dragged) return;
+        target.classList.remove('drag-over');
+        /* Drop before the target when dragging upward, after when downward. */
+        var rect = target.getBoundingClientRect();
+        var mid  = rect.top + rect.height / 2;
+        if (e.clientY < mid) {
+            editor.insertBefore(dragged, target);
+        } else {
+            editor.insertBefore(dragged, target.nextSibling);
+        }
+        renumber();
+    });
+
+    /* ── add step ───────────────────────────────────────────────────────── */
     addBtn.addEventListener('click', function () {
         editor.appendChild(makeRow(''));
         renumber();
         editor.lastElementChild.querySelector('.step-input').focus();
     });
 
-    /* ---------- serialize on submit ---------- */
+    /* ── serialize on submit ────────────────────────────────────────────── */
     form.addEventListener('submit', function (e) {
         var steps = [];
         editor.querySelectorAll('.step-input').forEach(function (inp) {
