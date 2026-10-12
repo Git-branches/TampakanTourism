@@ -2469,14 +2469,6 @@ $profileCard = static function (array $person, string $fallbackRole = ''): void 
                         <li><i class="fa-regular fa-envelope"></i><span><?= e($contact['email']) ?></span></li>
                         <li><i class="fa-regular fa-clock"></i><span><?= e($contact['hours']) ?></span></li>
                     </ul>
-                    <?php /* "Staff", not "Administrator". The office asked for it
-                             and they are right: the people who sign in here are
-                             the tourism staff and the destination managers, and
-                             only one of them is an administrator of anything.
-                             The destination is unchanged. */ ?>
-                    <a href="<?= e($site['admin_url']) ?>" class="btn btn-soft-light btn-sm mt-2">
-                        <i class="fa-solid fa-lock"></i> Staff Login
-                    </a>
                 </div>
             </div>
         </div>

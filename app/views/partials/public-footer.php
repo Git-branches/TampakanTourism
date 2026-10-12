@@ -75,7 +75,6 @@ if (!defined('TOURSYNC')) {
                 <ul class="footer__legal">
                     <li><a href="<?= e(base_url('/')) ?>">Home</a></li>
                     <li><a href="#" data-cookie-open>Cookies</a></li>
-                    <li><a href="<?= e(base_url('/admin/login.php')) ?>">Staff Login</a></li>
                 </ul>
             </div>
         </div>
