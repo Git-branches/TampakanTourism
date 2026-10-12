@@ -884,7 +884,7 @@
        only confirmation of what they picked, and it should echo it exactly. */
     const INQUIRY = {
         'guide-request': { title: 'Tour Guide Request',         icon: 'fa-solid fa-route',         wide: false },
-        'tour-guide':   { title: 'Tour Guide',                   icon: 'fa-solid fa-person-hiking', wide: false },
+        'tour-guide':   { title: 'Tour Guide Feedback',          icon: 'fa-solid fa-person-hiking', wide: false },
         'data-request': { title: 'Data Request / Inquiries',     icon: 'fa-regular fa-file-lines',  wide: true  },
         'other':        { title: 'Other Concerns / Suggestions', icon: 'fa-regular fa-comment-dots', wide: false },
     };

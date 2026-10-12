@@ -2412,7 +2412,7 @@ $profileCard = static function (array $person, string $fallbackRole = ''): void 
                             <option value="">Choose a category&hellip;</option>
                             <?php foreach ([
                                 'guide-request' => 'Tour Guide Request',
-                                'tour-guide'    => 'Tour Guide',
+                                'tour-guide'    => 'Tour Guide Feedback',
                                 'data-request'  => 'Data Request / Inquiries',
                                 'other'         => 'Other Concerns / Suggestions',
                             ] as $value => $label): ?>
