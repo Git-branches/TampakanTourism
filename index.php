@@ -574,16 +574,40 @@ $stats = [
 /* -----------------------------------------------------------------------------
  | Travel guide cards
  * -------------------------------------------------------------------------- */
+/* Travel guide items may be a plain string (checkmark bullet) or an array
+   ['icon' => 'fa-…', 'text' => '…'] for transport-type entries that deserve
+   their own vehicle icon instead of a generic tick. */
 $travelGuide = [
     [
-        'icon'  => 'fa-plane-departure', 'title' => 'How to Get Here',
-        'text'  => 'Fly into General Santos (GES) or Koronadal, then travel overland to Tampakan.',
-        'items' => ['GenSan to Tampakan: approx. 1 hr 30 min', 'Koronadal to Tampakan: approx. 40 min', 'Daily vans and buses via the Marbel route'],
+        'icon'  => 'fa-plane-departure',
+        'title' => 'How to Get Here',
+        'text'  => 'Follow these steps from the nearest airport or city terminal to reach Tampakan.',
+        'items' => [
+            /* Step-by-step public transport chain, most-common route first. */
+            ['icon' => 'fa-plane-arrival',
+             'text' => 'Fly to General Santos (GES) or Davao (DVO) — both airports have regular domestic flights.'],
+            ['icon' => 'fa-bus',
+             'text' => 'GenSan → Koronadal (Marbel): Bus or van from Bulaong Terminal. ~1 hr · ≈ ₱60–80'],
+            ['icon' => 'fa-truck-pickup',
+             'text' => 'Koronadal → Tampakan: Multicab or jeepney from Marbel Terminal (ask for "Tampakan"). ~40 min · ≈ ₱25–35'],
+            ['icon' => 'fa-motorcycle',
+             'text' => 'Tampakan Poblacion → Upland sites: Habal-habal hired at the market area. ≈ ₱30–100 per trip'],
+        ],
     ],
     [
-        'icon'  => 'fa-van-shuttle', 'title' => 'Transportation',
-        'text'  => 'Getting around the municipality is straightforward and inexpensive.',
-        'items' => ['Tricycles within Poblacion', 'Habal-habal for upland barangays', 'Van rentals for group day tours'],
+        'icon'  => 'fa-van-shuttle',
+        'title' => 'Getting Around',
+        'text'  => 'Every corner of Tampakan is reachable — choose the vehicle that fits your destination.',
+        'items' => [
+            ['icon' => 'fa-truck-pickup',
+             'text' => 'Multicab / Jeepney — Marbel–Tampakan route; boards at Marbel Terminal, drops at Poblacion'],
+            ['icon' => 'fa-taxi',
+             'text' => 'Tricycle — within Tampakan Poblacion and nearby barangays. ≈ ₱10–15 per ride'],
+            ['icon' => 'fa-motorcycle',
+             'text' => 'Habal-habal — for upland and mountain barangays; book at the market or Tourism Office. ≈ ₱30–100'],
+            ['icon' => 'fa-van-shuttle',
+             'text' => 'Van / SUV rental — group day tours; arrange in advance through the Municipal Tourism Office'],
+        ],
     ],
     [
         'icon'  => 'fa-bed', 'title' => 'Accommodation',
@@ -593,7 +617,7 @@ $travelGuide = [
     [
         'icon'  => 'fa-shield-heart', 'title' => 'Safety Tips',
         'text'  => 'A few simple habits keep every highland trip trouble-free.',
-        'items' => ['Register at the visitor desk before trekking', 'Hire accredited local guides', 'Pack layers — nights drop below 18Â°C'],
+        'items' => ['Register at the visitor desk before trekking', 'Hire accredited local guides', 'Pack layers — nights drop below 18 °C'],
     ],
     [
         'icon'  => 'fa-cloud-sun', 'title' => 'Best Time to Visit',
@@ -1696,7 +1720,14 @@ require __DIR__ . '/app/views/partials/public-nav.php';
                     <p class="guide-card__text"><?= e($g['text']) ?></p>
                     <ul class="guide-card__list">
                         <?php foreach ($g['items'] as $item): ?>
+                        <?php if (is_array($item)): ?>
+                        <li class="guide-card__transport-item">
+                            <span class="guide-card__transport-icon"><i class="fa-solid <?= e($item['icon']) ?>"></i></span>
+                            <span><?= e($item['text']) ?></span>
+                        </li>
+                        <?php else: ?>
                         <li><i class="fa-solid fa-circle-check"></i><span><?= e($item) ?></span></li>
+                        <?php endif; ?>
                         <?php endforeach; ?>
                     </ul>
                 </div>

@@ -2256,6 +2256,30 @@ img { max-width: 100%; height: auto; }
     margin-top: .28rem;
     flex-shrink: 0;
 }
+.guide-card__transport-item {
+    display: flex;
+    align-items: flex-start;
+    gap: .65rem;
+    font-size: .87rem;
+    line-height: 1.6;
+    color: var(--gray-700);
+}
+.guide-card__transport-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.8rem;
+    height: 1.8rem;
+    background: var(--green-pale);
+    border-radius: 50%;
+    flex-shrink: 0;
+    margin-top: .1rem;
+}
+.guide-card__transport-icon i {
+    color: var(--green);
+    font-size: .82rem;
+    margin-top: 0;
+}
 
 
 /* =============================================================================
