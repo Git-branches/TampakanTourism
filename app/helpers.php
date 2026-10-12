@@ -589,6 +589,53 @@ if (!function_exists('upload_limit_mb')) {
     }
 }
 
+if (!function_exists('route_steps')) {
+    /**
+     * Parse the directions field of a destination_routes row.
+     *
+     * Old records are plain prose; new ones are a JSON array of step strings.
+     * Returns the steps array when the field is valid JSON, null otherwise so
+     * callers can render plain text the old way.
+     *
+     * WHY NOT MIGRATE THE OLD ROW AUTOMATICALLY
+     *
+     * A paragraph like "Head south. Turn left at the covered court." has two
+     * sentences that could be two steps — or one of them could be context for
+     * the other. Only the office knows which, so the migration is a deliberate
+     * editorial action, not something a deploy should do without a human.
+     *
+     * @return list<string>|null
+     */
+    function route_steps(string $directions): ?array
+    {
+        if ($directions === '' || $directions[0] !== '[') {
+            return null;
+        }
+
+        $decoded = json_decode($directions, true);
+
+        if (!is_array($decoded)) {
+            return null;
+        }
+
+        /* Reject anything that is not a flat list of strings. An array of
+           objects would mean the field was used for something else, and we
+           must not silently drop it. */
+        $steps = [];
+        foreach ($decoded as $item) {
+            if (!is_string($item)) {
+                return null;
+            }
+            $trimmed = trim($item);
+            if ($trimmed !== '') {
+                $steps[] = $trimmed;
+            }
+        }
+
+        return $steps === [] ? null : $steps;
+    }
+}
+
 if (!function_exists('map_category_colours')) {
     /**
      * One colour per destination category, for every map that draws pins.

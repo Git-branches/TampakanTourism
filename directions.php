@@ -116,6 +116,44 @@ $hasCoords = $d['latitude'] !== null && $d['longitude'] !== null;
     .route__body { margin: 0; white-space: pre-line; }
     .route__fare { margin: .5rem 0 0; font-size: .85rem; color: var(--muted); font-family: system-ui, sans-serif; }
 
+    /* Numbered step list — new structured format. */
+    .route-steps {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        counter-reset: step-counter;
+    }
+    .route-steps li {
+        display: flex;
+        gap: .6rem;
+        align-items: flex-start;
+        padding: .45rem 0;
+        border-bottom: 1px solid var(--line);
+        counter-increment: step-counter;
+        font-family: Georgia, 'Times New Roman', serif;
+        line-height: 1.6;
+    }
+    .route-steps li:last-child { border-bottom: none; }
+    .route-steps li::before {
+        content: counter(step-counter);
+        flex-shrink: 0;
+        width: 1.55rem;
+        height: 1.55rem;
+        border-radius: 50%;
+        background: var(--forest);
+        color: #fff;
+        font-size: .7rem;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: system-ui, sans-serif;
+        margin-top: .12rem;
+    }
+    @media print {
+        .route-steps li { page-break-inside: avoid; }
+    }
+
     table { border-collapse: collapse; width: 100%; font-family: system-ui, sans-serif; font-size: .92rem; }
     th, td { text-align: left; padding: .45rem .6rem; border-bottom: 1px solid var(--line); }
     th { width: 40%; font-weight: 600; color: var(--muted); }
@@ -206,7 +244,17 @@ $hasCoords = $d['latitude'] !== null && $d['longitude'] !== null;
                 echo e(implode(' · ', $meta));
                 ?>
             </p>
-            <p class="route__body"><?= e((string) $r['directions']) ?></p>
+            <?php
+            $steps = route_steps((string) $r['directions']);
+            if ($steps !== null): ?>
+                <ol class="route-steps">
+                    <?php foreach ($steps as $step): ?>
+                        <li><?= e($step) ?></li>
+                    <?php endforeach; ?>
+                </ol>
+            <?php else: ?>
+                <p class="route__body"><?= e((string) $r['directions']) ?></p>
+            <?php endif; ?>
             <?php if ($r['fare_note']): ?>
                 <p class="route__fare">Fare: <?= e((string) $r['fare_note']) ?></p>
             <?php endif; ?>

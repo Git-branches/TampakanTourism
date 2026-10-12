@@ -206,16 +206,84 @@ if (!is_modal_request()) { require __DIR__ . '/../_partials/head.php'; }
                     <p class="form-text">Lower shows first.</p>
                 </div>
 
-                <div class="col-12">
-                    <label class="form-label" for="directions">
-                        The directions <span class="text-danger">*</span>
+                <div class="col-12" id="stepsField">
+                    <label class="form-label">
+                        Steps <span class="text-danger">*</span>
                     </label>
-                    <textarea class="form-control" id="directions" name="directions" rows="6" required
-                              placeholder="Head south on the national highway. Pass the National High School on your right. Turn left at the covered court in Purok 3 and follow the concrete road for about 2 km until it becomes gravel. The entrance is on the right, after the second bamboo bridge."><?= e((string) ($edit['directions'] ?? '')) ?></textarea>
-                    <p class="form-text">
-                        Write it the way you would say it out loud &mdash; puroks, barangays, schools,
-                        the covered court, the bridge. A visitor reads this where there is no signal.
-                    </p>
+                    <?php
+                    /* Pre-populate steps. Existing plain-text routes land in step 1 so the
+                       admin can review and split them by hand — splitting blindly would break
+                       sentences that run across what look like step boundaries. */
+                    $existingDirs = (string) ($edit['directions'] ?? '');
+                    $existingSteps = route_steps($existingDirs);
+                    if ($existingSteps === null && $existingDirs !== '') {
+                        $existingSteps = [$existingDirs];   // old plain-text → one editable step
+                    }
+                    $existingSteps ??= [];
+                    ?>
+                    <div class="step-editor" id="stepEditor">
+                        <?php foreach ($existingSteps as $i => $step): ?>
+                        <div class="step-row">
+                            <span class="step-row__num"><?= $i + 1 ?></span>
+                            <input type="text" class="form-control step-input"
+                                   placeholder="Describe this part of the journey…"
+                                   value="<?= e($step) ?>">
+                            <div class="step-row__actions">
+                                <button type="button" class="btn btn-sm btn-outline-secondary step-up"
+                                        title="Move up" aria-label="Move step up">
+                                    <i class="fa-solid fa-chevron-up"></i>
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary step-down"
+                                        title="Move down" aria-label="Move step down">
+                                    <i class="fa-solid fa-chevron-down"></i>
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-danger step-remove"
+                                        title="Remove step" aria-label="Remove this step">
+                                    <i class="fa-solid fa-xmark"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <?php endforeach; ?>
+                        <?php if ($existingSteps === []): ?>
+                        <div class="step-row">
+                            <span class="step-row__num">1</span>
+                            <input type="text" class="form-control step-input"
+                                   placeholder="Describe this part of the journey…" value="">
+                            <div class="step-row__actions">
+                                <button type="button" class="btn btn-sm btn-outline-secondary step-up"
+                                        title="Move up" aria-label="Move step up">
+                                    <i class="fa-solid fa-chevron-up"></i>
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-secondary step-down"
+                                        title="Move down" aria-label="Move step down">
+                                    <i class="fa-solid fa-chevron-down"></i>
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-danger step-remove"
+                                        title="Remove step" aria-label="Remove this step">
+                                    <i class="fa-solid fa-xmark"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <?php endif; ?>
+                    </div>
+
+                    <div class="mt-2 d-flex align-items-center gap-3">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="addStep">
+                            <i class="fa-solid fa-plus"></i> Add step
+                        </button>
+                        <span class="text-muted small">
+                            Each step = one landmark, one turn, or one stretch of road.
+                            A visitor reads this with no signal.
+                        </span>
+                    </div>
+
+                    <?php /* The hidden field that the form actually submits. JS writes the
+                             JSON array here before submit. The name is kept as 'directions'
+                             so the existing POST handler and RouteRepository are unchanged. */ ?>
+                    <input type="hidden" name="directions" id="directionsJson">
+                    <div id="stepsError" class="invalid-feedback" style="display:none">
+                        Add at least one direction step.
+                    </div>
                 </div>
 
                 <div class="col-md-3">
@@ -289,7 +357,17 @@ if (!is_modal_request()) { require __DIR__ . '/../_partials/head.php'; }
                         </form>
                     </div>
                 </div>
-                <p class="mb-0"><?= nl2br(e((string) $r['directions'])) ?></p>
+                <?php
+                $previewSteps = route_steps((string) $r['directions']);
+                if ($previewSteps !== null): ?>
+                    <ol class="route-steps mb-0">
+                        <?php foreach ($previewSteps as $s): ?>
+                            <li><?= e($s) ?></li>
+                        <?php endforeach; ?>
+                    </ol>
+                <?php else: ?>
+                    <p class="mb-0"><?= nl2br(e((string) $r['directions'])) ?></p>
+                <?php endif; ?>
                 <?php if ($r['fare_note']): ?>
                     <p class="text-muted small mb-0 mt-2">
                         <i class="fa-solid fa-coins"></i> <?= e((string) $r['fare_note']) ?>
@@ -347,5 +425,113 @@ if (!is_modal_request()) { require __DIR__ . '/../_partials/head.php'; }
         </form>
     </div>
 </section>
+
+<script>
+(function () {
+    'use strict';
+
+    var editor  = document.getElementById('stepEditor');
+    var addBtn  = document.getElementById('addStep');
+    var hidden  = document.getElementById('directionsJson');
+    var errDiv  = document.getElementById('stepsError');
+    var form    = hidden ? hidden.closest('form') : null;
+
+    if (!editor || !addBtn || !hidden || !form) return;
+
+    /* ---------- row factory ---------- */
+    function makeRow(value) {
+        var row = document.createElement('div');
+        row.className = 'step-row';
+        row.innerHTML =
+            '<span class="step-row__num"></span>' +
+            '<input type="text" class="form-control step-input" ' +
+            '       placeholder="Describe this part of the journey…"' +
+            '       value="">' +
+            '<div class="step-row__actions">' +
+            '  <button type="button" class="btn btn-sm btn-outline-secondary step-up"' +
+            '          title="Move up" aria-label="Move step up">' +
+            '    <i class="fa-solid fa-chevron-up"></i></button>' +
+            '  <button type="button" class="btn btn-sm btn-outline-secondary step-down"' +
+            '          title="Move down" aria-label="Move step down">' +
+            '    <i class="fa-solid fa-chevron-down"></i></button>' +
+            '  <button type="button" class="btn btn-sm btn-outline-danger step-remove"' +
+            '          title="Remove step" aria-label="Remove this step">' +
+            '    <i class="fa-solid fa-xmark"></i></button>' +
+            '</div>';
+        row.querySelector('.step-input').value = value || '';
+        return row;
+    }
+
+    /* ---------- renumber ---------- */
+    function renumber() {
+        var rows = editor.querySelectorAll('.step-row');
+        rows.forEach(function (row, i) {
+            row.querySelector('.step-row__num').textContent = i + 1;
+        });
+    }
+    renumber();
+
+    /* ---------- move ---------- */
+    function swap(row, sibling) {
+        if (!sibling) return;
+        /* insertBefore the non-adjacent sibling to avoid a flicker. */
+        var parent = row.parentNode;
+        if (sibling === row.nextElementSibling) {
+            parent.insertBefore(sibling, row);
+        } else {
+            parent.insertBefore(row, sibling);
+        }
+        renumber();
+    }
+
+    /* ---------- delegation ---------- */
+    editor.addEventListener('click', function (e) {
+        var btn = e.target.closest('button');
+        if (!btn) return;
+        var row = btn.closest('.step-row');
+        if (!row) return;
+
+        if (btn.classList.contains('step-remove')) {
+            /* Keep at least one row so the editor does not vanish. */
+            if (editor.querySelectorAll('.step-row').length > 1) {
+                row.remove();
+                renumber();
+            } else {
+                row.querySelector('.step-input').value = '';
+            }
+        } else if (btn.classList.contains('step-up')) {
+            swap(row, row.previousElementSibling);
+        } else if (btn.classList.contains('step-down')) {
+            swap(row, row.nextElementSibling);
+        }
+    });
+
+    /* ---------- add step ---------- */
+    addBtn.addEventListener('click', function () {
+        editor.appendChild(makeRow(''));
+        renumber();
+        editor.lastElementChild.querySelector('.step-input').focus();
+    });
+
+    /* ---------- serialize on submit ---------- */
+    form.addEventListener('submit', function (e) {
+        var steps = [];
+        editor.querySelectorAll('.step-input').forEach(function (inp) {
+            var v = inp.value.trim();
+            if (v !== '') steps.push(v);
+        });
+
+        if (steps.length === 0) {
+            e.preventDefault();
+            errDiv.style.display = 'block';
+            editor.querySelectorAll('.step-input')[0].focus();
+            return;
+        }
+
+        errDiv.style.display = 'none';
+        hidden.value = JSON.stringify(steps);
+    });
+})();
+</script>
 
 <?php if (!is_modal_request()) { require __DIR__ . '/../_partials/foot.php'; } ?>

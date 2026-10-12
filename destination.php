@@ -697,7 +697,17 @@ require __DIR__ . '/app/views/partials/public-nav.php';
                                         <p class="route-card__meta"><?= e(implode(' · ', $meta)) ?></p>
                                     <?php endif; ?>
 
-                                    <p class="route-card__body"><?= nl2br(e((string) $route['directions'])) ?></p>
+                                    <?php
+                                    $steps = route_steps((string) $route['directions']);
+                                    if ($steps !== null): ?>
+                                        <ol class="route-steps">
+                                            <?php foreach ($steps as $step): ?>
+                                                <li><?= e($step) ?></li>
+                                            <?php endforeach; ?>
+                                        </ol>
+                                    <?php else: ?>
+                                        <p class="route-card__body"><?= nl2br(e((string) $route['directions'])) ?></p>
+                                    <?php endif; ?>
 
                                     <?php if ($route['fare_note']): ?>
                                         <p class="route-card__fare">
