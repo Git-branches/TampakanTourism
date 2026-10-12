@@ -4739,6 +4739,18 @@ body [data-aos="tt-pop"][data-aos] {
 }
 .wx__foot i { color: #B45309; margin-right: .2rem; }
 
+.wx__disclaimer {
+    font-size: .72rem;
+    color: var(--gray-600);
+    background: #FFF8E1;
+    border: 1px solid #FFE082;
+    border-radius: var(--radius-sm, 6px);
+    padding: .55rem .75rem;
+    margin: .65rem 0 0;
+    line-height: 1.55;
+}
+.wx__disclaimer i { color: #B45309; margin-right: .3rem; flex-shrink: 0; }
+
 /* Inside a destination sidebar the panel is already in a card, so it drops
    its own chrome rather than nesting two borders. */
 .info-card .wx {

@@ -78,4 +78,11 @@ $place = $weatherPlace ?? 'Tampakan';
             Updated <?= e($weather['updated']) ?> &middot; source: Open-Meteo
         <?php endif; ?>
     </p>
+    <p class="wx__disclaimer">
+        <i class="fa-solid fa-circle-exclamation"></i>
+        Weather forecasts are estimates only and may not reflect actual conditions —
+        especially in highland areas where weather can change quickly and without warning.
+        Always check local conditions before heading out and do not rely solely on this forecast
+        for travel decisions.
+    </p>
 </div>
