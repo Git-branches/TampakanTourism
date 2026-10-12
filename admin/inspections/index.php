@@ -21,7 +21,7 @@ use App\Repositories\InspectionRepository as Inspections;
 
 Auth::require();
 
-$pageTitle    = 'Compliance Review';
+$pageTitle    = 'Compliance Inspection';
 $pageIcon     = 'fa-clipboard-check';
 $pageSubtitle = 'Digital Compliance Inspection · Tourism Standards Verification';
 
@@ -193,7 +193,7 @@ require __DIR__ . '/_tabs.php';
                                              JavaScript off it is the page it always was. */ ?>
                                     <a href="review.php?id=<?= (int) $r['id'] ?>" class="btn btn-sm btn-outline-secondary"
                                        data-modal-page
-                                       data-modal-title="Compliance Review &mdash; <?= e((string) $r['destination_name']) ?>">
+                                       data-modal-title="Compliance Inspection &mdash; <?= e((string) $r['destination_name']) ?>">
                                         <?= in_array($r['status'], ['submitted', 'reviewing'], true) ? 'Review' : 'View' ?>
                                     </a>
                                 </td>

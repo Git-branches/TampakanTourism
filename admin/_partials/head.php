@@ -107,7 +107,7 @@ $nav = [
     ]],
     ['group' => 'Standards', 'items' => [
         ['label' => 'Destination Alerts', 'icon' => 'fa-tower-broadcast', 'href' => 'alerts/index.php', 'dir' => 'alerts'],
-        ['label' => 'Compliance Review','icon' => 'fa-clipboard-check', 'href' => 'inspections/index.php',  'dir' => 'inspections'],
+        ['label' => 'Compliance Inspection','icon' => 'fa-clipboard-check', 'href' => 'inspections/index.php',  'dir' => 'inspections'],
         ['label' => 'Change Requests', 'icon' => 'fa-pen-to-square',    'href' => 'change-requests/index.php', 'dir' => 'change-requests'],
     ]],
     ['group' => 'Communication', 'items' => [

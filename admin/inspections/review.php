@@ -262,7 +262,7 @@ foreach ($items as $item) {
     $photoTotal += count($item['photos']);
 }
 
-$pageTitle    = 'Compliance Review';
+$pageTitle    = 'Compliance Inspection';
 $pageIcon     = 'fa-clipboard-check';
 $pageSubtitle = $report['destination_name'] . ' · '
     . ($report['submitted_at'] ? format_date((string) $report['submitted_at'], 'F j, Y') : 'not submitted');

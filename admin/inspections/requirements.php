@@ -146,7 +146,7 @@ $counts    = Inspections::counts();
 $tabCounts = ['reports' => (int) $counts['submitted'] + (int) $counts['reviewing']];
 $activeTab = 'requirements';
 
-$pageTitle    = 'Compliance Review';
+$pageTitle    = 'Compliance Inspection';
 $pageIcon     = 'fa-clipboard-check';
 $pageSubtitle = 'Manage Requirements · what every destination is checked against';
 
