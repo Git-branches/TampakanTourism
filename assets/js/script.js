@@ -883,6 +883,7 @@
        that the dialog carries no category control of its own, the title is the
        only confirmation of what they picked, and it should echo it exactly. */
     const INQUIRY = {
+        'guide-request': { title: 'Tour Guide Request',         icon: 'fa-solid fa-route',         wide: false },
         'tour-guide':   { title: 'Tour Guide',                   icon: 'fa-solid fa-person-hiking', wide: false },
         'data-request': { title: 'Data Request / Inquiries',     icon: 'fa-regular fa-file-lines',  wide: true  },
         'other':        { title: 'Other Concerns / Suggestions', icon: 'fa-regular fa-comment-dots', wide: false },
@@ -1089,6 +1090,114 @@
            where every panel is hidden would have nothing to show it in. */
         showCategory((pageSelect && pageSelect.value) || DEFAULT_CATEGORY);
 
+        /* A link that already named the category — "Request a Tour Guide" on a
+           destination page — opens the dialog itself. The chooser is already
+           answered; asking the visitor to press Continue would be asking twice. */
+        if (pageSelect && pageSelect.hasAttribute('data-open-now') && pageSelect.value) {
+            openModal();
+        }
+
+        /* ------------------------------------------------------------------
+           TOUR GUIDE REQUEST — the repeating destination picker
+
+           One dropdown to start with; "Add another destination" makes a second.
+           Two rules, enforced here and again at the endpoint: a destination
+           cannot be chosen twice, and "I am not sure yet" is a statement about
+           the whole request, so it exists only while the first row is alone.
+           --------------------------------------------------------------- */
+        const destBox = $('[data-guide-dests]');
+
+        if (destBox) {
+            const list     = $('[data-dest-list]', destBox);
+            const addBtn   = $('[data-dest-add]', destBox);
+            const hint     = $('[data-dest-hint]', destBox);
+            const conflict = $('[data-dest-conflict]', destBox);
+            const advised  = $('[data-guide-advice]');
+
+            const rows    = () => $$('[data-dest-row]', list);
+            const selects = () => $$('[data-dest-select]', list);
+            const ceiling = selects()[0].options.length - 1;
+
+            const refresh = () => {
+                const all   = rows();
+                const many  = all.length > 1;
+                const taken = selects().map((s) => s.value).filter(Boolean);
+
+                all.forEach((row, index) => {
+                    const select = $('[data-dest-select]', row);
+                    const label  = $('[data-dest-label]', row);
+
+                    select.id = `tgDest${index}`;
+                    label.setAttribute('for', select.id);
+                    label.textContent = many ? `Destination ${index + 1}` : 'Destination';
+
+                    /* The only row cannot be removed — it is the field itself. */
+                    $('[data-dest-remove]', row).hidden = !many;
+
+                    Array.from(select.options).forEach((option) => {
+                        if (option.value === '') return;
+                        option.disabled = option.value !== select.value && taken.includes(option.value);
+                    });
+                });
+
+                const undecided = !many && selects()[0].value === '';
+
+                addBtn.disabled = undecided || all.length >= ceiling;
+                hint.hidden     = !undecided;
+                if (advised) advised.value = undecided ? '1' : '0';
+            };
+
+            addBtn.addEventListener('click', () => {
+                const row    = rows()[0].cloneNode(true);
+                const select = $('[data-dest-select]', row);
+
+                select.value = '';
+                select.options[0].textContent = 'Choose a destination';
+                Array.from(select.options).forEach((option) => { option.disabled = false; });
+
+                list.appendChild(row);
+                refresh();
+                select.focus();
+            });
+
+            list.addEventListener('click', (event) => {
+                const remove = event.target.closest('[data-dest-remove]');
+                if (!remove || rows().length < 2) return;
+
+                remove.closest('[data-dest-row]').remove();
+                /* Whichever row is first now is the one that may say "not sure". */
+                selects()[0].options[0].textContent = 'I am not sure yet \u2014 please advise';
+                conflict.hidden = true;
+                refresh();
+            });
+
+            list.addEventListener('change', (event) => {
+                const select = event.target.closest('[data-dest-select]');
+                if (!select) return;
+
+                /* Refused rather than resolved by clearing their list. */
+                if (select.value === '' && rows().length > 1) {
+                    select.value = select.dataset.was || '';
+                    conflict.hidden = false;
+                    refresh();
+                    return;
+                }
+
+                conflict.hidden = true;
+                select.dataset.was = select.value;
+                refresh();
+            });
+
+            /* form.reset() restores the selects but not the rows added since. */
+            destBox.closest('form').addEventListener('reset', () => {
+                rows().slice(1).forEach((row) => row.remove());
+                window.setTimeout(refresh, 0);
+            });
+
+            selects().forEach((select) => { select.dataset.was = select.value; });
+            refresh();
+        }
+
         /* ------------------------------------------------------------------
            AGE, CALCULATED FROM BIRTHDATE
 
@@ -1246,6 +1355,13 @@
                         /* Nothing to say happens on the two silent paths — the
                            honeypot and the dwell timer — which is what the reload
                            showed too. */
+                        /* A tour guide request answers with its receipt page —
+                           the reference code the visitor has to keep. */
+                        if (data.redirect) {
+                            window.location.assign(data.redirect);
+                            return;
+                        }
+
                         if (data.message) showAlert('success', data.message);
 
                         /* Emptied so a second enquiry starts from a clean form

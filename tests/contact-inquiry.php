@@ -164,6 +164,19 @@ check('tour guide panel present',          str_contains($home, 'data-panel="tour
 check('data request panel present',        str_contains($home, 'data-panel="data-request"'), true);
 check('other concerns panel present',      str_contains($home, 'data-panel="other"'), true);
 
+/* TOUR GUIDE REQUEST IS A CATEGORY HERE NOW, not a page of its own. Read-only
+   checks: a real submission would reach the live SMS driver from Apache. */
+check('guide request panel present',       str_contains($home, 'data-panel="guide-request"'), true);
+check('guide request posts to its original handler',
+    (bool) preg_match('#<form id="guideRequestForm"[^>]*action="[^"]*/api/guides/request\.php"#s', $home), true);
+check('no public link to the old page',    str_contains($home, 'tour-guide.php"'), false);
+check('a plain visit does not open the dialog', str_contains($home, 'data-open-now'), false);
+
+$linked = test_get('index.php?inquiry=guide-request&src=qr');
+check('a guide-request link opens the dialog', str_contains($linked, 'data-open-now'), true);
+check('and carries the QR marker into the form',
+    str_contains($linked, 'name="source" value="qr"'), true);
+
 /* THE FORM IS NO LONGER SITTING ON THE PAGE. The contact section was the
    longest thing on the homepage; the point of the modal was to shorten it. If
    the inline card came back, the office gets the screen they asked to be rid

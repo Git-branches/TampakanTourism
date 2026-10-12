@@ -1058,7 +1058,7 @@ require __DIR__ . '/app/views/partials/public-nav.php';
                         </ol>
 
                         <a class="btn btn-side btn-side--solid"
-                           href="<?= e(base_url('/tour-guide.php?d=' . urlencode((string) $d['slug']))) ?>">
+                           href="<?= e(guide_request_url((string) $d['slug'])) ?>">
                             <i class="fa-solid fa-paper-plane"></i> Request a Tour Guide
                         </a>
                     </div>

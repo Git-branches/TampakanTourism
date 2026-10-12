@@ -24,14 +24,44 @@ use App\Core\Validator;
 use App\Repositories\TourGuideRepository as Guides;
 use App\Repositories\NotificationRepository as Notifications;
 
+/* WHERE THE FORM LIVES NOW. It was a page of its own (tour-guide.php); it is a
+   category of the Contact modal on the homepage. Everything this endpoint does
+   with a request is unchanged — only where it sends the visitor back to. */
+$formUrl = base_url('/?inquiry=guide-request') . '#contact';
+
 if (!is_post()) {
-    redirect(base_url('/tour-guide.php'));
+    redirect($formUrl);
 }
 
 Csrf::verify();
 
+/* The modal posts with fetch and wants JSON, the same contract as the three
+   api/contact endpoints. A plain browser post still gets the redirects. */
+$wantsJson = strtolower((string) ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '')) === 'xmlhttprequest';
+
+/** @param array<string, string> $errors field name => message */
+$json = static function (bool $ok, ?string $message, array $errors = [], string $redirect = ''): never {
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: no-store');
+    echo json_encode(
+        ['ok' => $ok, 'message' => $message, 'errors' => $errors, 'redirect' => $redirect],
+        JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+    );
+    exit;
+};
+
+/** A refusal that is not about any one field. */
+$refuse = static function (string $message) use ($wantsJson, $json, $formUrl): never {
+    if ($wantsJson) { $json(false, $message); }
+    Session::flash('danger', $message);
+    redirect($formUrl);
+    exit;
+};
+
 /** Puts the visitor back on the form with what they typed still in it. */
-$bounce = static function (array $errors, string $message): never {
+$bounce = static function (array $errors, string $message) use ($wantsJson, $json, $formUrl): never {
+    if ($wantsJson) { $json(false, $message, $errors); }
+
     /* The number is kept but the rest is not filtered — this is the visitor's
        own input coming back to their own screen, escaped on output. */
     Session::put('_guide_old', [
@@ -47,7 +77,7 @@ $bounce = static function (array $errors, string $message): never {
     ]);
     Session::put('_guide_errors', $errors);
     Session::flash('danger', $message);
-    redirect(base_url('/tour-guide.php'));
+    redirect($formUrl);
 
     /* redirect() is declared void even though it exits, so this is what tells a
        reader — and a static analyser — that nothing after a bounce runs. */
@@ -57,12 +87,14 @@ $bounce = static function (array $errors, string $message): never {
 /* Silently accepted and discarded, both of them. A bot told it failed tries
    again with the field filled in; a bot told it succeeded goes away. */
 if (trim((string) ($_POST['website'] ?? '')) !== '') {
-    redirect(base_url('/tour-guide.php?sent=1'));
+    if ($wantsJson) { $json(true, null); }
+    redirect(base_url('/#contact'));
 }
 
 $renderedAt = (int) ($_POST['rendered_at'] ?? 0);
 if ($renderedAt > 0 && (time() - $renderedAt) < 3) {
-    redirect(base_url('/tour-guide.php?sent=1'));
+    if ($wantsJson) { $json(true, null); }
+    redirect(base_url('/#contact'));
 }
 
 $ip = (string) ($_SERVER['REMOTE_ADDR'] ?? 'unknown');
@@ -80,8 +112,7 @@ $ip = (string) ($_SERVER['REMOTE_ADDR'] ?? 'unknown');
  * per-segment SMS bill — is only reached once the submission is actually valid
  * and about to be written. A rejected form costs nothing. */
 if (!RateLimiter::allow('guide-try:' . $ip, 20, 3600)) {
-    Session::flash('danger', 'Too many attempts from this connection. Please try again later, or call the Tourism Office.');
-    redirect(base_url('/tour-guide.php'));
+    $refuse('Too many attempts from this connection. Please try again later, or call the Tourism Office.');
 }
 
 $deviceHash = RateLimiter::deviceHash();
@@ -90,8 +121,7 @@ $deviceHash = RateLimiter::deviceHash();
    — this is a nuisance guard, not a security boundary, and a shared phone at a
    resort front desk should not be locked out for the day. */
 if (Guides::recentForDevice($deviceHash, 6) >= 5) {
-    Session::flash('danger', 'This device has sent several requests recently. Please wait for the Office to reply.');
-    redirect(base_url('/tour-guide.php'));
+    $refuse('This device has sent several requests recently. Please wait for the Office to reply.');
 }
 
 $v = new Validator($_POST);
@@ -214,8 +244,7 @@ if ($v->fails()) {
    real request in the office's inbox and a real SMS on the office's bill.
    A family sorting out two separate days is a real thing; thirty is not. */
 if (!RateLimiter::allow('guide:' . $ip, 3, 3600)) {
-    Session::flash('danger', 'You have sent several requests already. Please give the Office a little time to answer, or call them.');
-    redirect(base_url('/tour-guide.php'));
+    $refuse('You have sent several requests already. Please give the Office a little time to answer, or call them.');
 }
 
 try {
@@ -278,4 +307,9 @@ Session::flash(
     'Request sent. Keep this receipt — the Tourism Office will also text you at the number you gave.'
 );
 
-redirect(base_url('/booking.php?ref=' . urlencode($created['reference'])));
+$receipt = base_url('/booking.php?ref=' . urlencode($created['reference']));
+
+/* The modal follows this to the same receipt a plain post is redirected to. */
+if ($wantsJson) { $json(true, null, [], $receipt); }
+
+redirect($receipt);

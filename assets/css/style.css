@@ -8706,6 +8706,16 @@ button.dest-block__more {
    `:invalid ~ .invalid-feedback`, and this sits beside the star group rather
    than beside an input, so the rule would never match. It is shown and hidden
    by the `hidden` attribute alone — no display property here to fight it. */
+/* Tour Guide Request: one destination row, its select and its remove button. */
+.guide-dest + .guide-dest { margin-top: .75rem; }
+.guide-dest__control {
+    display: flex;
+    gap: .5rem;
+    align-items: stretch;
+}
+.guide-dest__control .form-select { flex: 1 1 auto; min-width: 0; }
+.guide-dest__remove { flex: 0 0 auto; padding-inline: .9rem; }
+
 .rating-error {
     margin-top: .45rem;
     font-size: .82rem;

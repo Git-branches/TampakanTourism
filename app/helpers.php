@@ -88,7 +88,6 @@ if (!function_exists('public_nav')) {
             ['label' => 'Home',          'href' => $onHome ? '#home' : base_url('/'), 'match' => 'index.php'],
             ['label' => 'Destinations',  'href' => $onHome ? '#destinations' : destinations_url(), 'match' => 'destinations'],
             ['label' => 'Tourist Map',   'href' => base_url('/map.php'),              'match' => 'map.php'],
-            ['label' => 'Tour Guide',    'href' => base_url('/tour-guide.php'),       'match' => 'tour-guide.php'],
             /* EVENTS BEFORE ANNOUNCEMENTS, and each with its own entry.
                They answer different questions — "what can I go to" and "what do
                I need to know" — and a visitor looking for the fiesta should not
@@ -101,6 +100,30 @@ if (!function_exists('public_nav')) {
             ['label' => 'About',         'href' => $section('about'),                 'match' => ''],
             ['label' => 'Contact',       'href' => $section('contact'),               'match' => ''],
         ];
+    }
+}
+
+if (!function_exists('guide_request_url')) {
+    /**
+     * The Contact form, opened on Tour Guide Request.
+     *
+     * The request has no page of its own any more, so everything that used to
+     * link to tour-guide.php links here — carrying the destination and the QR
+     * marker the same way that page's query string did.
+     */
+    function guide_request_url(string $slug = '', bool $fromQr = false): string
+    {
+        $query = ['inquiry' => 'guide-request'];
+
+        if ($slug !== '') {
+            $query['d'] = $slug;
+        }
+
+        if ($fromQr) {
+            $query['src'] = 'qr';
+        }
+
+        return base_url('/?' . http_build_query($query)) . '#contact';
     }
 }
 

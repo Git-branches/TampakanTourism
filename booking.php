@@ -218,7 +218,7 @@ $state = match ((string) ($booking['status'] ?? '')) {
             <p>Or call the <?= e($officeName) ?> on <strong><?= e($officePhone) ?></strong>.</p>
         <?php endif; ?>
         <p class="no-print" style="margin-top:1.25rem">
-            <a href="<?= e(base_url('/tour-guide.php')) ?>">Request a tour guide</a>
+            <a href="<?= e(guide_request_url()) ?>">Request a tour guide</a>
         </p>
     </div>
 
@@ -249,7 +249,7 @@ $state = match ((string) ($booking['status'] ?? '')) {
 
     <div class="actions no-print">
         <button class="primary" onclick="window.print()">Print or save as PDF</button>
-        <a href="<?= e(base_url('/tour-guide.php')) ?>">Request another guide</a>
+        <a href="<?= e(guide_request_url()) ?>">Request another guide</a>
     </div>
 
     <div class="sheet">

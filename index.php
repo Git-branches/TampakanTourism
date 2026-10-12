@@ -28,6 +28,7 @@ use App\Repositories\DestinationRepository;
 use App\Repositories\FeedbackRepository;
 use App\Repositories\HeroSlideRepository as HeroSlides;
 use App\Repositories\DataRequestRepository;
+use App\Repositories\TourGuideRepository as Guides;
 
 /* Contact form state, carried across the redirect from api/contact/submit.php.
  *
@@ -46,6 +47,61 @@ App\Core\Session::forget('_contact_errors');
 $contactErrors = is_array($contactErrors) ? $contactErrors : [];
 
 $cfOld = static fn(string $key): string => (string) ($contactOld[$key] ?? '');
+
+/* Tour Guide Request state. The request used to have a page of its own; it is
+ * now a category of the Contact modal, posting to the same endpoint. What that
+ * page read from the query string and the session is read here instead:
+ *   ?inquiry=guide-request   open the modal on this category
+ *   &d=<slug>                the destination the visitor came from
+ *   &src=qr                  they arrived from a printed QR sign */
+$guideOld = App\Core\Session::get('_guide_old', []);
+App\Core\Session::forget('_guide_old');
+$guideOld = is_array($guideOld) ? $guideOld : [];
+
+$guideErrors = App\Core\Session::get('_guide_errors', []);
+App\Core\Session::forget('_guide_errors');
+$guideErrors = is_array($guideErrors) ? $guideErrors : [];
+
+$tgOld = static fn(string $key): string => (string) ($guideOld[$key] ?? '');
+
+$inquiryOpen = (string) ($_GET['inquiry'] ?? '');
+$inquiryOpen = in_array($inquiryOpen, ['tour-guide', 'guide-request', 'data-request', 'other'], true)
+    ? $inquiryOpen
+    : '';
+
+/* A bounced guide request comes back to its own form, not to the chooser. */
+if ($inquiryOpen === '' && ($guideOld !== [] || $guideErrors !== [])) {
+    $inquiryOpen = 'guide-request';
+}
+
+$guideFromQr = ($_GET['src'] ?? '') === 'qr';
+
+/* Active destinations only — the endpoint drops anything else. */
+$guideDestinations = Database::all(
+    "SELECT id, name, slug FROM destinations WHERE status = 'active' ORDER BY name"
+);
+
+$guideChosen = $guideOld['destination_ids'] ?? null;
+
+if (!is_array($guideChosen)) {
+    $guideChosen = [];
+    $guideSlug   = trim((string) ($_GET['d'] ?? ''));
+
+    foreach ($guideDestinations as $row) {
+        if ($guideSlug !== '' && (string) $row['slug'] === $guideSlug) {
+            $guideChosen = [(int) $row['id']];
+            break;
+        }
+    }
+}
+
+$guideActiveIds = array_map('intval', array_column($guideDestinations, 'id'));
+$guideChosen    = array_values(array_unique(array_filter(
+    array_map('intval', $guideChosen),
+    static fn(int $id): bool => in_array($id, $guideActiveIds, true)
+)));
+
+$guideRows = $guideChosen !== [] ? $guideChosen : [0];
 
 /* -----------------------------------------------------------------------------
  | Site-wide configuration
@@ -2346,17 +2402,29 @@ $profileCard = static function (array $person, string $fallbackRole = ''): void 
                                  control a phone renders as a native picker, which
                                  is a better target than three cards squeezed side
                                  by side on a 360px screen. */ ?>
+                        <?php /* data-open-now: the visitor followed a link that
+                                 already named the category (a destination page's
+                                 "Request a Tour Guide"), so script.js opens the
+                                 dialog without asking again. */ ?>
                         <select class="form-select form-select-lg" id="cfCategory"
-                                aria-describedby="cfCategoryHelp">
+                                aria-describedby="cfCategoryHelp"
+                                <?= $inquiryOpen !== '' ? 'data-open-now' : '' ?>>
                             <option value="">Choose a category&hellip;</option>
-                            <option value="tour-guide">Tour Guide</option>
-                            <option value="data-request">Data Request / Inquiries</option>
-                            <option value="other">Other Concerns / Suggestions</option>
+                            <?php foreach ([
+                                'guide-request' => 'Tour Guide Request',
+                                'tour-guide'    => 'Tour Guide',
+                                'data-request'  => 'Data Request / Inquiries',
+                                'other'         => 'Other Concerns / Suggestions',
+                            ] as $value => $label): ?>
+                                <option value="<?= e($value) ?>" <?= $inquiryOpen === $value ? 'selected' : '' ?>>
+                                    <?= e($label) ?>
+                                </option>
+                            <?php endforeach; ?>
                         </select>
 
                         <p class="contact-start__help" id="cfCategoryHelp">
-                            Rate a guide you travelled with, request tourism data, or write to us
-                            about anything else.
+                            Request a local guide for your visit, rate a guide you travelled with,
+                            request tourism data, or write to us about anything else.
                         </p>
 
                         <?php /* NO data-bs-toggle, and that is the point.
@@ -2551,6 +2619,189 @@ $profileCard = static function (array $person, string $fallbackRole = ''): void 
                          path; script.js writes into whichever of the two the
                          visitor can actually see. */ ?>
                 <div id="inquiryAlert" class="form-alert" role="status" aria-live="polite"></div>
+
+                <!-- ===========================================================
+                     TOUR GUIDE REQUEST — ask the Office to arrange a guide
+                     ======================================================== -->
+                <div class="inquiry__panel" data-panel="guide-request" hidden>
+                    <p class="inquiry__lead">
+                        Tell us where you are going and when. The Municipal Tourism Office arranges
+                        a local guide and texts you their name and number. A guide is arranged by
+                        the Office, not booked automatically &mdash; give as much notice as you can.
+                    </p>
+
+                    <?php /* THE SAME FIELD NAMES AND THE SAME ENDPOINT the standalone
+                             tour-guide.php page posted. Nothing about how a request
+                             is validated, stored, receipted or texted lives here. */ ?>
+                    <form id="guideRequestForm" class="row g-3" novalidate data-no-busy
+                          data-inquiry-form
+                          method="post" action="<?= e(base_url('/api/guides/request.php')) ?>">
+                        <?= csrf_field() ?>
+
+                        <div class="visually-hidden" aria-hidden="true">
+                            <label for="tgWebsite">Leave this blank</label>
+                            <input type="text" id="tgWebsite" name="website" tabindex="-1" autocomplete="off">
+                        </div>
+                        <input type="hidden" name="rendered_at" value="<?= time() ?>">
+                        <input type="hidden" name="source" value="<?= $guideFromQr ? 'qr' : 'website' ?>">
+                        <input type="hidden" name="needs_advice" data-guide-advice
+                               value="<?= !empty($guideOld['needs_advice']) && $guideChosen === [] ? '1' : '0' ?>">
+
+                        <fieldset class="col-12 form-section">
+                            <legend class="form-section__title">
+                                <span class="form-section__step">1</span> Where are you going?
+                            </legend>
+
+                            <div class="row g-3">
+                                <?php /* One dropdown that repeats, not a multi-select:
+                                         ctrl-click does not exist on a phone. With the
+                                         script off this is one select posting one
+                                         destination. */ ?>
+                                <div class="col-12" data-guide-dests>
+                                    <div data-dest-list>
+                                        <?php foreach ($guideRows as $index => $rowId): ?>
+                                            <div class="guide-dest" data-dest-row>
+                                                <label class="form-label" for="tgDest<?= (int) $index ?>" data-dest-label>
+                                                    Destination<?= count($guideRows) > 1 ? ' ' . ((int) $index + 1) : '' ?>
+                                                </label>
+                                                <div class="guide-dest__control">
+                                                    <select class="form-select" id="tgDest<?= (int) $index ?>"
+                                                            name="destination_ids[]" data-dest-select>
+                                                        <option value=""><?= $index === 0
+                                                            ? 'I am not sure yet &mdash; please advise'
+                                                            : 'Choose a destination' ?></option>
+                                                        <?php foreach ($guideDestinations as $gd): ?>
+                                                            <option value="<?= (int) $gd['id'] ?>" <?= (int) $rowId === (int) $gd['id'] ? 'selected' : '' ?>>
+                                                                <?= e((string) $gd['name']) ?>
+                                                            </option>
+                                                        <?php endforeach; ?>
+                                                    </select>
+                                                    <button type="button" class="btn btn-quiet guide-dest__remove"
+                                                            data-dest-remove aria-label="Remove this destination" hidden>
+                                                        <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        <?php endforeach; ?>
+                                    </div>
+
+                                    <button type="button" class="btn btn-quiet btn-sm mt-2" data-dest-add>
+                                        <i class="fa-solid fa-plus" aria-hidden="true"></i> Add another destination
+                                    </button>
+
+                                    <div class="form-text" data-dest-hint>
+                                        Choose a destination to add another &mdash; or leave this as
+                                        <em>I am not sure yet</em> and the Office will suggest a route.
+                                    </div>
+                                    <div class="rating-error" data-dest-conflict role="alert" hidden>
+                                        Please choose either specific destinations or
+                                        &ldquo;I am not sure yet &mdash; please advise&rdquo;, but not both.
+                                    </div>
+                                </div>
+
+                                <div class="col-md-4">
+                                    <label for="tgDate" class="form-label">Date of visit</label>
+                                    <input type="date" id="tgDate" name="preferred_date"
+                                           class="form-control <?= isset($guideErrors['preferred_date']) ? 'is-invalid' : '' ?>"
+                                           min="<?= e(date('Y-m-d')) ?>" max="<?= e(date('Y-m-d', strtotime('+1 year'))) ?>"
+                                           value="<?= e($tgOld('preferred_date')) ?>">
+                                    <div class="invalid-feedback">
+                                        <?= e((string) ($guideErrors['preferred_date'] ?? 'Please choose today or a later date.')) ?>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="tgTime" class="form-label">Time</label>
+                                    <input type="time" id="tgTime" name="preferred_time" step="1800"
+                                           class="form-control <?= isset($guideErrors['preferred_time']) ? 'is-invalid' : '' ?>"
+                                           min="<?= e(Guides::TIME_OPENS) ?>" max="<?= e(Guides::TIME_CLOSES) ?>"
+                                           value="<?= e($tgOld('preferred_time')) ?>">
+                                    <div class="form-text">
+                                        Optional. Sites open <?= e(Guides::formatTime(Guides::TIME_OPENS)) ?>&ndash;<?= e(Guides::formatTime(Guides::TIME_CLOSES)) ?>.
+                                    </div>
+                                    <div class="invalid-feedback">
+                                        <?= e((string) ($guideErrors['preferred_time'] ?? 'Please choose a time within opening hours.')) ?>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="tgParty" class="form-label">Group size <span>*</span></label>
+                                    <?php /* Blank, not 1: a prefilled figure gets skipped,
+                                             and a party of four booked as one is a guide
+                                             arriving alone to meet four people. */ ?>
+                                    <input type="number" id="tgParty" name="party_size" required
+                                           min="1" max="200" inputmode="numeric" placeholder="How many people?"
+                                           class="form-control <?= isset($guideErrors['party_size']) ? 'is-invalid' : '' ?>"
+                                           value="<?= e($tgOld('party_size')) ?>">
+                                    <div class="invalid-feedback">
+                                        <?= e((string) ($guideErrors['party_size'] ?? 'Please enter how many people are in your group.')) ?>
+                                    </div>
+                                </div>
+                            </div>
+                        </fieldset>
+
+                        <fieldset class="col-12 form-section">
+                            <legend class="form-section__title">
+                                <span class="form-section__step">2</span> How do we reach you?
+                            </legend>
+
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label for="tgName" class="form-label">Your Name <span>*</span></label>
+                                    <input type="text" id="tgName" name="visitor_name" required
+                                           minlength="2" maxlength="120" autocomplete="name" placeholder="Full name"
+                                           class="form-control <?= isset($guideErrors['visitor_name']) ? 'is-invalid' : '' ?>"
+                                           value="<?= e($tgOld('visitor_name')) ?>">
+                                    <div class="invalid-feedback">
+                                        <?= e((string) ($guideErrors['visitor_name'] ?? 'Please enter your name.')) ?>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="tgMobile" class="form-label">Mobile Number <span>*</span></label>
+                                    <input type="tel" id="tgMobile" name="contact_number" required maxlength="20"
+                                           autocomplete="tel" inputmode="tel" placeholder="09XX XXX XXXX"
+                                           class="form-control <?= isset($guideErrors['contact_number']) ? 'is-invalid' : '' ?>"
+                                           value="<?= e($tgOld('contact_number')) ?>">
+                                    <div class="form-text">
+                                        <i class="fa-solid fa-comment-sms"></i> We text the guide's name and number here.
+                                    </div>
+                                    <div class="invalid-feedback">
+                                        <?= e((string) ($guideErrors['contact_number'] ?? 'Please enter a valid mobile number.')) ?>
+                                    </div>
+                                </div>
+                                <div class="col-12">
+                                    <label for="tgEmail" class="form-label">Email</label>
+                                    <input type="email" id="tgEmail" name="contact_email" maxlength="190"
+                                           autocomplete="email" placeholder="Optional"
+                                           class="form-control <?= isset($guideErrors['contact_email']) ? 'is-invalid' : '' ?>"
+                                           value="<?= e($tgOld('contact_email')) ?>">
+                                    <div class="invalid-feedback">Please enter a valid email address.</div>
+                                </div>
+                                <div class="col-12">
+                                    <label for="tgNotes" class="form-label">Anything the guide should know?</label>
+                                    <textarea id="tgNotes" name="notes" rows="3" maxlength="600" class="form-control"
+                                              placeholder="Languages, mobility needs, children in the group, what you hope to see."><?= e($tgOld('notes')) ?></textarea>
+                                    <div class="form-text">Optional. Up to 600 characters.</div>
+                                </div>
+                            </div>
+                        </fieldset>
+
+                        <div class="col-12">
+                            <p class="form-text mb-0">
+                                <i class="fa-solid fa-lock"></i>
+                                Your name and number go only to the Municipal Tourism Office so they can
+                                arrange your guide and reach you. They are never shown on this website.
+                            </p>
+                        </div>
+
+                        <div class="col-12">
+                            <div class="inquiry__actions">
+                                <button type="button" class="btn btn-quiet" data-bs-dismiss="modal">Cancel</button>
+                                <button type="submit" class="btn btn-green">
+                                    <i class="fa-solid fa-paper-plane"></i> Send Request
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
 
                 <!-- ===========================================================
                      A · TOUR GUIDE — rate a guide you travelled with

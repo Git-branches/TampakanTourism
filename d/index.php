@@ -472,9 +472,9 @@ $hasDirections = $d['latitude'] !== null && $d['longitude'] !== null;
          which is a rating. Booking a guide is arranged on the website, where
          somebody planning a trip is already looking.
 
-         The tour-guide page still accepts `src=qr`, so nothing is broken if a
-         printed sign or an old link still carries it; nothing on this page
-         sends it any more. -->
+         The request is now a category of the Contact form. tour-guide.php
+         forwards there and still carries `d` and `src=qr`, so nothing is broken
+         if an old link still uses it; nothing on this page sends it any more. -->
 
     <!-- ===================== THE PAPER LOGBOOK ===================== -->
     <!-- Said plainly, because the sign no longer asks them to type anything and
