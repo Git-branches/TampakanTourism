@@ -1464,7 +1464,7 @@ require __DIR__ . '/../_partials/head.php';
              long again — which is the thing being fixed.
              ========================================================= -->
         <?php $aboutPanelOpen('aboutMvPanel', 'fa-bullseye', '05',
-            'Mission &amp; Vision',
+            'Mission & Vision',
             'The two statements at the foot of the About section.'); ?>
 
             <?php foreach ([
@@ -1488,7 +1488,7 @@ require __DIR__ . '/../_partials/head.php';
                 </div>
             <?php endforeach; ?>
 
-        <?php $aboutPanelClose('Mission &amp; Vision'); ?>
+        <?php $aboutPanelClose('Mission & Vision'); ?>
 
 
         <?php /* THE SYSTEM TAB, IN THE MAIN COLUMN LIKE EVERY OTHER TAB.
